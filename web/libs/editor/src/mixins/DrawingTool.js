@@ -75,6 +75,10 @@ const DrawingTool = types
         if (self.group !== "segmentation") return true;
         if (ev.offsetX > self.obj.canvasSize.width) return false;
         if (ev.offsetY > self.obj.canvasSize.height) return false;
+        if (self.control?.constrainto && !self.obj.isCanvasPointInFocusedRoom?.(ev.offsetX, ev.offsetY)) {
+          self.obj.setRoomConstraintNotice?.("Start the partition inside the focused room.");
+          return false;
+        }
         return true;
       },
     };
@@ -156,6 +160,7 @@ const DrawingTool = types
 
         //when user is using two different labels tag to draw a region, the other labels will be added to the region
         rest.forEach((r) => newArea.addResult(r.toJSON()));
+        newArea.initializeRoomConstraint?.(obj.focusedRoom?.cleanId);
 
         currentArea.setDrawing(false);
         self.deleteRegion();
@@ -182,6 +187,7 @@ const DrawingTool = types
           self.currentArea = self.annotation.createResult(opts, resultValue, control, self.obj, skipAfterCreate);
           self.applyActiveStates(self.currentArea);
         }
+        self.currentArea.initializeRoomConstraint?.(self.obj.focusedRoom?.cleanId);
         return self.currentArea;
       },
       deleteRegion() {

@@ -19,6 +19,7 @@ import { AliveRegion } from "./AliveRegion";
 import { EditableRegion } from "./EditableRegion";
 import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
+import { withAlpha } from "../utils/roomConstraintGeometry";
 
 /**
  * Rectangle object for Bounding Box
@@ -139,6 +140,13 @@ const Model = types
 
     draw(x, y, points) {
       const oldHeight = self.height;
+      const previous = {
+        x: self.x,
+        y: self.y,
+        width: self.width,
+        height: self.height,
+        rotation: self.rotation,
+      };
       const canvasX = self.parent.internalToCanvasX(x);
       const canvasY = self.parent.internalToCanvasY(y);
 
@@ -178,12 +186,21 @@ const Model = types
 
         self.height = self.parent.canvasToInternalY(canvasHeight);
       }
+      const proposed = { x: self.x, y: self.y, width: self.width, height: self.height, rotation: self.rotation };
+
+      if (self.control?.constrainto) {
+        self.x = previous.x;
+        self.y = previous.y;
+        self.width = previous.width;
+        self.height = previous.height;
+        self.rotation = previous.rotation;
+      }
       self.setPosition(
-        self.parent.internalToCanvasX(self.x),
-        self.parent.internalToCanvasY(self.y),
-        self.parent.internalToCanvasX(self.width),
-        self.parent.internalToCanvasY(self.height),
-        self.rotation,
+        self.parent.internalToCanvasX(proposed.x),
+        self.parent.internalToCanvasY(proposed.y),
+        self.parent.internalToCanvasX(proposed.width),
+        self.parent.internalToCanvasY(proposed.height),
+        proposed.rotation,
       );
 
       const areaBBoxCoords = self?.bboxCoords;
@@ -212,11 +229,24 @@ const Model = types
     },
 
     setPositionInternal(x, y, width, height, rotation) {
-      self.x = x;
-      self.y = y;
-      self.width = width;
-      self.height = height;
-      self.rotation = (rotation + 360) % 360;
+      const target = { x, y, width, height, rotation: (rotation + 360) % 360 };
+      const previous = {
+        x: self.x,
+        y: self.y,
+        width: self.width,
+        height: self.height,
+        rotation: self.rotation,
+      };
+      const accepted = self.control?.constrainto
+        ? self.parent?.constrainRectangle?.(self, previous, target) || previous
+        : target;
+
+      self.x = accepted.x;
+      self.y = accepted.y;
+      self.width = accepted.width;
+      self.height = accepted.height;
+      self.rotation = (accepted.rotation + 360) % 360;
+      self.refreshPartitionContext?.();
     },
 
     beforeSetPosition(x, y, width, height, rotation) {
@@ -408,6 +438,15 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
 
   const { suggestion } = useContext(ImageViewContext) ?? {};
   const regionStyles = useRegionStyles(item, { suggestion });
+  const isReference = item.isRoomReference;
+  const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
+  const displayStyles = isReference
+    ? {
+        fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
+        strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
+        strokeWidth: isFocused ? 2 : 1,
+      }
+    : regionStyles;
   const stage = item.parent?.stageRef;
 
   const eventHandlers = {};
@@ -502,14 +541,14 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
         ref={(node) => setShapeRef(node)}
         width={item.canvasWidth}
         height={item.canvasHeight}
-        fill={regionStyles.fillColor}
-        stroke={regionStyles.strokeColor}
-        strokeWidth={regionStyles.strokeWidth}
+        fill={displayStyles.fillColor}
+        stroke={displayStyles.strokeColor}
+        strokeWidth={displayStyles.strokeWidth}
         strokeScaleEnabled={false}
         perfectDrawEnabled={false}
         shadowForStrokeEnabled={false}
         shadowBlur={0}
-        dash={suggestion ? [10, 10] : null}
+        dash={suggestion && !isReference ? [10, 10] : null}
         scaleX={item.scaleX}
         scaleY={item.scaleY}
         opacity={1}
@@ -538,9 +577,9 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
           item.setHighlight(false);
           item.onClickRegion(e);
         }}
-        listening={!suggestion && !item.annotation?.isDrawing}
+        listening={!suggestion && !isReference && !item.annotation?.isDrawing}
       />
-      <LabelOnRect item={item} color={regionStyles.strokeColor} strokewidth={regionStyles.strokeWidth} />
+      <LabelOnRect item={item} color={displayStyles.strokeColor} strokewidth={displayStyles.strokeWidth} />
     </RegionWrapper>
   );
 };

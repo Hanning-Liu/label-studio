@@ -19,6 +19,12 @@ import { KonvaRegionMixin } from "../mixins/KonvaRegion";
 import { observer } from "mobx-react";
 import { createDragBoundFunc } from "../utils/image";
 import { ImageViewContext } from "../components/ImageView/ImageViewContext";
+import {
+  clampPolygonTransform,
+  isSimplePolygon,
+  polygonInsidePolygon,
+  withAlpha,
+} from "../utils/roomConstraintGeometry";
 
 const Model = types
   .model({
@@ -146,28 +152,104 @@ const Model = types
         if (willNotEliminateClosedShape || isLastPoint) return;
         if (isSelected) self.selectedPoint = null;
         destroy(point);
+        self.refreshPartitionContext?.();
       },
 
       addPoint(x, y) {
         if (self.closed) return;
 
-        const point = self.control?.getSnappedPoint({ x, y });
+        let point = self.control?.getSnappedPoint({ x, y }) || { x, y };
+        const previous = self.points[self.points.length - 1];
+
+        if (self.control?.constrainto) {
+          point = self.parent.constrainPoint(self, previous || point, point);
+          if (previous) {
+            const snapped = self.parent.snapEdgeToOpening(self, previous, point);
+            if (snapped) {
+              previous.x = snapped.segment[0].x;
+              previous.y = snapped.segment[0].y;
+              point = snapped.segment[1];
+            }
+          }
+        }
 
         self._addPoint(point.x, point.y);
       },
 
       setPoints(points) {
-        self.points.forEach((p, idx) => {
-          p.x = points[idx * 2];
-          p.y = points[idx * 2 + 1];
+        const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
+        let target = self.points.map((_, index) => ({ x: points[index * 2], y: points[index * 2 + 1] }));
+        if (self.control?.constrainto) {
+          const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
+          if (room) target = clampPolygonTransform(previous, target, room);
+        }
+        self.points.forEach((point, index) => {
+          point.x = target[index].x;
+          point.y = target[index].y;
         });
+        self.refreshPartitionContext?.();
+      },
+
+      moveByCanvasOffset(offsetX, offsetY) {
+        const dx = self.parent.canvasToInternalX(offsetX);
+        const dy = self.parent.canvasToInternalY(offsetY);
+        const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
+        let target = previous.map((point) => ({ x: point.x + dx, y: point.y + dy }));
+        if (self.control?.constrainto) {
+          const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
+          if (room) target = clampPolygonTransform(previous, target, room);
+        }
+        self.points.forEach((point, index) => {
+          point.x = target[index].x;
+          point.y = target[index].y;
+        });
+        self.refreshPartitionContext?.();
+      },
+
+      moveVertex(point, target) {
+        let accepted = self.parent.constrainPoint(self, { x: point.x, y: point.y }, target);
+        const index = self.points.indexOf(point);
+        const previous = self.points[(index - 1 + self.points.length) % self.points.length];
+        const next = self.points[(index + 1) % self.points.length];
+        const previousPosition = previous ? { x: previous.x, y: previous.y } : null;
+        const nextPosition = next ? { x: next.x, y: next.y } : null;
+        const previousSnap = previous && self.parent.snapEdgeToOpening(self, previous, accepted);
+        const nextSnap = !previousSnap && next && self.parent.snapEdgeToOpening(self, accepted, next);
+        if (previousSnap) {
+          previous.x = previousSnap.segment[0].x;
+          previous.y = previousSnap.segment[0].y;
+          accepted = previousSnap.segment[1];
+        } else if (nextSnap) {
+          accepted = nextSnap.segment[0];
+          next.x = nextSnap.segment[1].x;
+          next.y = nextSnap.segment[1].y;
+        }
+        const candidate = self.points.map((current) => (current === point ? accepted : { x: current.x, y: current.y }));
+        const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
+        if (room && (!isSimplePolygon(candidate) || !polygonInsidePolygon(candidate, room))) {
+          if (previousPosition) {
+            previous.x = previousPosition.x;
+            previous.y = previousPosition.y;
+          }
+          if (nextPosition) {
+            next.x = nextPosition.x;
+            next.y = nextPosition.y;
+          }
+          return;
+        }
+        point.x = accepted.x;
+        point.y = accepted.y;
+        self.refreshPartitionContext?.();
       },
 
       insertPoint(insertIdx, x, y) {
-        const pointCoords = self.control?.getSnappedPoint({
+        let pointCoords = self.control?.getSnappedPoint({
           x: self.parent.canvasToInternalX(x),
           y: self.parent.canvasToInternalY(y),
         });
+        if (self.control?.constrainto) {
+          pointCoords = self.parent.constrainPoint(self, self.points[insertIdx - 1] || pointCoords, pointCoords);
+        }
         const isMatchWithPrevPoint =
           self.points[insertIdx - 1] && self.parent.isSamePixel(pointCoords, self.points[insertIdx - 1]);
         const isMatchWithNextPoint =
@@ -187,6 +269,7 @@ const Model = types
         };
 
         self.points.splice(insertIdx, 0, p);
+        self.refreshPartitionContext?.();
 
         return self.points[insertIdx];
       },
@@ -213,7 +296,16 @@ const Model = types
 
       closePoly() {
         if (self.closed || self.points.length < 3) return;
+        if (self.control?.constrainto) {
+          const polygon = self.points.map((point) => ({ x: point.x, y: point.y }));
+          const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
+          if (!isSimplePolygon(polygon) || (room && !polygonInsidePolygon(polygon, room))) {
+            self.parent.setRoomConstraintNotice?.("The polygon cannot close because it is invalid or leaves its room.");
+            return;
+          }
+        }
         self.closed = true;
+        self.refreshPartitionContext?.();
       },
 
       canClose(x, y) {
@@ -506,6 +598,15 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   const regionStyles = useRegionStyles(item, {
     useStrokeAsFill: true,
   });
+  const isReference = item.isRoomReference;
+  const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
+  const displayStyles = isReference
+    ? {
+        fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
+        strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
+        strokeWidth: isFocused ? 2 : 1,
+      }
+    : regionStyles;
 
   function renderCircle({ points, idx }) {
     const name = `anchor_${points.length}_${idx}`;
@@ -560,7 +661,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
           point.x = item.parent?.internalToCanvasX(point.x);
           point.y = item.parent?.internalToCanvasY(point.y);
 
-          item.points.forEach((p) => p.movePoint(point.x, point.y));
+          item.moveByCanvasOffset(point.x, point.y);
           item.annotation.history.unfreeze(item.id);
         }
 
@@ -615,21 +716,21 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
       }}
       {...dragProps}
       draggable={!item.isReadOnly() && (!item.inSelection || item.parent?.selectedRegions?.length === 1)}
-      listening={!suggestion}
+      listening={!suggestion && !isReference}
     >
-      <LabelOnPolygon item={item} color={regionStyles.strokeColor} />
+      <LabelOnPolygon item={item} color={displayStyles.strokeColor} />
 
       {item.mouseOverStartPoint}
 
       {item.points && item.closed ? (
         <Poly
           item={item}
-          colors={regionStyles}
+          colors={displayStyles}
           dragProps={dragProps}
           draggable={!item.isReadOnly() && item.inSelection && item.parent?.selectedRegions?.length > 1}
         />
       ) : null}
-      {item.points && !item.isReadOnly() ? <Edges item={item} regionStyles={regionStyles} /> : null}
+      {item.points && !item.isReadOnly() ? <Edges item={item} regionStyles={displayStyles} /> : null}
       {item.points && !item.isReadOnly() ? renderCircles(item.points) : null}
     </Group>
   );

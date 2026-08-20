@@ -14,6 +14,7 @@ label_studio/**/*.pyc
 
 # FRONTEND
 !web
+!Dockerfile.room-focus
 !.git
 # Re-ignore node_modules and nx cache
 **/node_modules

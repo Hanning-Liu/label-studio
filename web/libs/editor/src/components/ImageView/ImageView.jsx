@@ -507,6 +507,30 @@ const CanvasOverlay = observer(({ item }) => {
   );
 });
 
+const RoomFocusSelector = observer(({ item }) => {
+  if (!item.hasRoomConstraints) return null;
+  const selectedId = item.focusedRoom?.cleanId || "";
+
+  return (
+    <div className={styles.roomFocus} data-testid="room-focus-selector">
+      <label htmlFor={`room-focus-${item.name}`}>Focus room</label>
+      <select
+        id={`room-focus-${item.name}`}
+        value={selectedId}
+        onChange={(event) => item.setFocusedRoom(event.target.value)}
+      >
+        <option value="">Select a room…</option>
+        {item.focusRoomOptions.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {item.roomConstraintNotice ? <span role="alert">{item.roomConstraintNotice}</span> : null}
+    </div>
+  );
+});
+
 export default observer(
   class ImageView extends Component {
     // stored position of canvas before creating region
@@ -1011,7 +1035,12 @@ export default observer(
 
       const tools = item.getToolsManager().allTools();
 
-      return <Toolbar tools={tools} />;
+      return (
+        <>
+          <RoomFocusSelector item={item} />
+          <Toolbar tools={tools} />
+        </>
+      );
     }
 
     render() {
@@ -1404,14 +1433,17 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
     shapeRegions: suggestedShapeRegions,
     bitmaskRegions: suggestedBitmaskRegions,
   } = splitRegions(item.suggestions);
+  const suggestedReferenceRegions = suggestedShapeRegions.filter((region) => region.isRoomLayoutReference);
+  const otherSuggestedShapeRegions = suggestedShapeRegions.filter((region) => !region.isRoomLayoutReference);
 
   const renderableRegions = Object.entries({
+    suggestedReference: suggestedReferenceRegions,
     brush: brushRegions,
     shape: shapeRegions,
     bitmask: bitmaskRegions,
     suggestedBrush: suggestedBrushRegions,
     suggestedBismask: suggestedBitmaskRegions,
-    suggestedShape: suggestedShapeRegions,
+    suggestedShape: otherSuggestedShapeRegions,
   });
 
   return (

@@ -627,6 +627,9 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const selected = !disabled; // Invert disabled to selected for KonvaVector
   // Completely disable all interactions when readonly (includes locked, e.g., in View All mode), or Pan tool is active
   const isDisabled = item.isReadOnly() || item.parent?.getSkipInteractions();
+  const isReference = item.isOpeningReference;
+  const isFocusedOpening = isReference && item.roomGraphEdge?.room_ids?.includes(item.parent?.focusedRoom?.cleanId);
+  const referenceOpacity = isFocusedOpening ? 0.9 : 0.4;
 
   // Wait for stage to be properly initialized
   if (!item.parent?.stageWidth || !item.parent?.stageHeight) {
@@ -733,10 +736,10 @@ const HtxVectorView = observer(({ item, suggestion }) => {
           minPoints={item.minPoints}
           maxPoints={item.maxPoints}
           skeletonEnabled={item.control?.skeleton ?? false}
-          stroke={item.selected ? "#ff0000" : regionStyles.strokeColor}
+          stroke={isReference ? regionStyles.strokeColor : item.selected ? "#ff0000" : regionStyles.strokeColor}
           fill={regionStyles.fillColor}
-          strokeWidth={regionStyles.strokeWidth}
-          opacity={Number.parseFloat(item.control?.opacity || "1")}
+          strokeWidth={isReference && isFocusedOpening ? 2 : regionStyles.strokeWidth}
+          opacity={isReference ? referenceOpacity : Number.parseFloat(item.control?.opacity || "1")}
           pixelSnapping={item.control?.snap === "pixel"}
           selected={selected}
           disabled={isDisabled}

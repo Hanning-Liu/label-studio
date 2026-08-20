@@ -1,0 +1,9 @@
+FROM heartexlabs/label-studio@sha256:aa461572e8f9d86a1bf9520c1db620204e86160fd2f80dd7e9d40ac84a8828ea
+
+LABEL org.opencontainers.image.title="Label Studio room-focused zoning"
+LABEL org.opencontainers.image.version="1.23.0-room-focus"
+LABEL org.opencontainers.image.revision="2a9bfbcbf0a844b999de97e601d16050a893f5fb"
+
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+
+USER 1001

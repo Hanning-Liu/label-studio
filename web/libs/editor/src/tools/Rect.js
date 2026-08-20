@@ -55,7 +55,8 @@ const _BaseNPointTool = types
         return !self.current() && Super.isIncorrectLabel();
       },
       canStart() {
-        return self.current() === null && !self.annotation.isReadOnly();
+        const hasConstraintFocus = !self.control?.constrainto || !!self.obj?.focusedRoom;
+        return hasConstraintFocus && self.current() === null && !self.annotation.isReadOnly();
       },
 
       current() {
@@ -103,7 +104,7 @@ const _Tool = types
   })
   .views((self) => ({
     get viewTooltip() {
-      return "Rectangle";
+      return self.control?.constrainto && !self.obj?.focusedRoom ? "Select a Focus room first" : "Rectangle";
     },
     get iconComponent() {
       return self.dynamic ? NodeViews.RectRegionModel.altIcon : NodeViews.RectRegionModel.icon;
@@ -116,7 +117,7 @@ const _Tool3Point = types
   })
   .views((self) => ({
     get viewTooltip() {
-      return "3 Point Rectangle";
+      return self.control?.constrainto && !self.obj?.focusedRoom ? "Select a Focus room first" : "3 Point Rectangle";
     },
     get iconComponent() {
       return self.dynamic ? NodeViews.Rect3PointRegionModel.altIcon : NodeViews.Rect3PointRegionModel.icon;

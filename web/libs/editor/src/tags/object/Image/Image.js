@@ -25,12 +25,81 @@ import { ImageEntityMixin } from "./ImageEntityMixin";
 import { ImageSelection } from "./ImageSelection";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH, SNAP_TO_PIXEL_MODE } from "../../../components/ImageView/Image";
 import MultiItemObjectBase from "../MultiItemObjectBase";
+import {
+  clampPointToPolygon,
+  clampRectangleTransform,
+  nearestPointOnPolygon,
+  partitionContext,
+  pointInPolygon,
+  polygonInsidePolygon,
+  rotatedRectanglePoints,
+  segmentInsidePolygon,
+  snapSegmentToOpening,
+} from "../../../utils/roomConstraintGeometry";
 
 const IMAGE_PRELOAD_COUNT = 3;
 const ZOOM_INTENSITY = 0.009;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 100;
 const MAX_ZOOM_CHANGE_PER_EVENT = 0.3; // Maximum zoom change per wheel event (30%)
+
+const csvNames = (value) =>
+  new Set(
+    String(value || "")
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
+
+const rectangleToInternalPolygon = (region, image, attrs = region) => {
+  const canvas = {
+    x: image.internalToCanvasX(attrs.x),
+    y: image.internalToCanvasY(attrs.y),
+    width: image.internalToCanvasX(attrs.width),
+    height: image.internalToCanvasY(attrs.height),
+    rotation: attrs.rotation || 0,
+  };
+  return rotatedRectanglePoints(canvas).map((point) => ({
+    x: image.canvasToInternalX(point.x),
+    y: image.canvasToInternalY(point.y),
+  }));
+};
+
+const regionToInternalPolygon = (region, image) => {
+  if (!region) return null;
+  if (region.type === "rectangleregion") return rectangleToInternalPolygon(region, image);
+  if (region.type === "polygonregion") return region.points.map((point) => ({ x: point.x, y: point.y }));
+  return null;
+};
+
+const canvasRectangleFromEdge = (attrs, edgeIndex, snapped) => {
+  const [start, end] = snapped;
+  const length = Math.hypot(end.x - start.x, end.y - start.y);
+  const angle = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
+  const radians = (angle * Math.PI) / 180;
+  const normal = { x: -Math.sin(radians), y: Math.cos(radians) };
+
+  if (edgeIndex === 0) return { ...attrs, x: start.x, y: start.y, width: length, rotation: angle };
+  if (edgeIndex === 1) {
+    const rotation = angle - 90;
+    const widthVector = {
+      x: attrs.width * Math.cos((rotation * Math.PI) / 180),
+      y: attrs.width * Math.sin((rotation * Math.PI) / 180),
+    };
+    return { ...attrs, x: start.x - widthVector.x, y: start.y - widthVector.y, height: length, rotation };
+  }
+  if (edgeIndex === 2) {
+    const rotation = angle - 180;
+    return {
+      ...attrs,
+      x: end.x + normal.x * attrs.height,
+      y: end.y + normal.y * attrs.height,
+      width: length,
+      rotation,
+    };
+  }
+  return { ...attrs, x: end.x, y: end.y, height: length, rotation: angle - 270 };
+};
 
 /**
  * The `Image` tag shows an image on the page. Use for all image annotation tasks to display an image on the labeling interface.
@@ -186,6 +255,8 @@ const Model = types
   .volatile(() => ({
     currentImage: undefined,
     supportSuggestions: true,
+    focusedRoomId: null,
+    roomConstraintNotice: null,
   }))
   .views((self) => ({
     get store() {
@@ -270,6 +341,205 @@ const Model = types
 
     get suggestions() {
       return self.annotation?.regionStore.suggestions.filter((r) => r.object === self) || [];
+    },
+
+    get roomConstraintControls() {
+      return Array.from(self.annotation?.names?.values?.() || []).filter((control) => !!control.constrainto);
+    },
+
+    get hasRoomConstraints() {
+      return self.roomConstraintControls.length > 0;
+    },
+
+    get roomControlNames() {
+      const names = new Set();
+      self.roomConstraintControls.forEach((control) =>
+        csvNames(control.constrainto).forEach((name) => names.add(name)),
+      );
+      return names;
+    },
+
+    get openingControlNames() {
+      const names = new Set();
+      self.roomConstraintControls.forEach((control) =>
+        csvNames(control.openingfrom).forEach((name) => names.add(name)),
+      );
+      return names;
+    },
+
+    get roomReferenceRegions() {
+      const byId = new Map();
+      [...self.regs, ...self.suggestions].forEach((region) => {
+        const controlName = region.results.find((result) => result.meta?.room_graph_node)?.from_name?.name;
+        if (region.isRoomReference && self.roomControlNames.has(controlName)) byId.set(region.cleanId, region);
+      });
+      return [...byId.values()];
+    },
+
+    get openingReferenceRegions() {
+      const byId = new Map();
+      [...self.regs, ...self.suggestions].forEach((region) => {
+        const controlName = region.results.find((result) => result.meta?.room_graph_edge)?.from_name?.name;
+        if (region.isOpeningReference && self.openingControlNames.has(controlName)) byId.set(region.cleanId, region);
+      });
+      return [...byId.values()];
+    },
+
+    get focusedRoom() {
+      return self.roomReferenceRegions.find((region) => region.cleanId === self.focusedRoomId) || null;
+    },
+
+    get focusRoomOptions() {
+      return self.roomReferenceRegions
+        .map((region) => ({
+          id: region.cleanId,
+          label: `${region.roomGraphNode?.room_type || region.labelName || "Room"} · ${
+            region.type === "rectangleregion" ? "Rectangle" : "Polygon"
+          } · ${region.cleanId.slice(0, 8)}`,
+        }))
+        .sort((first, second) => first.label.localeCompare(second.label));
+    },
+
+    getRoomById(roomId) {
+      return self.roomReferenceRegions.find((region) => region.cleanId === roomId) || null;
+    },
+
+    getRoomPolygon(roomId = self.focusedRoomId) {
+      return regionToInternalPolygon(self.getRoomById(roomId), self);
+    },
+
+    isCanvasPointInFocusedRoom(canvasX, canvasY) {
+      const room = self.getRoomPolygon();
+      if (!room) return false;
+      const [fixedX, fixedY] = self.fixZoomedCoords([canvasX, canvasY]);
+      return pointInPolygon({ x: self.canvasToInternalX(fixedX), y: self.canvasToInternalY(fixedY) }, room);
+    },
+
+    getAreaPolygon(area) {
+      return regionToInternalPolygon(area, self);
+    },
+
+    getConstraintParentRoomId(area) {
+      return area?.partitionContext?.parent_room_id || self.focusedRoom?.cleanId || null;
+    },
+
+    getOpeningSegments(parentRoomId, control = null) {
+      const allowed = control ? csvNames(control.openingfrom) : self.openingControlNames;
+      return self.openingReferenceRegions
+        .filter((opening) => {
+          const result = opening.results.find((candidate) => candidate.meta?.room_graph_edge);
+          return allowed.has(result?.from_name?.name) && opening.roomGraphEdge?.room_ids?.includes(parentRoomId);
+        })
+        .map((opening) => {
+          const vertices = Array.from(opening.vertices || []).slice(0, 2);
+          const points = vertices.map((point) => ({
+            x: opening.converted ? self.imageToInternalX(point.x) : point.x,
+            y: opening.converted ? self.imageToInternalY(point.y) : point.y,
+          }));
+          return points.length === 2
+            ? { id: opening.cleanId, roomIds: opening.roomGraphEdge.room_ids || [], points }
+            : null;
+        })
+        .filter(Boolean);
+    },
+
+    buildPartitionContext(area, parentRoomId) {
+      const polygon = self.getAreaPolygon(area);
+      if (!polygon || polygon.length < 3) return null;
+      return partitionContext(polygon, parentRoomId, self.getOpeningSegments(parentRoomId, area.constraintControl));
+    },
+
+    constrainPoint(area, previous, target) {
+      const parentRoomId = self.getConstraintParentRoomId(area);
+      const room = self.getRoomPolygon(parentRoomId);
+      if (!room) return target;
+      const control = area?.constraintControl;
+      const threshold = Number.parseFloat(control?.constraintsnappx || "10");
+      const canvasDistance = (first, second) =>
+        Math.hypot(
+          self.internalToCanvasX(first.x - second.x) * self.zoomScale,
+          self.internalToCanvasY(first.y - second.y) * self.zoomScale,
+        );
+      let candidate = target;
+      const corner = room
+        .map((point) => ({ point, distance: canvasDistance(point, target) }))
+        .sort((first, second) => first.distance - second.distance)[0];
+      if (corner?.distance <= threshold) {
+        candidate = corner.point;
+      } else {
+        const boundary = nearestPointOnPolygon(target, room);
+        if (boundary && canvasDistance(boundary, target) <= threshold) candidate = boundary;
+      }
+      return pointInPolygon(candidate, room) ? candidate : clampPointToPolygon(previous, candidate, room);
+    },
+
+    snapEdgeToOpening(area, start, end) {
+      const parentRoomId = self.getConstraintParentRoomId(area);
+      const room = self.getRoomPolygon(parentRoomId);
+      const control = area?.constraintControl;
+      if (!room || !control) return null;
+      const threshold = Number.parseFloat(control.constraintsnappx || "10");
+      const angle = Number.parseFloat(control.openingsnapangledeg || "5");
+      const toCanvas = (point) => ({ x: self.internalToCanvasX(point.x), y: self.internalToCanvasY(point.y) });
+      const toInternal = (point) => ({ x: self.canvasToInternalX(point.x), y: self.canvasToInternalY(point.y) });
+      for (const opening of self.getOpeningSegments(parentRoomId, control)) {
+        const snapped = snapSegmentToOpening(
+          [toCanvas(start), toCanvas(end)],
+          opening.points.map(toCanvas),
+          threshold / self.zoomScale,
+          angle,
+        );
+        if (!snapped) continue;
+        const segment = snapped.segment.map(toInternal);
+        if (segmentInsidePolygon(segment[0], segment[1], room)) return { ...snapped, segment, opening };
+      }
+      return null;
+    },
+
+    constrainRectangle(area, previous, target) {
+      const parentRoomId = self.getConstraintParentRoomId(area);
+      const room = self.getRoomPolygon(parentRoomId);
+      if (!room) return target;
+      const toPolygon = (attrs) => rectangleToInternalPolygon(area, self, attrs);
+      const accepted = clampRectangleTransform(previous, target, room, toPolygon);
+      const control = area?.constraintControl;
+      if (!control) return accepted;
+
+      const canvasAttrs = {
+        x: self.internalToCanvasX(accepted.x),
+        y: self.internalToCanvasY(accepted.y),
+        width: self.internalToCanvasX(accepted.width),
+        height: self.internalToCanvasY(accepted.height),
+        rotation: accepted.rotation,
+      };
+      const rectangle = rotatedRectanglePoints(canvasAttrs);
+      const threshold = Number.parseFloat(control.constraintsnappx || "10") / self.zoomScale;
+      const angle = Number.parseFloat(control.openingsnapangledeg || "5");
+      for (let edgeIndex = 0; edgeIndex < rectangle.length; edgeIndex++) {
+        for (const opening of self.getOpeningSegments(parentRoomId, control)) {
+          const openingCanvas = opening.points.map((point) => ({
+            x: self.internalToCanvasX(point.x),
+            y: self.internalToCanvasY(point.y),
+          }));
+          const snapped = snapSegmentToOpening(
+            [rectangle[edgeIndex], rectangle[(edgeIndex + 1) % rectangle.length]],
+            openingCanvas,
+            threshold,
+            angle,
+          );
+          if (!snapped) continue;
+          const snappedCanvas = canvasRectangleFromEdge(canvasAttrs, edgeIndex, snapped.segment);
+          const candidate = {
+            x: self.canvasToInternalX(snappedCanvas.x),
+            y: self.canvasToInternalY(snappedCanvas.y),
+            width: self.canvasToInternalX(snappedCanvas.width),
+            height: self.canvasToInternalY(snappedCanvas.height),
+            rotation: snappedCanvas.rotation,
+          };
+          if (polygonInsidePolygon(toPolygon(candidate), room)) return candidate;
+        }
+      }
+      return accepted;
     },
 
     get useTransformer() {
@@ -628,6 +898,9 @@ const Model = types
       if (self.rotatecontrol) manager.addTool("RotateTool", Tools.Rotate.create({}, env), "RotateTool");
 
       createImageEntities();
+      self.focusedRoomId = null;
+      self.roomConstraintNotice = null;
+      setTimeout(() => self.updateRoomConstraintTools?.(), 0);
     }
 
     function afterResultCreated(region) {
@@ -701,6 +974,28 @@ const Model = types
     };
   })
   .actions((self) => ({
+    setFocusedRoom(roomId) {
+      self.focusedRoomId = roomId || null;
+      self.roomConstraintNotice = null;
+      self.updateRoomConstraintTools();
+    },
+
+    setRoomConstraintNotice(message) {
+      self.roomConstraintNotice = message || null;
+    },
+
+    updateRoomConstraintTools() {
+      const enabled = !!self.focusedRoom;
+      const referenceControls = new Set([...self.roomControlNames, ...self.openingControlNames]);
+      self
+        .getToolsManager()
+        .allTools()
+        .forEach((tool) => {
+          if (referenceControls.has(tool.control?.name)) tool.disable();
+          else if (tool.control?.constrainto) enabled ? tool.enable() : tool.disable();
+        });
+    },
+
     freezeHistory() {
       //self.annotation.history.freeze();
     },

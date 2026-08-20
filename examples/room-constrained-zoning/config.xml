@@ -1,0 +1,65 @@
+<View>
+  <Image name="image" value="$image" zoom="true"/>
+
+  <!-- Room and opening controls are populated by read-only predictions. -->
+  <RectangleLabels name="label" toName="image">
+    <Label value="Balcony" background="#607D8B"/>
+    <Label value="Bathroom" background="#03A9F4"/>
+    <Label value="Bedroom" background="#3F51B5"/>
+    <Label value="Children room" background="#673AB7"/>
+    <Label value="Dining room" background="#FF9800"/>
+    <Label value="Elevator" background="#795548"/>
+    <Label value="Entryway" background="#009688"/>
+    <Label value="Guest room" background="#9C27B0"/>
+    <Label value="Hallway" background="#8BC34A"/>
+    <Label value="Kitchen" background="#F44336"/>
+    <Label value="Living room" background="#FFC107"/>
+    <Label value="Pipe" background="#9E9E9E"/>
+    <Label value="Staircase" background="#455A64"/>
+    <Label value="Study room" background="#2196F3"/>
+  </RectangleLabels>
+
+  <PolygonLabels name="polygon_label" toName="image">
+    <Label value="Balcony" background="#607D8B"/>
+    <Label value="Bathroom" background="#03A9F4"/>
+    <Label value="Bedroom" background="#3F51B5"/>
+    <Label value="Children room" background="#673AB7"/>
+    <Label value="Dining room" background="#FF9800"/>
+    <Label value="Elevator" background="#795548"/>
+    <Label value="Entryway" background="#009688"/>
+    <Label value="Guest room" background="#9C27B0"/>
+    <Label value="Hallway" background="#8BC34A"/>
+    <Label value="Kitchen" background="#F44336"/>
+    <Label value="Living room" background="#FFC107"/>
+    <Label value="Pipe" background="#9E9E9E"/>
+    <Label value="Staircase" background="#455A64"/>
+    <Label value="Study room" background="#2196F3"/>
+  </PolygonLabels>
+
+  <VectorLabels name="opening_label" toName="image">
+    <Label value="Door" background="#E91E63"/>
+    <Label value="Sliding door" background="#00BCD4"/>
+    <Label value="Open passage" background="#CDDC39"/>
+  </VectorLabels>
+
+  <Header value="Partition annotation"/>
+  <RectangleLabels
+    name="partition_rectangle"
+    toName="image"
+    constrainTo="label,polygon_label"
+    openingFrom="opening_label"
+    constraintSnapPx="10"
+    openingSnapAngleDeg="5">
+    <Label value="Functional zone" background="#FF6D00"/>
+  </RectangleLabels>
+
+  <PolygonLabels
+    name="partition_polygon"
+    toName="image"
+    constrainTo="label,polygon_label"
+    openingFrom="opening_label"
+    constraintSnapPx="10"
+    openingSnapAngleDeg="5">
+    <Label value="Functional zone" background="#D500F9"/>
+  </PolygonLabels>
+</View>

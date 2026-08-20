@@ -35,6 +35,10 @@ const hotkeys = Hotkey("Polygons");
  * @param {boolean} [smart]                       - Show smart tool for interactive pre-annotations
  * @param {boolean} [smartOnly]                   - Only show smart tool for interactive pre-annotations
  * @param {pixel|none} [snap=none]                - Snap polygon to image pixels
+ * @param {string=} [constrainTo]                  - Comma-separated room Rectangle/Polygon control names
+ * @param {string=} [openingFrom]                  - Comma-separated read-only opening control names
+ * @param {number=} [constraintSnapPx=10]          - Room corner, edge, and opening snap distance in screen pixels
+ * @param {number=} [openingSnapAngleDeg=5]        - Maximum angle difference for opening line snapping
  */
 const TagAttrs = types.model({
   toname: types.maybeNull(types.string),
@@ -49,6 +53,11 @@ const TagAttrs = types.model({
 
   pointsize: types.optional(types.string, "small"),
   pointstyle: types.optional(types.string, "circle"),
+
+  constrainto: types.optional(types.string, ""),
+  openingfrom: types.optional(types.string, ""),
+  constraintsnappx: types.optional(types.string, "10"),
+  openingsnapangledeg: types.optional(types.string, "5"),
 });
 
 const Validation = types.model({

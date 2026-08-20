@@ -157,6 +157,34 @@ export const AreaMixinBase = types
       return self.object.supportSuggestions;
     },
 
+    get roomGraphNode() {
+      return self.results.find((result) => result.meta?.room_graph_node)?.meta?.room_graph_node;
+    },
+
+    get roomGraphEdge() {
+      return self.results.find((result) => result.meta?.room_graph_edge)?.meta?.room_graph_edge;
+    },
+
+    get isRoomReference() {
+      return !!self.roomGraphNode;
+    },
+
+    get isOpeningReference() {
+      return !!self.roomGraphEdge;
+    },
+
+    get isRoomLayoutReference() {
+      return self.isRoomReference || self.isOpeningReference;
+    },
+
+    get constraintControl() {
+      return self.results.find((result) => result.from_name?.constrainto)?.from_name;
+    },
+
+    get partitionContext() {
+      return self.results.find((result) => result.meta?.partition_context)?.meta?.partition_context;
+    },
+
     // index of the region in the regions tree (Outliner); will be updated on any order change
     get region_index() {
       if (!self.isRealRegion) {
@@ -190,6 +218,29 @@ export const AreaMixinBase = types
 
     addResult(r) {
       self.results.push(r);
+    },
+
+    initializeRoomConstraint(parentRoomId) {
+      const result = self.results.find((candidate) => candidate.from_name?.constrainto);
+
+      if (!result || !parentRoomId || result.meta?.partition_context?.parent_room_id) return;
+      result.setMetaValue("partition_context", {
+        schema_version: 1,
+        parent_room_id: parentRoomId,
+        opening_ids: [],
+        connected_room_ids: [],
+      });
+      self.refreshPartitionContext();
+    },
+
+    refreshPartitionContext() {
+      const result = self.results.find((candidate) => candidate.from_name?.constrainto);
+      const parentRoomId = result?.meta?.partition_context?.parent_room_id;
+
+      if (!result || !parentRoomId) return;
+      const context = self.parent?.buildPartitionContext?.(self, parentRoomId);
+
+      if (context) result.setMetaValue("partition_context", context);
     },
 
     /**

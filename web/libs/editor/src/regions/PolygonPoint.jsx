@@ -65,7 +65,8 @@ const PolygonPointModel = types
         y: self.stage.canvasToInternalY(canvasY),
       });
 
-      self._setPos(point.x, point.y);
+      if (self.parent.control?.constrainto) self.parent.moveVertex(self, point);
+      else self._setPos(point.x, point.y);
     },
 
     /**

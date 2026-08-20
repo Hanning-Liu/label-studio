@@ -39,7 +39,7 @@ const _Tool = types
       },
 
       get viewTooltip() {
-        return "Polygon region";
+        return self.control?.constrainto && !self.obj?.focusedRoom ? "Select a Focus room first" : "Polygon region";
       },
       get iconComponent() {
         return self.dynamic ? NodeViews.PolygonRegionModel.altIcon : NodeViews.PolygonRegionModel.icon;
@@ -64,7 +64,7 @@ const _Tool = types
         return !self.current() && Super.isIncorrectLabel();
       },
       canStart() {
-        return self.current() === null;
+        return (!self.control?.constrainto || !!self.obj?.focusedRoom) && self.current() === null;
       },
 
       current() {
