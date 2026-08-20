@@ -84,6 +84,66 @@ ROOM = {
         "rotation": 0,
         "rectanglelabels": ["Bedroom"],
     },
+    "meta": {
+        "room_graph_node": {
+            "schema_version": 1,
+            "node_id": "room-bedroom",
+            "room_type": "Bedroom",
+        }
+    },
+}
+
+OTHER_ROOM = {
+    "id": "room-hallway",
+    "from_name": "label",
+    "to_name": "image",
+    "type": "rectanglelabels",
+    "original_width": 100,
+    "original_height": 100,
+    "image_rotation": 0,
+    "value": {
+        "x": 90,
+        "y": 0,
+        "width": 10,
+        "height": 10,
+        "rotation": 0,
+        "rectanglelabels": ["Hallway"],
+    },
+    "meta": {
+        "room_graph_node": {
+            "schema_version": 1,
+            "node_id": "room-hallway",
+            "room_type": "Hallway",
+        }
+    },
+}
+
+ROOM_OPENING = {
+    "id": "room-opening-1",
+    "from_name": "opening_label",
+    "to_name": "image",
+    "type": "vectorlabels",
+    "original_width": 100,
+    "original_height": 100,
+    "image_rotation": 0,
+    "value": {
+        "vertices": [{"x": 90, "y": 0}, {"x": 100, "y": 0}],
+        "closed": False,
+        "vectorlabels": ["Door"],
+    },
+    "meta": {
+        "room_graph_edge": {
+            "schema_version": 1,
+            "edge_id": "room-opening-1",
+            "room_ids": ["room-bedroom", "room-hallway"],
+            "opening_type": "Door",
+            "walkable": True,
+            "width_pixels": 10,
+            "midpoint_x": 95,
+            "midpoint_y": 0,
+            "confidence": 1,
+        }
+    },
 }
 
 
@@ -99,6 +159,8 @@ def task(connection=None):
                 "was_cancelled": False,
                 "result": [
                     ROOM,
+                    OTHER_ROOM,
+                    ROOM_OPENING,
                     rectangle("zone-left", "zone_rectangle", 0, 0, 50, 100, parent="room-bedroom"),
                     label("zone-left", "Sleeping"),
                     rectangle("zone-right", "zone_rectangle", 50, 0, 50, 100, parent="room-bedroom"),
@@ -114,6 +176,8 @@ class NestedGraphMLConversionTests(unittest.TestCase):
     def test_builds_room_overview_and_zone_child_network(self):
         converted = MODULE.convert(task(), "room-bedroom", "bedroom")
         self.assertEqual(converted.report["counts"], {
+            "rooms": 2,
+            "room_openings": 1,
             "zones": 2,
             "connection_vectors": 1,
             "zone_edges": 1,
@@ -131,7 +195,8 @@ class NestedGraphMLConversionTests(unittest.TestCase):
         namespace = {"g": MODULE.GRAPHML_NS}
         overview_root = converted.overview.getroot()
         zones_root = converted.zones.getroot()
-        self.assertEqual(len(overview_root.findall(".//g:node", namespace)), 1)
+        self.assertEqual(len(overview_root.findall(".//g:node", namespace)), 2)
+        self.assertEqual(len(overview_root.findall(".//g:edge", namespace)), 1)
         self.assertEqual(len(zones_root.findall(".//g:node", namespace)), 2)
         self.assertEqual(len(zones_root.findall(".//g:edge", namespace)), 1)
 

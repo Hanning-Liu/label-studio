@@ -3,7 +3,8 @@
 
 The converter writes two independent GraphML networks:
 
-* ``<prefix>-overview.graphml`` contains the selected parent room node.
+* ``<prefix>-overview.graphml`` contains the complete room/opening reference
+  network and marks the selected parent room as the nested-network entry.
 * ``<prefix>-zones.graphml`` contains the functional-zone nodes and their
   Vector-annotated direct-boundary connections.
 
@@ -419,6 +420,83 @@ def _single_label(result: dict[str, Any], key: str) -> str:
     return label
 
 
+def _room_label(result: dict[str, Any]) -> str:
+    if result.get("type") == "rectanglelabels":
+        return _single_label(result, "rectanglelabels")
+    if result.get("type") == "polygonlabels":
+        return _single_label(result, "polygonlabels")
+    raise ConversionError(f"result {result.get('id')} is not a room geometry")
+
+
+def _extract_room_reference_graph(
+    annotation: dict[str, Any], selected_room_id: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Read the complete room/opening reference layer embedded in the annotation."""
+    results = annotation.get("result")
+    if not isinstance(results, list):
+        raise ConversionError("selected annotation result must be a list")
+
+    rooms: dict[str, dict[str, Any]] = {}
+    openings: dict[str, dict[str, Any]] = {}
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        result_id = result.get("id")
+        if not isinstance(result_id, str) or not result_id:
+            continue
+        if result.get("from_name") in {"label", "polygon_label"} and result.get("type") in {
+            "rectanglelabels",
+            "polygonlabels",
+        }:
+            if result_id in rooms:
+                raise ConversionError(f"duplicate room reference result ID: {result_id}")
+            node_meta = result.get("meta", {}).get("room_graph_node")
+            if not isinstance(node_meta, dict):
+                raise ConversionError(
+                    f"room reference {result_id} is missing meta.room_graph_node"
+                )
+            rooms[result_id] = result
+        elif result.get("from_name") == "opening_label" and result.get("type") == "vectorlabels":
+            if result_id in openings:
+                raise ConversionError(f"duplicate opening reference result ID: {result_id}")
+            edge_meta = result.get("meta", {}).get("room_graph_edge")
+            if not isinstance(edge_meta, dict):
+                raise ConversionError(
+                    f"opening reference {result_id} is missing meta.room_graph_edge"
+                )
+            openings[result_id] = result
+
+    if selected_room_id not in rooms:
+        raise ConversionError(
+            f"selected parent room {selected_room_id} is absent from the room reference graph"
+        )
+    if not openings:
+        raise ConversionError("annotation does not contain room opening references")
+
+    for result_id, result in openings.items():
+        edge_meta = result["meta"]["room_graph_edge"]
+        room_ids = edge_meta.get("room_ids")
+        if (
+            not isinstance(room_ids, list)
+            or len(room_ids) != 2
+            or not all(isinstance(room_id, str) and room_id for room_id in room_ids)
+        ):
+            raise ConversionError(
+                f"opening reference {result_id} must contain exactly two room_ids"
+            )
+        dangling = sorted(set(room_ids) - set(rooms))
+        if dangling:
+            raise ConversionError(
+                f"opening reference {result_id} has dangling room endpoint(s): "
+                + ", ".join(dangling)
+            )
+
+    return (
+        [rooms[result_id] for result_id in sorted(rooms)],
+        [openings[result_id] for result_id in sorted(openings)],
+    )
+
+
 def _extract_results(
     annotation: dict[str, Any], parent_room_id: str, epsilon: float
 ) -> tuple[dict[str, Any], list[Zone], list[Connection], tuple[float, float]]:
@@ -652,8 +730,10 @@ def convert(
         width, height = dimensions
 
     room_polygon = result_polygon(room)
-    room_label_key = "rectanglelabels" if room.get("type") == "rectanglelabels" else "polygonlabels"
-    room_label = _single_label(room, room_label_key)
+    room_label = _room_label(room)
+    reference_rooms, reference_openings = _extract_room_reference_graph(
+        annotation, parent_room_id
+    )
 
     zone_by_id = {zone.result_id: zone for zone in zones}
     zone_metrics = {
@@ -830,27 +910,74 @@ def convert(
         )
 
     zones_graph_id = f"{prefix}-zones"
-    overview_row = {
-        "name": f"{room_label} · {parent_room_id}",
-        "shared_name": room_label,
-        "node_kind": "room",
-        "room_label": room_label,
-        "room_result_id": parent_room_id,
-        "geometry_type": str(room.get("type")),
-        "geometry_percent_json": _json(room.get("value", {})),
-        "geometry_px_json": _json(
-            [[_round(point[0]), _round(point[1])] for point in room_polygon]
-        ),
-        "area_px2": _round(polygon_area(room_polygon)),
-        "perimeter_px": _round(polygon_perimeter(room_polygon)),
-        "zone_count": len(zones),
-        "connection_count": len(edge_models),
-        "connection_vector_count": len(connections),
-        "child_network_name": zones_graph_id,
-        "nested_network_setup": "Cytoscape: Add Nested Network after importing both GraphML files",
-    }
+    overview_nodes: list[tuple[str, dict[str, Any]]] = []
+    for reference_room in reference_rooms:
+        reference_id = str(reference_room["id"])
+        reference_label = _room_label(reference_room)
+        reference_polygon = result_polygon(reference_room)
+        reference_centroid = polygon_centroid(reference_polygon)
+        node_meta = reference_room["meta"]["room_graph_node"]
+        row: dict[str, Any] = {
+            "name": f"{reference_label} · {reference_id[:8]}",
+            "shared_name": reference_label,
+            "node_kind": "room",
+            "room_label": reference_label,
+            "room_result_id": reference_id,
+            "geometry_type": str(reference_room.get("type")),
+            "geometry_percent_json": _json(reference_room.get("value", {})),
+            "geometry_px_json": _json(
+                [[_round(point[0]), _round(point[1])] for point in reference_polygon]
+            ),
+            "area_px2": _round(polygon_area(reference_polygon)),
+            "perimeter_px": _round(polygon_perimeter(reference_polygon)),
+            "centroid_x_px": _round(reference_centroid[0]),
+            "centroid_y_px": _round(reference_centroid[1]),
+            "room_graph_node_json": _json(node_meta),
+            "has_nested_zone_network": reference_id == parent_room_id,
+        }
+        if reference_id == parent_room_id:
+            row.update(
+                {
+                    "zone_count": len(zones),
+                    "zone_connection_count": len(edge_models),
+                    "connection_vector_count": len(connections),
+                    "child_network_name": zones_graph_id,
+                    "nested_network_setup": (
+                        "Cytoscape: Add Nested Network after importing both GraphML files"
+                    ),
+                }
+            )
+        overview_nodes.append((reference_id, row))
 
-    overview = _graphml_tree(f"{prefix}-overview", [(parent_room_id, overview_row)], [])
+    overview_edges: list[tuple[str, str, str, dict[str, Any]]] = []
+    for reference_opening in reference_openings:
+        opening_id = str(reference_opening["id"])
+        edge_meta = reference_opening["meta"]["room_graph_edge"]
+        room_ids = edge_meta["room_ids"]
+        opening_label = _single_label(reference_opening, "vectorlabels")
+        opening_vertices = result_vector(reference_opening)
+        row = {
+            "name": opening_label,
+            "shared_name": opening_label,
+            "edge_kind": "room_opening",
+            "opening_result_id": opening_id,
+            "opening_type": str(edge_meta.get("opening_type") or opening_label),
+            "walkable": bool(edge_meta.get("walkable", False)),
+            "width_pixels": float(edge_meta.get("width_pixels") or polyline_length(opening_vertices)),
+            "midpoint_x_percent": float(edge_meta.get("midpoint_x", 0.0)),
+            "midpoint_y_percent": float(edge_meta.get("midpoint_y", 0.0)),
+            "confidence": float(edge_meta.get("confidence", 0.0)),
+            "geometry_percent_json": _json(reference_opening.get("value", {})),
+            "geometry_px_json": _json(
+                [[_round(point[0]), _round(point[1])] for point in opening_vertices]
+            ),
+            "room_graph_edge_json": _json(edge_meta),
+        }
+        overview_edges.append((opening_id, room_ids[0], room_ids[1], row))
+
+    overview = _graphml_tree(
+        f"{prefix}-overview", overview_nodes, overview_edges
+    )
     zone_tree = _graphml_tree(zones_graph_id, node_rows, edge_rows)
     report = {
         "schema_version": 1,
@@ -867,6 +994,8 @@ def convert(
             "perimeter_px": _round(polygon_perimeter(room_polygon)),
         },
         "counts": {
+            "rooms": len(reference_rooms),
+            "room_openings": len(reference_openings),
             "zones": len(zones),
             "connection_vectors": len(connections),
             "zone_edges": len(edge_models),
