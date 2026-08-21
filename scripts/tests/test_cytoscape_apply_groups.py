@@ -69,6 +69,7 @@ class FakeClient:
         self.collapsed = []
         self.deleted = []
         self.styles = {}
+        self.style_dependencies = {}
         self.applied_style = None
         self.visual_bypasses = []
         self.renamed = []
@@ -104,12 +105,12 @@ class FakeClient:
 
     def network_payload(self, network_suid):
         nodes = [
-            (1, "zone::zone-a1"),
-            (2, "zone::zone-a2"),
-            (3, "zone::zone-b1"),
-            (4, "zone::zone-b2"),
-            (5, "room::room-c"),
-            (6, "room::room-d"),
+            (1, "zone::zone-a1", "Entry/transition", "functional_zone"),
+            (2, "zone::zone-a2", "Sleeping", "functional_zone"),
+            (3, "zone::zone-b1", "Living/social", "functional_zone"),
+            (4, "zone::zone-b2", "Balcony/leisure", "functional_zone"),
+            (5, "room::room-c", "Bathroom · room-c", "room"),
+            (6, "room::room-d", "Entryway · room-d", "room"),
         ]
         edges = [
             {
@@ -135,8 +136,15 @@ class FakeClient:
             {"SUID": 15, "edge_kind": "room_opening", "opening_result_id": "opening-cd"},
         ]
         node_payloads = [
-            {"data": {"SUID": suid, "canonical_id": canonical_id}}
-            for suid, canonical_id in nodes
+            {
+                "data": {
+                    "SUID": suid,
+                    "canonical_id": canonical_id,
+                    "display_name": display_name,
+                    "node_kind": node_kind,
+                }
+            }
+            for suid, canonical_id, display_name, node_kind in nodes
         ]
         if self.compound:
             node_payloads.extend(
@@ -158,6 +166,13 @@ class FakeClient:
 
     def set_group_attributes(self, network_suid, group_suid, attributes):
         self.attributes[group_suid] = attributes
+
+    def set_node_rows(self, network_suid, rows):
+        for row in rows:
+            suid = row["SUID"]
+            self.attributes.setdefault(suid, {}).update(
+                {key: value for key, value in row.items() if key != "SUID"}
+            )
 
     def group_info(self, network_suid, group_suid):
         index = group_suid - 201
@@ -200,13 +215,39 @@ class FakeClient:
     def create_visual_style(self, style):
         payload = json.loads(json.dumps(style))
         self.styles[payload["title"]] = payload
+        self.style_dependencies[payload["title"]] = [
+            {
+                "visualPropertyDependency": "nodeSizeLocked",
+                "enabled": True,
+            }
+        ]
         return payload["title"]
 
     def delete_visual_style(self, name):
         self.styles.pop(name, None)
+        self.style_dependencies.pop(name, None)
 
     def update_visual_style_defaults(self, name, defaults):
         self.styles[name]["defaults"] = json.loads(json.dumps(defaults))
+
+    def visual_style_dependencies(self, name):
+        return self.style_dependencies[name]
+
+    def update_visual_style_dependencies(self, name, dependencies):
+        values = {
+            value["visualPropertyDependency"]: value["enabled"]
+            for value in self.style_dependencies[name]
+        }
+        values.update(
+            {
+                value["visualPropertyDependency"]: value["enabled"]
+                for value in dependencies
+            }
+        )
+        self.style_dependencies[name] = [
+            {"visualPropertyDependency": key, "enabled": value}
+            for key, value in values.items()
+        ]
 
     def apply_visual_style(self, name, network_suid):
         self.applied_style = (name, network_suid)
@@ -227,6 +268,8 @@ class FakeClient:
             "NODE_LABEL": self.attributes[node_suid]["display_name"],
             "NODE_LABEL_TRANSPARENCY": 255,
             "NODE_SHAPE": "ROUND_RECTANGLE",
+            "NODE_WIDTH": self.attributes[node_suid]["display_width"],
+            "NODE_HEIGHT": self.attributes[node_suid]["display_height"],
         }
 
     def set_node_visual_property_bypass(
@@ -267,6 +310,21 @@ class CytoscapeApplyGroupsTests(unittest.TestCase):
                 {"title": "Floorplan Multilevel Groups v1", "action": "created"},
             )
             self.assertTrue(report["compound_group_view_verified"])
+            self.assertEqual(
+                report["adaptive_node_sizing"],
+                {
+                    "label_column": "display_name",
+                    "width_column": "display_width",
+                    "height_column": "display_height",
+                    "data_node_count": 6,
+                    "group_node_count": 2,
+                },
+            )
+            self.assertGreater(client.attributes[5]["display_width"], 100)
+            self.assertGreater(
+                client.attributes[201]["display_width"],
+                client.attributes[5]["display_width"],
+            )
             self.assertEqual(report["preexisting_visual_container_node_count"], 0)
             self.assertEqual(client.renamed, [(101, "floorplan-multilevel")])
             self.assertIn(
@@ -338,6 +396,29 @@ class CytoscapeApplyGroupsTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(MODULE.CytoscapeError, "at least two members"):
                 MODULE.load_manifest(path)
+
+    def test_label_dimensions_expand_for_long_wide_and_multiline_text(self):
+        short = MODULE._label_dimensions("Room", "room")
+        long = MODULE._label_dimensions("A much longer room name", "room")
+        wide = MODULE._label_dimensions("卧室分区", "functional_zone")
+        multiline = MODULE._label_dimensions("First line\nSecond line", "room")
+        self.assertGreater(long["display_width"], short["display_width"])
+        self.assertGreater(wide["display_width"], short["display_width"])
+        self.assertGreater(multiline["display_height"], short["display_height"])
+
+    def test_visual_style_uses_numeric_passthrough_node_dimensions(self):
+        style = MODULE.load_visual_style(MODULE.DEFAULT_VISUAL_STYLE)
+        mappings = {
+            value["visualProperty"]: value for value in style["mappings"]
+        }
+        self.assertEqual(mappings["NODE_WIDTH"]["mappingType"], "passthrough")
+        self.assertEqual(mappings["NODE_WIDTH"]["mappingColumn"], "display_width")
+        self.assertEqual(mappings["NODE_HEIGHT"]["mappingType"], "passthrough")
+        self.assertEqual(mappings["NODE_HEIGHT"]["mappingColumn"], "display_height")
+        self.assertEqual(
+            style["dependencies"],
+            [{"visualPropertyDependency": "nodeSizeLocked", "enabled": False}],
+        )
 
 
 if __name__ == "__main__":

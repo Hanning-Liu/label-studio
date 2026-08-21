@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,9 +34,57 @@ COMPOUND_PREFERENCE_MESSAGE = (
     "uncheck 'Show collapsed node as a Nested Network', then rerun the command."
 )
 
+DISPLAY_WIDTH_COLUMN = "display_width"
+DISPLAY_HEIGHT_COLUMN = "display_height"
+
 
 class CytoscapeError(RuntimeError):
     """Raised when CyREST cannot complete or verify the requested workflow."""
+
+
+def _label_dimensions(display_name: str, node_kind: str) -> dict[str, float]:
+    """Estimate a compact Cytoscape node size from its rendered label.
+
+    Cytoscape does not expose a native "fit node to label" visual property.
+    Numeric passthrough mappings are therefore fed by these deterministic
+    dimensions. East Asian full-width characters count as one font em while
+    Latin characters use a conservative average glyph width.
+    """
+
+    font_size = 13.0 if node_kind == "room_group" else 12.0
+    horizontal_padding = 32.0 if node_kind == "room_group" else 28.0
+    vertical_padding = 20.0 if node_kind == "room_group" else 16.0
+    lines = display_name.splitlines() or [""]
+
+    def line_width(line: str) -> float:
+        width = 0.0
+        for character in line:
+            if unicodedata.combining(character):
+                continue
+            if character == "\t":
+                width += font_size * 2.4
+            elif character.isspace():
+                width += font_size * 0.36
+            elif unicodedata.east_asian_width(character) in {"W", "F"}:
+                width += font_size
+            elif character in "ilI1|.,:;'`!":
+                width += font_size * 0.34
+            elif character in "MW@#%&":
+                width += font_size * 0.9
+            else:
+                width += font_size * 0.62
+        return width
+
+    text_width = max(line_width(line) for line in lines)
+    text_height = len(lines) * font_size * 1.35
+    return {
+        DISPLAY_WIDTH_COLUMN: float(
+            math.ceil(max(52.0, text_width + horizontal_padding))
+        ),
+        DISPLAY_HEIGHT_COLUMN: float(
+            math.ceil(max(32.0, text_height + vertical_padding))
+        ),
+    }
 
 
 class CyRestClient:
@@ -165,6 +215,29 @@ class CyRestClient:
             "PUT",
             f"styles/{urllib.parse.quote(name, safe='')}/defaults",
             body=defaults,
+            expect_json=False,
+        )
+
+    def visual_style_dependencies(self, name: str) -> list[dict[str, Any]]:
+        response = self.request(
+            "GET",
+            f"styles/{urllib.parse.quote(name, safe='')}/dependencies",
+        )
+        if not isinstance(response, list):
+            raise CytoscapeError(
+                f"visual style {name!r} dependencies response is not a list"
+            )
+        return [value for value in response if isinstance(value, dict)]
+
+    def update_visual_style_dependencies(
+        self, name: str, dependencies: list[dict[str, Any]]
+    ) -> None:
+        if not dependencies:
+            return
+        self.request(
+            "PUT",
+            f"styles/{urllib.parse.quote(name, safe='')}/dependencies",
+            body=dependencies,
             expect_json=False,
         )
 
@@ -302,22 +375,39 @@ class CyRestClient:
             expect_json=False,
         )
 
-    def set_group_attributes(
-        self, network_suid: int, group_suid: int, attributes: dict[str, Any]
+    @staticmethod
+    def _column_type(value: Any) -> str:
+        if isinstance(value, bool):
+            return "Boolean"
+        if isinstance(value, int):
+            return "Integer"
+        if isinstance(value, float):
+            return "Double"
+        return "String"
+
+    def set_node_rows(
+        self, network_suid: int, rows: list[dict[str, Any]]
     ) -> None:
+        if not rows:
+            return
         columns = self.node_columns(network_suid)
-        for name, value in attributes.items():
-            if name == "SUID" or value is None or name in columns:
-                continue
-            self.create_node_column(network_suid, name, value)
-            columns[name] = type(value).__name__
-        row = {"SUID": group_suid, **attributes}
+        for row in rows:
+            for name, value in row.items():
+                if name == "SUID" or value is None or name in columns:
+                    continue
+                self.create_node_column(network_suid, name, value)
+                columns[name] = self._column_type(value)
         self.request(
             "PUT",
             f"networks/{network_suid}/tables/defaultnode",
-            body={"key": "SUID", "dataKey": "SUID", "data": [row]},
+            body={"key": "SUID", "dataKey": "SUID", "data": rows},
             expect_json=False,
         )
+
+    def set_group_attributes(
+        self, network_suid: int, group_suid: int, attributes: dict[str, Any]
+    ) -> None:
+        self.set_node_rows(network_suid, [{"SUID": group_suid, **attributes}])
 
     def node_row(self, network_suid: int, node_suid: int) -> dict[str, Any]:
         response = self.request(
@@ -467,6 +557,8 @@ def load_visual_style(path: Path) -> dict[str, Any]:
     for key in ("defaults", "mappings"):
         if not isinstance(style.get(key), list):
             raise CytoscapeError(f"visual style {key!r} must be a list")
+    if not isinstance(style.get("dependencies", []), list):
+        raise CytoscapeError("visual style 'dependencies' must be a list")
     return style
 
 
@@ -504,6 +596,22 @@ def _style_matches(expected: dict[str, Any], actual: dict[str, Any]) -> bool:
     return actual_mappings == expected_mappings
 
 
+def _dependencies_match(
+    expected: list[dict[str, Any]], actual: list[dict[str, Any]]
+) -> bool:
+    actual_values = {
+        str(value.get("visualPropertyDependency")): bool(value.get("enabled"))
+        for value in actual
+        if value.get("visualPropertyDependency")
+    }
+    return all(
+        actual_values.get(str(value.get("visualPropertyDependency")))
+        == bool(value.get("enabled"))
+        for value in expected
+        if value.get("visualPropertyDependency")
+    )
+
+
 def ensure_visual_style(
     client: CyRestClient,
     style: dict[str, Any],
@@ -518,7 +626,10 @@ def ensure_visual_style(
         )
     if matches:
         current = client.visual_style(title)
-        if _style_matches(style, current):
+        current_dependencies = client.visual_style_dependencies(title)
+        if _style_matches(style, current) and _dependencies_match(
+            style.get("dependencies", []), current_dependencies
+        ):
             return {"title": title, "action": "reused"}
         if not replace_style:
             raise CytoscapeError(
@@ -534,8 +645,12 @@ def ensure_visual_style(
             f"Cytoscape created visual style {created_title!r}, expected {title!r}"
         )
     client.update_visual_style_defaults(title, style["defaults"])
+    client.update_visual_style_dependencies(title, style.get("dependencies", []))
     created = client.visual_style(title)
-    if not _style_matches(style, created):
+    created_dependencies = client.visual_style_dependencies(title)
+    if not _style_matches(style, created) or not _dependencies_match(
+        style.get("dependencies", []), created_dependencies
+    ):
         raise CytoscapeError(f"visual style {title!r} failed round-trip verification")
     return {"title": title, "action": action}
 
@@ -586,6 +701,36 @@ def _verify_group_visuals(
             + json.dumps(mismatches, ensure_ascii=False, sort_keys=True)
         )
     return {key: properties[key] for key in expected}
+
+
+def _verify_collapsed_group_dimensions(
+    client: CyRestClient,
+    network_suid: int,
+    group_suid: int,
+    expected_label: str,
+) -> dict[str, float]:
+    views = client.network_view_suids(network_suid)
+    if len(views) != 1:
+        raise CytoscapeError(
+            f"expected exactly one network view for size verification, found {len(views)}"
+        )
+    properties = client.node_visual_properties(network_suid, views[0], group_suid)
+    dimensions = _label_dimensions(expected_label, "room_group")
+    expected = {
+        "NODE_WIDTH": dimensions[DISPLAY_WIDTH_COLUMN],
+        "NODE_HEIGHT": dimensions[DISPLAY_HEIGHT_COLUMN],
+    }
+    mismatches = {
+        key: {"expected": value, "actual": properties.get(key)}
+        for key, value in expected.items()
+        if properties.get(key) != value
+    }
+    if mismatches:
+        raise CytoscapeError(
+            "collapsed group adaptive sizing verification failed: "
+            + json.dumps(mismatches, ensure_ascii=False, sort_keys=True)
+        )
+    return {key: float(properties[key]) for key in expected}
 
 
 def apply_groups(
@@ -662,6 +807,24 @@ def apply_groups(
                 "from a clean session, then rerun; the script will not guess which "
                 "containers are safe to remove."
             )
+
+        sizing_rows: list[dict[str, Any]] = []
+        for node_suid, node_data in node_data_by_suid.items():
+            if not node_data.get("canonical_id"):
+                continue
+            display_name = str(
+                node_data.get("display_name")
+                or node_data.get("name")
+                or node_data["canonical_id"]
+            )
+            node_kind = str(node_data.get("node_kind") or "room")
+            sizing_rows.append(
+                {
+                    "SUID": node_suid,
+                    **_label_dimensions(display_name, node_kind),
+                }
+            )
+        client.set_node_rows(network_suid, sizing_rows)
     except Exception:
         try:
             if network_suid in client.network_suids():
@@ -688,6 +851,9 @@ def apply_groups(
             attributes["hierarchy_level"] = "room"
             attributes["has_zone_group"] = True
             attributes["is_expandable_group"] = True
+            attributes.update(
+                _label_dimensions(attributes["display_name"], "room_group")
+            )
             client.set_group_attributes(network_suid, group_suid, attributes)
             info = client.group_info(network_suid, group_suid)
             info_data = _group_data(info, group_name)
@@ -811,6 +977,15 @@ def apply_groups(
             if info_data.get("collapsed") is not True:
                 raise CytoscapeError(f"group {group['group_name']!r} was not collapsed")
             group["group_info_collapsed"] = info
+            if visual_style is not None:
+                group["verified_collapsed_dimensions"] = (
+                    _verify_collapsed_group_dimensions(
+                        client,
+                        network_suid,
+                        group["group_suid"],
+                        group["display_label"],
+                    )
+                )
 
         listed = client.list_groups(network_suid)
         listed_suids = set(_all_integers(listed))
@@ -859,6 +1034,13 @@ def apply_groups(
         "preexisting_visual_container_node_count": visual_only_nodes,
         "groups": created_groups,
         "visual_style": style_report,
+        "adaptive_node_sizing": {
+            "label_column": "display_name",
+            "width_column": DISPLAY_WIDTH_COLUMN,
+            "height_column": DISPLAY_HEIGHT_COLUMN,
+            "data_node_count": len(sizing_rows),
+            "group_node_count": len(created_groups),
+        },
         "compound_group_view_verified": True,
         "session_output": str(session_output.resolve()),
     }
