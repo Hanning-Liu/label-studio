@@ -59,30 +59,47 @@ def manifest():
 class FakeClient:
     base_url = "http://127.0.0.1:1234/v1"
 
-    def __init__(self, session_path, collision=False):
+    def __init__(self, session_path, collision=False, compound=True):
         self.session_path = session_path
         self.collision = collision
+        self.compound = compound
+        self.imported = False
         self.created = []
         self.attributes = {}
         self.collapsed = []
         self.deleted = []
+        self.styles = {}
+        self.applied_style = None
+        self.visual_bypasses = []
+        self.renamed = []
+        self.imported_network_name = "floorplan-multilevel (1)"
 
     def version(self):
         return {"cytoscapeVersion": "3.10.4"}
 
     def command_namespace(self, namespace):
-        return "create collapse get list"
+        return "create collapse expand get list"
 
     def network_suids(self):
-        return {99} if self.collision else set()
+        values = {99} if self.collision and 99 not in self.deleted else set()
+        if self.imported and 101 not in self.deleted:
+            values.add(101)
+        return values
 
     def network_name(self, network_suid):
-        return "floorplan-multilevel"
+        if network_suid == 99:
+            return "floorplan-multilevel"
+        return self.imported_network_name
 
     def delete_network(self, network_suid):
         self.deleted.append(network_suid)
 
+    def rename_network(self, network_suid, name):
+        self.renamed.append((network_suid, name))
+        self.imported_network_name = name
+
     def import_graphml(self, graphml_path, before):
+        self.imported = True
         return 101
 
     def network_payload(self, network_suid):
@@ -117,13 +134,19 @@ class FakeClient:
             },
             {"SUID": 15, "edge_kind": "room_opening", "opening_result_id": "opening-cd"},
         ]
+        node_payloads = [
+            {"data": {"SUID": suid, "canonical_id": canonical_id}}
+            for suid, canonical_id in nodes
+        ]
+        if self.compound:
+            node_payloads.extend(
+                {"data": {"SUID": suid, "canonical_id": f"pending::{suid}"}}
+                for suid, _group_name, _members in self.created
+            )
         return {
             "data": {"name": "floorplan-multilevel"},
             "elements": {
-                "nodes": [
-                    {"data": {"SUID": suid, "canonical_id": canonical_id}}
-                    for suid, canonical_id in nodes
-                ],
+                "nodes": node_payloads,
                 "edges": [{"data": edge} for edge in edges],
             },
         }
@@ -155,6 +178,10 @@ class FakeClient:
     def collapse_group(self, network_suid, group_suid):
         self.collapsed.append(group_suid)
 
+    def expand_group(self, network_suid, group_suid):
+        if group_suid in self.collapsed:
+            self.collapsed.remove(group_suid)
+
     def node_row(self, network_suid, node_suid):
         return self.attributes[node_suid]
 
@@ -163,6 +190,51 @@ class FakeClient:
 
     def save_session(self, path):
         path.write_bytes(b"synthetic session")
+
+    def style_names(self):
+        return list(self.styles)
+
+    def visual_style(self, name):
+        return self.styles[name]
+
+    def create_visual_style(self, style):
+        payload = json.loads(json.dumps(style))
+        self.styles[payload["title"]] = payload
+        return payload["title"]
+
+    def delete_visual_style(self, name):
+        self.styles.pop(name, None)
+
+    def update_visual_style_defaults(self, name, defaults):
+        self.styles[name]["defaults"] = json.loads(json.dumps(defaults))
+
+    def apply_visual_style(self, name, network_suid):
+        self.applied_style = (name, network_suid)
+
+    def network_view_suids(self, network_suid):
+        return [301]
+
+    def node_visual_properties(self, network_suid, view_suid, node_suid):
+        return {
+            "COMPOUND_NODE_PADDING": 24.0,
+            "COMPOUND_NODE_SHAPE": "ROUND_RECTANGLE",
+            "NODE_FILL_COLOR": "#8B5CF6",
+            "NODE_TRANSPARENCY": 31,
+            "NODE_BORDER_PAINT": "#6D28D9",
+            "NODE_BORDER_WIDTH": 3.0,
+            "NODE_BORDER_STROKE": "LONG_DASH",
+            "NODE_BORDER_TRANSPARENCY": 255,
+            "NODE_LABEL": self.attributes[node_suid]["display_name"],
+            "NODE_LABEL_TRANSPARENCY": 255,
+            "NODE_SHAPE": "ROUND_RECTANGLE",
+        }
+
+    def set_node_visual_property_bypass(
+        self, network_suid, view_suid, node_suid, visual_property, value
+    ):
+        self.visual_bypasses.append(
+            (network_suid, view_suid, node_suid, visual_property, value)
+        )
 
 
 class CytoscapeApplyGroupsTests(unittest.TestCase):
@@ -173,14 +245,33 @@ class CytoscapeApplyGroupsTests(unittest.TestCase):
             graphml.write_text("<graphml/>", encoding="utf-8")
             session = root / "floorplan-multilevel.cys"
             client = FakeClient(session)
-            report = MODULE.apply_groups(client, graphml, manifest(), session)
+            style = MODULE.load_visual_style(MODULE.DEFAULT_VISUAL_STYLE)
+            report = MODULE.apply_groups(
+                client, graphml, manifest(), session, visual_style=style
+            )
             self.assertEqual(report["imported_counts"], {"nodes": 6, "edges": 5})
             self.assertEqual(len(report["groups"]), 2)
             self.assertEqual(client.collapsed, [201, 202])
             self.assertEqual(client.attributes[201]["canonical_id"], "room::room-a")
+            self.assertEqual(
+                client.attributes[201]["display_name"],
+                "Bedroom · room-a ⊞ 2 zones",
+            )
+            self.assertTrue(client.attributes[201]["is_expandable_group"])
             self.assertNotIn("name", client.attributes[201])
             self.assertEqual(
                 report["groups"][0]["verified_external_opening_ids"], ["opening-ab"]
+            )
+            self.assertEqual(
+                report["visual_style"],
+                {"title": "Floorplan Multilevel Groups v1", "action": "created"},
+            )
+            self.assertTrue(report["compound_group_view_verified"])
+            self.assertEqual(report["preexisting_visual_container_node_count"], 0)
+            self.assertEqual(client.renamed, [(101, "floorplan-multilevel")])
+            self.assertIn(
+                (101, 301, 201, "NODE_TRANSPARENCY", 31),
+                client.visual_bypasses,
             )
             self.assertTrue(session.exists())
 
@@ -207,6 +298,37 @@ class CytoscapeApplyGroupsTests(unittest.TestCase):
                 replace_existing=True,
             )
             self.assertEqual(client.deleted, [99])
+
+    def test_requires_compound_group_preference_and_preserves_collision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graphml = root / "floorplan-multilevel.graphml"
+            graphml.write_text("<graphml/>", encoding="utf-8")
+            client = FakeClient(root / "out.cys", collision=True, compound=False)
+            with self.assertRaisesRegex(MODULE.CytoscapeError, "Group Preferences"):
+                MODULE.apply_groups(
+                    client,
+                    graphml,
+                    manifest(),
+                    root / "out.cys",
+                    replace_existing=True,
+                )
+            self.assertIn(101, client.deleted)
+            self.assertNotIn(99, client.deleted)
+
+    def test_visual_style_reuse_conflict_and_explicit_replace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = FakeClient(Path(directory) / "out.cys")
+            style = MODULE.load_visual_style(MODULE.DEFAULT_VISUAL_STYLE)
+            created = MODULE.ensure_visual_style(client, style)
+            self.assertEqual(created["action"], "created")
+            reused = MODULE.ensure_visual_style(client, style)
+            self.assertEqual(reused["action"], "reused")
+            client.styles[style["title"]]["defaults"][0]["value"] = 9.0
+            with self.assertRaisesRegex(MODULE.CytoscapeError, "--replace-style"):
+                MODULE.ensure_visual_style(client, style)
+            replaced = MODULE.ensure_visual_style(client, style, replace_style=True)
+            self.assertEqual(replaced["action"], "replaced")
 
     def test_manifest_requires_at_least_two_members(self):
         payload = manifest()

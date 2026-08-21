@@ -1,0 +1,161 @@
+{
+  "title": "Floorplan Multilevel Groups v1",
+  "defaults": [
+    {
+      "visualProperty": "COMPOUND_NODE_PADDING",
+      "value": 24.0
+    },
+    {
+      "visualProperty": "COMPOUND_NODE_SHAPE",
+      "value": "ROUND_RECTANGLE"
+    },
+    {
+      "visualProperty": "NODE_FILL_COLOR",
+      "value": "#89D0F5"
+    },
+    {
+      "visualProperty": "NODE_BORDER_PAINT",
+      "value": "#5B9BB8"
+    },
+    {
+      "visualProperty": "NODE_BORDER_WIDTH",
+      "value": 1.0
+    },
+    {
+      "visualProperty": "NODE_BORDER_STROKE",
+      "value": "SOLID"
+    },
+    {
+      "visualProperty": "NODE_BORDER_TRANSPARENCY",
+      "value": 255
+    },
+    {
+      "visualProperty": "NODE_TRANSPARENCY",
+      "value": 255
+    },
+    {
+      "visualProperty": "NODE_LABEL_TRANSPARENCY",
+      "value": 255
+    },
+    {
+      "visualProperty": "NODE_LABEL_FONT_SIZE",
+      "value": 12
+    },
+    {
+      "visualProperty": "NODE_LABEL_COLOR",
+      "value": "#1F2937"
+    },
+    {
+      "visualProperty": "NODE_SHAPE",
+      "value": "ROUND_RECTANGLE"
+    },
+    {
+      "visualProperty": "NODE_WIDTH",
+      "value": 100.0
+    },
+    {
+      "visualProperty": "NODE_HEIGHT",
+      "value": 38.0
+    },
+    {
+      "visualProperty": "NODE_NESTED_NETWORK_IMAGE_VISIBLE",
+      "value": false
+    }
+  ],
+  "mappings": [
+    {
+      "mappingType": "passthrough",
+      "mappingColumn": "display_name",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_LABEL"
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_FILL_COLOR",
+      "map": [
+        {"key": "room", "value": "#89D0F5"},
+        {"key": "functional_zone", "value": "#DDEBF7"},
+        {"key": "room_group", "value": "#8B5CF6"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_TRANSPARENCY",
+      "map": [
+        {"key": "room", "value": "255"},
+        {"key": "functional_zone", "value": "255"},
+        {"key": "room_group", "value": "31"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_BORDER_PAINT",
+      "map": [
+        {"key": "room", "value": "#5B9BB8"},
+        {"key": "functional_zone", "value": "#5078A0"},
+        {"key": "room_group", "value": "#6D28D9"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_BORDER_WIDTH",
+      "map": [
+        {"key": "room", "value": "1.0"},
+        {"key": "functional_zone", "value": "1.5"},
+        {"key": "room_group", "value": "3.0"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_BORDER_STROKE",
+      "map": [
+        {"key": "room", "value": "SOLID"},
+        {"key": "functional_zone", "value": "SOLID"},
+        {"key": "room_group", "value": "LONG_DASH"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_WIDTH",
+      "map": [
+        {"key": "room", "value": "100.0"},
+        {"key": "functional_zone", "value": "120.0"},
+        {"key": "room_group", "value": "190.0"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_HEIGHT",
+      "map": [
+        {"key": "room", "value": "38.0"},
+        {"key": "functional_zone", "value": "38.0"},
+        {"key": "room_group", "value": "48.0"}
+      ]
+    },
+    {
+      "mappingType": "discrete",
+      "mappingColumn": "node_kind",
+      "mappingColumnType": "String",
+      "visualProperty": "NODE_LABEL_FONT_SIZE",
+      "map": [
+        {"key": "room", "value": "12"},
+        {"key": "functional_zone", "value": "12"},
+        {"key": "room_group", "value": "13"}
+      ]
+    }
+  ]
+}
