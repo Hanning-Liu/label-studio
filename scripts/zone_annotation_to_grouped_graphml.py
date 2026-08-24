@@ -6,12 +6,16 @@ is replaced by its zone nodes; its original room metadata is written to a
 group manifest so ``cytoscape_apply_groups.py`` can create a Cytoscape Group.
 Room openings are reconnected to the unique owning zone on every partitioned
 side. This keeps cross-room connectivity real and analyzable after expansion.
+Optional Label Studio room/zone configs add a strictly validated color palette
+to the GraphML nodes and Group manifest without hard-coding project labels.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -26,6 +30,153 @@ class GroupedConversion:
     graphml: ET.ElementTree
     manifest: dict[str, Any]
     report: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class LabelPalette:
+    room_labels: dict[str, str]
+    zone_labels: dict[str, str]
+    room_config_sha256: str
+    zone_config_sha256: str
+
+    def manifest_data(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "source": "label_studio",
+            "room_labels": dict(sorted(self.room_labels.items())),
+            "zone_labels": dict(sorted(self.zone_labels.items())),
+            "room_config_sha256": self.room_config_sha256,
+            "zone_config_sha256": self.zone_config_sha256,
+        }
+
+
+_HEX_COLOR = re.compile(r"^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$")
+
+
+def _normalize_color(raw: str, context: str) -> str:
+    value = raw.strip()
+    if not _HEX_COLOR.fullmatch(value):
+        raise base.ConversionError(
+            f"{context} has unsupported color {raw!r}; expected #RGB or #RRGGBB"
+        )
+    if len(value) == 4:
+        value = "#" + "".join(character * 2 for character in value[1:])
+    return value.upper()
+
+
+def _extract_label_config_text(raw: str, source_name: str) -> str:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+    configs: list[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            label_config = value.get("label_config")
+            if isinstance(label_config, str) and label_config.strip():
+                configs.append(label_config)
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(payload)
+    distinct = list(dict.fromkeys(configs))
+    if len(distinct) != 1:
+        raise base.ConversionError(
+            f"{source_name} project JSON must contain exactly one label_config, "
+            f"found {len(distinct)}"
+        )
+    return distinct[0]
+
+
+def _parse_label_config(raw: str, source_name: str) -> ET.Element:
+    config = _extract_label_config_text(raw, source_name)
+    try:
+        return ET.fromstring(config)
+    except ET.ParseError as exc:
+        raise base.ConversionError(
+            f"{source_name} label config is not valid XML: {exc}"
+        ) from exc
+
+
+def _control_palettes(
+    root: ET.Element,
+    control_names: Sequence[str],
+    source_name: str,
+) -> dict[str, dict[str, str]]:
+    requested = set(control_names)
+    controls: dict[str, dict[str, str]] = {}
+    for element in root.iter():
+        control_name = element.attrib.get("name")
+        if control_name not in requested:
+            continue
+        mapping = controls.setdefault(control_name, {})
+        for child in element.iter():
+            if child.tag.rsplit("}", 1)[-1] != "Label":
+                continue
+            label = child.attrib.get("value", "").strip()
+            color = child.attrib.get("background", "").strip()
+            if not label:
+                raise base.ConversionError(
+                    f"{source_name} control {control_name} contains a Label without value"
+                )
+            if not color:
+                raise base.ConversionError(
+                    f"{source_name} control {control_name} label {label!r} has no background color"
+                )
+            normalized = _normalize_color(
+                color, f"{source_name} control {control_name} label {label!r}"
+            )
+            previous = mapping.get(label)
+            if previous is not None and previous != normalized:
+                raise base.ConversionError(
+                    f"{source_name} control {control_name} assigns conflicting colors "
+                    f"to {label!r}: {previous} and {normalized}"
+                )
+            mapping[label] = normalized
+
+    missing = [name for name in control_names if name not in controls]
+    if missing:
+        raise base.ConversionError(
+            f"{source_name} label config is missing control(s): {', '.join(missing)}"
+        )
+    return controls
+
+
+def load_label_palette(room_config: Path, zone_config: Path) -> LabelPalette:
+    try:
+        room_bytes = room_config.read_bytes()
+        zone_bytes = zone_config.read_bytes()
+    except OSError as exc:
+        raise base.ConversionError(f"cannot read Label Studio label config: {exc}") from exc
+
+    room_root = _parse_label_config(room_bytes.decode("utf-8-sig"), "room")
+    zone_root = _parse_label_config(zone_bytes.decode("utf-8-sig"), "zone")
+    room_controls = _control_palettes(
+        room_root, ("label", "polygon_label"), "room"
+    )
+    room_labels: dict[str, str] = {}
+    for control_name in ("label", "polygon_label"):
+        for label, color in room_controls[control_name].items():
+            previous = room_labels.get(label)
+            if previous is not None and previous != color:
+                raise base.ConversionError(
+                    f"room label {label!r} has inconsistent colors between label and "
+                    f"polygon_label: {previous} and {color}"
+                )
+            room_labels[label] = color
+
+    zone_controls = _control_palettes(zone_root, ("function_zone",), "zone")
+    return LabelPalette(
+        room_labels=room_labels,
+        zone_labels=zone_controls["function_zone"],
+        room_config_sha256=hashlib.sha256(room_bytes).hexdigest(),
+        zone_config_sha256=hashlib.sha256(zone_bytes).hexdigest(),
+    )
 
 
 def room_id(result_id: str) -> str:
@@ -241,14 +392,17 @@ def _internal_edge_models(
     return models, zone_metrics
 
 
-def _room_node_row(result: dict[str, Any]) -> dict[str, Any]:
+def _room_node_row(
+    result: dict[str, Any],
+    room_colors: dict[str, str] | None = None,
+) -> dict[str, Any]:
     result_id = str(result["id"])
     label = base._room_label(result)
     polygon = base.result_polygon(result)
     centroid = base.polygon_centroid(polygon)
     node_meta = result["meta"]["room_graph_node"]
     canonical = room_id(result_id)
-    return {
+    row = {
         "name": canonical,
         "shared_name": label,
         "display_name": f"{label} · {result_id[:8]}",
@@ -268,12 +422,19 @@ def _room_node_row(result: dict[str, Any]) -> dict[str, Any]:
         "centroid_y_px": base._round(centroid[1]),
         "room_graph_node_json": base._json(node_meta),
     }
+    if room_colors is not None:
+        row["label_studio_color"] = room_colors[label]
+    return row
 
 
-def _zone_node_row(zone: base.Zone, metrics: dict[str, Any]) -> dict[str, Any]:
+def _zone_node_row(
+    zone: base.Zone,
+    metrics: dict[str, Any],
+    zone_colors: dict[str, str] | None = None,
+) -> dict[str, Any]:
     canonical = zone_id(zone.result_id)
     centroid = metrics["centroid_px"]
-    return {
+    row = {
         "name": canonical,
         "shared_name": zone.label,
         "display_name": zone.label,
@@ -297,6 +458,9 @@ def _zone_node_row(zone: base.Zone, metrics: dict[str, Any]) -> dict[str, Any]:
             zone.partition_context.get("connected_room_ids", [])
         ),
     }
+    if zone_colors is not None:
+        row["label_studio_color"] = zone_colors[zone.label]
+    return row
 
 
 def _opening_edge_row(result: dict[str, Any], edge_kind: str) -> dict[str, Any]:
@@ -331,6 +495,7 @@ def convert(
     epsilon: float | None = None,
     min_support_ratio: float = 0.95,
     min_vector_length: float | None = None,
+    label_palette: LabelPalette | None = None,
 ) -> GroupedConversion:
     annotation = base.select_annotation(task)
     results = annotation.get("result")
@@ -369,6 +534,22 @@ def convert(
     openings_by_id = {str(result["id"]): result for result in reference_openings}
     zones = _collect_zones(annotation, rooms_by_id, resolved_epsilon)
     connections = _collect_connections(annotation)
+    used_room_labels = sorted({base._room_label(result) for result in reference_rooms})
+    used_zone_labels = sorted({zone.label for zone in zones})
+    if label_palette is not None:
+        missing_room_labels = sorted(set(used_room_labels) - set(label_palette.room_labels))
+        missing_zone_labels = sorted(set(used_zone_labels) - set(label_palette.zone_labels))
+        if missing_room_labels or missing_zone_labels:
+            details: list[str] = []
+            if missing_room_labels:
+                details.append("room labels: " + ", ".join(missing_room_labels))
+            if missing_zone_labels:
+                details.append("zone labels: " + ", ".join(missing_zone_labels))
+            raise base.ConversionError(
+                "Label Studio palette is missing labels used by this task ("
+                + "; ".join(details)
+                + ")"
+            )
     grouped_rooms: dict[str, list[base.Zone]] = {}
     for zone in zones:
         grouped_rooms.setdefault(
@@ -482,10 +663,25 @@ def convert(
     for result in reference_rooms:
         result_id = str(result["id"])
         if result_id not in grouped_rooms:
-            node_rows.append((room_id(result_id), _room_node_row(result)))
+            node_rows.append(
+                (
+                    room_id(result_id),
+                    _room_node_row(
+                        result,
+                        label_palette.room_labels if label_palette is not None else None,
+                    ),
+                )
+            )
     for zone in zones:
         node_rows.append(
-            (zone_id(zone.result_id), _zone_node_row(zone, zone_metrics[zone.result_id]))
+            (
+                zone_id(zone.result_id),
+                _zone_node_row(
+                    zone,
+                    zone_metrics[zone.result_id],
+                    label_palette.zone_labels if label_palette is not None else None,
+                ),
+            )
         )
 
     internal_edges: list[tuple[str, str, str, dict[str, Any]]] = []
@@ -548,7 +744,10 @@ def convert(
     manifest_groups: list[dict[str, Any]] = []
     for parent_id, room_zones in sorted(grouped_rooms.items()):
         parent_result = rooms_by_id[parent_id]
-        parent_row = _room_node_row(parent_result)
+        parent_row = _room_node_row(
+            parent_result,
+            label_palette.room_labels if label_palette is not None else None,
+        )
         parent_row.update(
             {
                 "node_kind": "room_group",
@@ -601,6 +800,8 @@ def convert(
         "expected_counts": counts,
         "groups": manifest_groups,
     }
+    if label_palette is not None:
+        manifest["label_palette"] = label_palette.manifest_data()
     report = {
         "schema_version": 1,
         "status": "ok",
@@ -620,11 +821,24 @@ def convert(
             "every_reference_opening_emitted_once": True,
             "connected_room_ids_match_opening_endpoints": True,
             "no_dangling_canonical_endpoints": True,
+            "label_palette_complete": label_palette is not None,
         },
         "groups": manifest_groups,
         "external_edges": external_edge_report,
         "internal_edges": internal_report,
     }
+    if label_palette is not None:
+        report["label_palette"] = {
+            **label_palette.manifest_data(),
+            "room_label_count": len(label_palette.room_labels),
+            "zone_label_count": len(label_palette.zone_labels),
+            "used_room_labels": {
+                label: label_palette.room_labels[label] for label in used_room_labels
+            },
+            "used_zone_labels": {
+                label: label_palette.zone_labels[label] for label in used_zone_labels
+            },
+        }
     return GroupedConversion(graphml=graphml, manifest=manifest, report=report)
 
 
@@ -642,6 +856,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--epsilon-px", type=float)
     parser.add_argument("--min-support-ratio", type=float, default=0.95)
     parser.add_argument("--min-vector-length-px", type=float)
+    parser.add_argument(
+        "--room-label-config",
+        type=Path,
+        help="Room_Label_v2 XML or project JSON containing label and polygon_label",
+    )
+    parser.add_argument(
+        "--zone-label-config",
+        type=Path,
+        help="Zone_Label XML or project JSON containing function_zone",
+    )
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args(argv)
 
@@ -663,6 +887,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
+        if bool(args.room_label_config) != bool(args.zone_label_config):
+            raise base.ConversionError(
+                "--room-label-config and --zone-label-config must be provided together"
+            )
+        label_palette = (
+            load_label_palette(args.room_label_config, args.zone_label_config)
+            if args.room_label_config is not None
+            else None
+        )
         payload = base.load_payload(args.input_json)
         task = base.select_task(payload, args.task_id)
         converted = convert(
@@ -671,24 +904,25 @@ def main(argv: list[str] | None = None) -> int:
             epsilon=args.epsilon_px,
             min_support_ratio=args.min_support_ratio,
             min_vector_length=args.min_vector_length_px,
+            label_palette=label_palette,
         )
         output_dir.mkdir(parents=True, exist_ok=True)
         converted.graphml.write(graphml_path, encoding="utf-8", xml_declaration=True)
         manifest = {
             **converted.manifest,
-            "graphml_path": str(graphml_path.resolve()),
-            "report_path": str(report_path.resolve()),
+            "graphml_file": graphml_path.name,
+            "report_file": report_path.name,
         }
         manifest_path.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
         report = {
             **converted.report,
-            "input_json": str(args.input_json.resolve()),
-            "outputs": {
-                "graphml": str(graphml_path.resolve()),
-                "group_manifest": str(manifest_path.resolve()),
-                "report": str(report_path.resolve()),
+            "input_json_sha256": hashlib.sha256(args.input_json.read_bytes()).hexdigest(),
+            "output_files": {
+                "graphml": graphml_path.name,
+                "group_manifest": manifest_path.name,
+                "report": report_path.name,
             },
         }
         report_path.write_text(
