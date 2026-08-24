@@ -1,0 +1,50 @@
+<View>
+  <Image name="image" value="$image" zoom="true" smoothing="false"/>
+
+  <!-- These reference controls are populated by read-only room predictions. -->
+  <RectangleLabels name="label" toName="image" snap="pixel" canRotate="false">
+    <Label value="Bedroom" background="#FFA39E"/>
+    <Label value="Entryway" background="#FFC069"/>
+  </RectangleLabels>
+  <PolygonLabels name="polygon_label" toName="image" snap="pixel" strokeWidth="2">
+    <Label value="Bedroom" background="#FFA39E"/>
+    <Label value="Entryway" background="#FFC069"/>
+  </PolygonLabels>
+  <VectorLabels name="opening_label" toName="image" choice="single" closable="false"
+    curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4"
+    pointSize="medium" showInline="true">
+    <Label value="Door" background="#FF8C00"/>
+    <Label value="Open passage" background="#00A878"/>
+  </VectorLabels>
+
+  <Header value="4. 功能分区类别（选择类别后使用 Rectangle / Polygon 绘制）"/>
+  <Labels name="function_zone" toName="image">
+    <Label value="Entry/transition" background="#FFB74D"/>
+    <Label value="Cooking/preparation" background="#C49A00"/>
+    <Label value="Living/social" background="#66BB6A"/>
+    <Label value="Sleeping" background="#EF9A9A"/>
+  </Labels>
+
+  <Header value="5. 交通连通 Vector（可交通，因此同时视为可视）"/>
+  <VectorLabels name="connection_vector" toName="image" choice="single" closable="false"
+    curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4"
+    pointSize="medium" showInline="true">
+    <Label value="Open passage" background="#00A878"/>
+    <Label value="Door" background="#FF8C00"/>
+    <Label value="Sliding door" background="#8E44AD"/>
+  </VectorLabels>
+
+  <Header value="6. 仅视觉连通 Vector（视线可通达、交通不可通达）"/>
+  <VectorLabels name="visual_connection_vector" toName="image" choice="single"
+    closable="false" curves="false" minPoints="2" maxPoints="2" snap="pixel"
+    strokeWidth="4" pointSize="medium" showInline="true">
+    <Label value="Visual only" background="#00B8D9"/>
+  </VectorLabels>
+
+  <Rectangle name="zone_rectangle" toName="image" snap="pixel" canRotate="true"
+    constrainTo="label,polygon_label" openingFrom="opening_label"
+    constraintSnapPx="10" openingSnapAngleDeg="5"/>
+  <Polygon name="zone_polygon" toName="image" snap="pixel" strokeWidth="2"
+    constrainTo="label,polygon_label" openingFrom="opening_label"
+    constraintSnapPx="10" openingSnapAngleDeg="5"/>
+</View>

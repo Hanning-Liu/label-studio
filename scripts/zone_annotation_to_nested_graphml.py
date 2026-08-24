@@ -14,12 +14,15 @@ After importing both files, attach the zone network to the room node with
 
 Only Python's standard library is required. Conversion is deliberately strict:
 a connection Vector must be supported by exactly two zone boundaries; invalid
-or ambiguous geometry stops conversion instead of guessing endpoints.
+or ambiguous geometry stops conversion instead of guessing endpoints. Version
+2 keeps movement and visual-only Vectors separate, derives visual connectivity
+from their geometric union, and normalizes both modalities independently.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -57,6 +60,14 @@ class Connection:
     label: str
     vertices: tuple[Point, ...]
     value: dict[str, Any]
+    modality: str = "movement"
+    control_name: str = "connection_vector"
+
+
+CONNECTION_CONTROLS = {
+    "connection_vector": "movement",
+    "visual_connection_vector": "visual_only",
+}
 
 
 @dataclass
@@ -556,7 +567,7 @@ def _extract_results(
             if result_id in zone_labels:
                 raise ConversionError(f"zone {result_id} has more than one function_zone result")
             zone_labels[result_id] = result
-        elif from_name == "connection_vector" and result.get("type") == "vectorlabels":
+        elif from_name in CONNECTION_CONTROLS and result.get("type") == "vectorlabels":
             points = result_vector(result)
             connections.append(
                 Connection(
@@ -564,6 +575,8 @@ def _extract_results(
                     label=_single_label(result, "vectorlabels"),
                     vertices=points,
                     value=result.get("value", {}),
+                    modality=CONNECTION_CONTROLS[str(from_name)],
+                    control_name=str(from_name),
                 )
             )
 
@@ -607,6 +620,220 @@ def _extract_results(
         raise ConversionError("duplicate connection Vector result ID")
 
     return room, zones, connections, image_dimensions
+
+
+def connectivity_edge_models(
+    zones: Sequence[Zone],
+    connections: Sequence[Connection],
+    epsilon: float,
+    min_support_ratio: float,
+    min_vector_length: float,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, float]]]:
+    """Validate and aggregate movement and visual-only boundary vectors.
+
+    Movement vectors imply visual connectivity. Visual-only vectors add to the
+    visual layer but never to the movement layer. Both layers are normalized
+    independently within each parent room.
+    """
+
+    zone_by_id = {zone.result_id: zone for zone in zones}
+    zone_metrics = {
+        zone.result_id: {
+            "area_px2": polygon_area(zone.polygon),
+            "perimeter_px": polygon_perimeter(zone.polygon),
+            "centroid_px": polygon_centroid(zone.polygon),
+        }
+        for zone in zones
+    }
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+
+    for connection in connections:
+        length = polyline_length(connection.vertices)
+        visual_only = connection.modality == "visual_only"
+        prefix = "visual-only" if visual_only else "connection"
+        if length < min_vector_length:
+            code = "VISUAL_VECTOR_TOO_SHORT: " if visual_only else ""
+            raise ConversionError(
+                f"{code}{prefix} Vector {connection.result_id} is too short: "
+                f"{length:.3f}px < {min_vector_length:.3f}px"
+            )
+        ratios = {
+            zone.result_id: boundary_support_ratio(
+                connection.vertices, zone.polygon, epsilon
+            )
+            for zone in zones
+        }
+        supported = sorted(
+            result_id
+            for result_id, ratio in ratios.items()
+            if ratio >= min_support_ratio
+        )
+        if len(supported) != 2:
+            details = ", ".join(
+                f"{zone_by_id[result_id].label}/{result_id}={ratio:.3f}"
+                for result_id, ratio in sorted(
+                    ratios.items(), key=lambda item: item[1], reverse=True
+                )
+            )
+            code = ""
+            if visual_only:
+                code = (
+                    "VISUAL_VECTOR_CROSSES_MULTIPLE_ZONES: "
+                    if len(supported) > 2
+                    else "VISUAL_VECTOR_WITHOUT_TWO_ZONES: "
+                )
+            raise ConversionError(
+                f"{code}{prefix} Vector {connection.result_id} must be supported by "
+                f"exactly two zone boundaries, found {len(supported)} ({details})"
+            )
+        parents = {
+            str(zone_by_id[result_id].partition_context.get("parent_room_id"))
+            for result_id in supported
+        }
+        if len(parents) != 1:
+            code = "VISUAL_VECTOR_CROSSES_MULTIPLE_ZONES: " if visual_only else ""
+            raise ConversionError(
+                f"{code}{prefix} Vector {connection.result_id} crosses parent rooms: "
+                + ", ".join(sorted(parents))
+            )
+        parent_id = next(iter(parents))
+        grouped.setdefault((parent_id, supported[0], supported[1]), []).append(
+            {
+                "connection": connection,
+                "length": length,
+                "support_ratios": {
+                    result_id: ratios[result_id] for result_id in supported
+                },
+            }
+        )
+
+    models: list[dict[str, Any]] = []
+    room_max: dict[str, dict[str, float]] = {}
+    for (parent_id, first, second), items in sorted(grouped.items()):
+        movement_items = [
+            item for item in items if item["connection"].modality == "movement"
+        ]
+        visual_only_items = [
+            item for item in items if item["connection"].modality == "visual_only"
+        ]
+        movement_segments = [
+            segment
+            for item in movement_items
+            for segment in polyline_segments(item["connection"].vertices)
+        ]
+        visual_only_segments = [
+            segment
+            for item in visual_only_items
+            for segment in polyline_segments(item["connection"].vertices)
+        ]
+        for movement_segment in movement_segments:
+            for visual_segment in visual_only_segments:
+                overlap = collinear_overlap_length(
+                    movement_segment, visual_segment, epsilon
+                )
+                if overlap > 1e-6:
+                    movement_ids = sorted(
+                        item["connection"].result_id for item in movement_items
+                    )
+                    visual_ids = sorted(
+                        item["connection"].result_id for item in visual_only_items
+                    )
+                    raise ConversionError(
+                        "VISUAL_VECTOR_OVERLAPS_MOVEMENT: zone pair "
+                        f"{first}/{second} has {overlap:.3f}px positive overlap; "
+                        f"movement={movement_ids}, visual_only={visual_ids}"
+                    )
+
+        movement_length = union_segment_length(movement_segments, epsilon)
+        visual_length = union_segment_length(
+            [*movement_segments, *visual_only_segments], epsilon
+        )
+        first_perimeter = zone_metrics[first]["perimeter_px"]
+        second_perimeter = zone_metrics[second]["perimeter_px"]
+        movement_raw = 0.5 * (
+            movement_length / first_perimeter + movement_length / second_perimeter
+        )
+        visual_raw = 0.5 * (
+            visual_length / first_perimeter + visual_length / second_perimeter
+        )
+        shared_length = shared_boundary_length(
+            zone_by_id[first].polygon, zone_by_id[second].polygon, epsilon
+        )
+        if shared_length <= 1e-9:
+            code = "VISUAL_VECTOR_OUTSIDE_SHARED_BOUNDARY: " if visual_only_items else ""
+            raise ConversionError(
+                f"{code}zones {first} and {second} have a connectivity Vector but no shared boundary"
+            )
+        if visual_length > shared_length + max(epsilon, 1e-6):
+            raise ConversionError(
+                "VISUAL_VECTOR_OUTSIDE_SHARED_BOUNDARY: visual connectivity length "
+                f"{visual_length:.3f}px exceeds shared boundary {shared_length:.3f}px "
+                f"for zones {first}/{second}"
+            )
+        if visual_length + 1e-6 < movement_length:
+            raise ConversionError(
+                "VISUAL_STRENGTH_INCONSISTENT: visual length is smaller than movement "
+                f"length for zones {first}/{second}"
+            )
+        model = {
+            "parent_room_id": parent_id,
+            "pair": (first, second),
+            "items": items,
+            "movement_items": movement_items,
+            "visual_only_items": visual_only_items,
+            "movement_labels": sorted(
+                {item["connection"].label for item in movement_items}
+            ),
+            "visual_only_labels": sorted(
+                {item["connection"].label for item in visual_only_items}
+            ),
+            "movement_length_px": movement_length,
+            "visual_length_px": visual_length,
+            "shared_boundary_length_px": shared_length,
+            "movement_raw_strength": movement_raw,
+            "visual_raw_strength": visual_raw,
+            "movement_interface_openness": movement_length / shared_length,
+            "visual_interface_openness": visual_length / shared_length,
+            "edge_kind": "direct_boundary" if movement_items else "visual_boundary",
+            "connectivity_modalities": (
+                ["movement", "visual"] if movement_items else ["visual"]
+            ),
+        }
+        models.append(model)
+        maxima = room_max.setdefault(parent_id, {"movement": 0.0, "visual": 0.0})
+        if movement_items:
+            maxima["movement"] = max(maxima["movement"], movement_raw)
+        maxima["visual"] = max(maxima["visual"], visual_raw)
+
+    for model in models:
+        maxima = room_max[model["parent_room_id"]]
+        movement_max = maxima["movement"]
+        visual_max = maxima["visual"]
+        model["movement_room_max_raw_strength"] = movement_max
+        model["visual_room_max_raw_strength"] = visual_max
+        model["movement_relative_strength"] = (
+            model["movement_raw_strength"] / movement_max
+            if model["movement_items"] and movement_max > 0
+            else 0.0
+        )
+        model["visual_relative_strength"] = (
+            model["visual_raw_strength"] / visual_max if visual_max > 0 else 0.0
+        )
+        if model["movement_items"]:
+            model.update(
+                {
+                    "opening_length_px": model["movement_length_px"],
+                    "raw_strength": model["movement_raw_strength"],
+                    "relative_strength": model["movement_relative_strength"],
+                    "interface_openness": model["movement_interface_openness"],
+                    "room_max_raw_strength": movement_max,
+                    "labels": model["movement_labels"],
+                }
+            )
+        else:
+            model["labels"] = model["visual_only_labels"]
+
+    return models, zone_metrics, room_max
 
 
 def _json(value: Any) -> str:
@@ -736,92 +963,26 @@ def convert(
     )
 
     zone_by_id = {zone.result_id: zone for zone in zones}
-    zone_metrics = {
-        zone.result_id: {
-            "area_px2": polygon_area(zone.polygon),
-            "perimeter_px": polygon_perimeter(zone.polygon),
-            "centroid_px": polygon_centroid(zone.polygon),
-        }
-        for zone in zones
-    }
-
-    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
-    for connection in connections:
-        length = polyline_length(connection.vertices)
-        if length < resolved_min_length:
-            raise ConversionError(
-                f"connection Vector {connection.result_id} is too short: "
-                f"{length:.3f}px < {resolved_min_length:.3f}px"
-            )
-        ratios = {
-            zone.result_id: boundary_support_ratio(
-                connection.vertices, zone.polygon, resolved_epsilon
-            )
-            for zone in zones
-        }
-        supported = sorted(
-            zone_id for zone_id, ratio in ratios.items() if ratio >= min_support_ratio
-        )
-        if len(supported) != 2:
-            details = ", ".join(
-                f"{zone_by_id[zone_id].label}/{zone_id}={ratio:.3f}"
-                for zone_id, ratio in sorted(ratios.items(), key=lambda item: item[1], reverse=True)
-            )
-            raise ConversionError(
-                f"connection Vector {connection.result_id} must be supported by exactly two "
-                f"zone boundaries, found {len(supported)} ({details})"
-            )
-        key = supported[0], supported[1]
-        grouped.setdefault(key, []).append(
-            {
-                "connection": connection,
-                "length": length,
-                "support_ratios": {zone_id: ratios[zone_id] for zone_id in supported},
-            }
-        )
-
-    edge_models: list[dict[str, Any]] = []
-    for pair, items in sorted(grouped.items()):
-        vector_segments = [
-            segment
-            for item in items
-            for segment in polyline_segments(item["connection"].vertices)
-        ]
-        opening_length = union_segment_length(vector_segments, resolved_epsilon)
-        first_perimeter = zone_metrics[pair[0]]["perimeter_px"]
-        second_perimeter = zone_metrics[pair[1]]["perimeter_px"]
-        raw_strength = 0.5 * (
-            opening_length / first_perimeter + opening_length / second_perimeter
-        )
-        shared_length = shared_boundary_length(
-            zone_by_id[pair[0]].polygon, zone_by_id[pair[1]].polygon, resolved_epsilon
-        )
-        if shared_length <= 1e-9:
-            raise ConversionError(
-                f"zones {pair[0]} and {pair[1]} have a connection Vector but no shared boundary"
-            )
-        labels = sorted({item["connection"].label for item in items})
-        edge_models.append(
-            {
-                "pair": pair,
-                "items": items,
-                "labels": labels,
-                "opening_length_px": opening_length,
-                "shared_boundary_length_px": shared_length,
-                "raw_strength": raw_strength,
-                "interface_openness": opening_length / shared_length,
-            }
-        )
-
-    room_max_raw_strength = max(
-        (edge["raw_strength"] for edge in edge_models), default=0.0
+    edge_models, zone_metrics, room_maxima = connectivity_edge_models(
+        zones,
+        connections,
+        resolved_epsilon,
+        min_support_ratio,
+        resolved_min_length,
     )
-    for edge in edge_models:
-        edge["relative_strength"] = (
-            edge["raw_strength"] / room_max_raw_strength
-            if room_max_raw_strength > 0
-            else 0.0
-        )
+    parent_maxima = room_maxima.get(
+        parent_room_id, {"movement": 0.0, "visual": 0.0}
+    )
+    room_max_raw_strength = parent_maxima["movement"]
+    visual_room_max_raw_strength = parent_maxima["visual"]
+    movement_connections = [
+        connection for connection in connections if connection.modality == "movement"
+    ]
+    visual_only_connections = [
+        connection
+        for connection in connections
+        if connection.modality == "visual_only"
+    ]
 
     node_rows: list[tuple[str, dict[str, Any]]] = []
     for zone in sorted(zones, key=lambda item: item.result_id):
@@ -857,17 +1018,37 @@ def convert(
 
     edge_rows: list[tuple[str, str, str, dict[str, Any]]] = []
     report_edges: list[dict[str, Any]] = []
-    for index, edge in enumerate(edge_models, start=1):
+    movement_edge_index = 0
+    for edge in edge_models:
         pair = edge["pair"]
-        item_ids = sorted(item["connection"].result_id for item in edge["items"])
+        movement_items = edge["movement_items"]
+        visual_only_items = edge["visual_only_items"]
+        movement_ids = sorted(
+            item["connection"].result_id for item in movement_items
+        )
+        visual_only_ids = sorted(
+            item["connection"].result_id for item in visual_only_items
+        )
         labels = edge["labels"]
-        edge_id = item_ids[0] if len(item_ids) == 1 else f"zone-edge-{index}"
+        if movement_ids:
+            movement_edge_index += 1
+            edge_id = (
+                movement_ids[0]
+                if len(movement_ids) == 1
+                else f"zone-edge-{movement_edge_index}"
+            )
+        elif len(visual_only_ids) == 1:
+            edge_id = visual_only_ids[0]
+        else:
+            identity = "|".join((parent_room_id, pair[0], pair[1]))
+            digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+            edge_id = f"visual-zone-edge-{digest}"
         minimum_support = min(
             ratio
             for item in edge["items"]
             for ratio in item["support_ratios"].values()
         )
-        vector_geometry = [
+        movement_geometry = [
             {
                 "result_id": item["connection"].result_id,
                 "label": item["connection"].label,
@@ -876,27 +1057,68 @@ def convert(
                     for point in item["connection"].vertices
                 ],
             }
-            for item in edge["items"]
+            for item in movement_items
+        ]
+        visual_only_geometry = [
+            {
+                "result_id": item["connection"].result_id,
+                "label": item["connection"].label,
+                "vertices_px": [
+                    [_round(point[0]), _round(point[1])]
+                    for point in item["connection"].vertices
+                ],
+            }
+            for item in visual_only_items
         ]
         row = {
             "name": " / ".join(labels),
             "shared_name": " / ".join(labels),
-            "edge_kind": "direct_boundary",
+            "edge_kind": edge["edge_kind"],
             "connection_type": "+".join(_snake_case(label) for label in labels),
             "connection_labels_json": _json(labels),
-            "vector_result_ids_json": _json(item_ids),
-            "vector_geometry_px_json": _json(vector_geometry),
+            "connectivity_modalities_json": _json(edge["connectivity_modalities"]),
+            "movement_vector_result_ids_json": _json(movement_ids),
+            "visual_only_vector_result_ids_json": _json(visual_only_ids),
+            "movement_vector_geometry_px_json": _json(movement_geometry),
+            "visual_only_vector_geometry_px_json": _json(visual_only_geometry),
             "parent_room_id": parent_room_id,
-            "opening_length_px": _round(edge["opening_length_px"]),
             "source_perimeter_px": _round(zone_metrics[pair[0]]["perimeter_px"]),
             "target_perimeter_px": _round(zone_metrics[pair[1]]["perimeter_px"]),
             "shared_boundary_length_px": _round(edge["shared_boundary_length_px"]),
-            "raw_strength": _round(edge["raw_strength"]),
-            "relative_strength": _round(edge["relative_strength"]),
-            "interface_openness": _round(edge["interface_openness"]),
+            "movement_length_px": _round(edge["movement_length_px"]),
+            "movement_raw_strength": _round(edge["movement_raw_strength"]),
+            "movement_relative_strength": _round(
+                edge["movement_relative_strength"]
+            ),
+            "movement_interface_openness": _round(
+                edge["movement_interface_openness"]
+            ),
+            "movement_room_max_raw_strength": _round(
+                edge["movement_room_max_raw_strength"]
+            ),
+            "visual_length_px": _round(edge["visual_length_px"]),
+            "visual_raw_strength": _round(edge["visual_raw_strength"]),
+            "visual_relative_strength": _round(edge["visual_relative_strength"]),
+            "visual_interface_openness": _round(
+                edge["visual_interface_openness"]
+            ),
+            "visual_room_max_raw_strength": _round(
+                edge["visual_room_max_raw_strength"]
+            ),
             "minimum_boundary_support_ratio": _round(minimum_support),
-            "room_max_raw_strength": _round(room_max_raw_strength),
         }
+        if movement_ids:
+            row.update(
+                {
+                    "vector_result_ids_json": _json(movement_ids),
+                    "vector_geometry_px_json": _json(movement_geometry),
+                    "opening_length_px": _round(edge["opening_length_px"]),
+                    "raw_strength": _round(edge["raw_strength"]),
+                    "relative_strength": _round(edge["relative_strength"]),
+                    "interface_openness": _round(edge["interface_openness"]),
+                    "room_max_raw_strength": _round(edge["room_max_raw_strength"]),
+                }
+            )
         edge_rows.append((edge_id, pair[0], pair[1], row))
         report_edges.append(
             {
@@ -940,7 +1162,10 @@ def convert(
                 {
                     "zone_count": len(zones),
                     "zone_connection_count": len(edge_models),
-                    "connection_vector_count": len(connections),
+                    "connection_vector_count": len(movement_connections),
+                    "visual_connection_vector_count": len(
+                        visual_only_connections
+                    ),
                     "child_network_name": zones_graph_id,
                     "nested_network_setup": (
                         "Cytoscape: Add Nested Network after importing both GraphML files"
@@ -980,7 +1205,8 @@ def convert(
     )
     zone_tree = _graphml_tree(zones_graph_id, node_rows, edge_rows)
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "connectivity_schema_version": 2,
         "status": "ok",
         "task_id": task.get("id"),
         "annotation_id": annotation.get("id"),
@@ -997,7 +1223,14 @@ def convert(
             "rooms": len(reference_rooms),
             "room_openings": len(reference_openings),
             "zones": len(zones),
-            "connection_vectors": len(connections),
+            "connection_vectors": len(movement_connections),
+            "visual_connection_vectors": len(visual_only_connections),
+            "direct_boundary_edges": sum(
+                edge["edge_kind"] == "direct_boundary" for edge in edge_models
+            ),
+            "visual_boundary_edges": sum(
+                edge["edge_kind"] == "visual_boundary" for edge in edge_models
+            ),
             "zone_edges": len(edge_models),
         },
         "validation": {
@@ -1006,8 +1239,13 @@ def convert(
             "minimum_vector_length_px": resolved_min_length,
             "all_zones_inside_parent": True,
             "all_vectors_have_exactly_two_zone_endpoints": True,
+            "movement_and_visual_only_vectors_do_not_overlap": True,
+            "movement_implies_visual": True,
+            "movement_and_visual_strengths_normalized_independently": True,
         },
         "room_max_raw_strength": _round(room_max_raw_strength),
+        "movement_room_max_raw_strength": _round(room_max_raw_strength),
+        "visual_room_max_raw_strength": _round(visual_room_max_raw_strength),
         "zones": [
             {
                 "result_id": zone.result_id,

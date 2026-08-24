@@ -8,6 +8,9 @@ Room openings are reconnected to the unique owning zone on every partitioned
 side. This keeps cross-room connectivity real and analyzable after expansion.
 Optional Label Studio room/zone configs add a strictly validated color palette
 to the GraphML nodes and Group manifest without hard-coding project labels.
+Movement ``connection_vector`` results imply visual connectivity. Additional
+``visual_connection_vector`` results contribute only to the visual layer; the
+two modalities are normalized independently inside each parent room.
 """
 
 from __future__ import annotations
@@ -270,7 +273,8 @@ def _collect_connections(annotation: dict[str, Any]) -> list[base.Connection]:
     for result in results if isinstance(results, list) else []:
         if not isinstance(result, dict):
             continue
-        if result.get("from_name") != "connection_vector" or result.get("type") != "vectorlabels":
+        from_name = result.get("from_name")
+        if from_name not in base.CONNECTION_CONTROLS or result.get("type") != "vectorlabels":
             continue
         result_id = result.get("id")
         if not isinstance(result_id, str) or not result_id:
@@ -282,6 +286,8 @@ def _collect_connections(annotation: dict[str, Any]) -> list[base.Connection]:
             label=base._single_label(result, "vectorlabels"),
             vertices=base.result_vector(result),
             value=result.get("value", {}),
+            modality=base.CONNECTION_CONTROLS[str(from_name)],
+            control_name=str(from_name),
         )
     return [connections[result_id] for result_id in sorted(connections)]
 
@@ -292,104 +298,18 @@ def _internal_edge_models(
     epsilon: float,
     min_support_ratio: float,
     min_vector_length: float,
-) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    zone_by_id = {zone.result_id: zone for zone in zones}
-    zone_metrics = {
-        zone.result_id: {
-            "area_px2": base.polygon_area(zone.polygon),
-            "perimeter_px": base.polygon_perimeter(zone.polygon),
-            "centroid_px": base.polygon_centroid(zone.polygon),
-        }
-        for zone in zones
-    }
-    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
-    for connection in connections:
-        length = base.polyline_length(connection.vertices)
-        if length < min_vector_length:
-            raise base.ConversionError(
-                f"connection Vector {connection.result_id} is too short: "
-                f"{length:.3f}px < {min_vector_length:.3f}px"
-            )
-        ratios = {
-            zone.result_id: base.boundary_support_ratio(
-                connection.vertices, zone.polygon, epsilon
-            )
-            for zone in zones
-        }
-        supported = sorted(
-            zone_result_id
-            for zone_result_id, ratio in ratios.items()
-            if ratio >= min_support_ratio
-        )
-        if len(supported) != 2:
-            details = ", ".join(
-                f"{zone_by_id[result_id].label}/{result_id}={ratio:.3f}"
-                for result_id, ratio in sorted(
-                    ratios.items(), key=lambda item: item[1], reverse=True
-                )
-            )
-            raise base.ConversionError(
-                f"connection Vector {connection.result_id} must be supported by exactly two "
-                f"zone boundaries, found {len(supported)} ({details})"
-            )
-        parents = {
-            str(zone_by_id[result_id].partition_context.get("parent_room_id"))
-            for result_id in supported
-        }
-        if len(parents) != 1:
-            raise base.ConversionError(
-                f"connection Vector {connection.result_id} crosses parent rooms: "
-                + ", ".join(sorted(parents))
-            )
-        parent_id = next(iter(parents))
-        key = parent_id, supported[0], supported[1]
-        grouped.setdefault(key, []).append(
-            {
-                "connection": connection,
-                "length": length,
-                "support_ratios": {result_id: ratios[result_id] for result_id in supported},
-            }
-        )
-
-    models: list[dict[str, Any]] = []
-    room_max: dict[str, float] = {}
-    for (parent_id, first, second), items in sorted(grouped.items()):
-        segments = [
-            segment
-            for item in items
-            for segment in base.polyline_segments(item["connection"].vertices)
-        ]
-        opening_length = base.union_segment_length(segments, epsilon)
-        first_perimeter = zone_metrics[first]["perimeter_px"]
-        second_perimeter = zone_metrics[second]["perimeter_px"]
-        raw_strength = 0.5 * (
-            opening_length / first_perimeter + opening_length / second_perimeter
-        )
-        shared_length = base.shared_boundary_length(
-            zone_by_id[first].polygon, zone_by_id[second].polygon, epsilon
-        )
-        if shared_length <= 1e-9:
-            raise base.ConversionError(
-                f"zones {first} and {second} have a connection Vector but no shared boundary"
-            )
-        model = {
-            "parent_room_id": parent_id,
-            "pair": (first, second),
-            "items": items,
-            "labels": sorted({item["connection"].label for item in items}),
-            "opening_length_px": opening_length,
-            "shared_boundary_length_px": shared_length,
-            "raw_strength": raw_strength,
-            "interface_openness": opening_length / shared_length,
-        }
-        models.append(model)
-        room_max[parent_id] = max(room_max.get(parent_id, 0.0), raw_strength)
-
-    for model in models:
-        maximum = room_max[model["parent_room_id"]]
-        model["room_max_raw_strength"] = maximum
-        model["relative_strength"] = model["raw_strength"] / maximum if maximum else 0.0
-    return models, zone_metrics
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, float]],
+]:
+    return base.connectivity_edge_models(
+        zones,
+        connections,
+        epsilon,
+        min_support_ratio,
+        min_vector_length,
+    )
 
 
 def _room_node_row(
@@ -555,13 +475,19 @@ def convert(
         grouped_rooms.setdefault(
             str(zone.partition_context["parent_room_id"]), []
         ).append(zone)
-    internal_models, zone_metrics = _internal_edge_models(
+    internal_models, zone_metrics, room_maxima = _internal_edge_models(
         zones,
         connections,
         resolved_epsilon,
         min_support_ratio,
         resolved_min_length,
     )
+    movement_connections = [
+        connection for connection in connections if connection.modality == "movement"
+    ]
+    visual_only_connections = [
+        connection for connection in connections if connection.modality == "visual_only"
+    ]
 
     claims: dict[tuple[str, str], list[str]] = {}
     for zone in zones:
@@ -686,40 +612,121 @@ def convert(
 
     internal_edges: list[tuple[str, str, str, dict[str, Any]]] = []
     internal_report: list[dict[str, Any]] = []
-    for index, model in enumerate(internal_models, start=1):
+    movement_edge_index = 0
+    for model in internal_models:
         first, second = model["pair"]
-        item_ids = sorted(item["connection"].result_id for item in model["items"])
-        edge_result_id = item_ids[0] if len(item_ids) == 1 else f"zone-edge-{index}"
+        movement_items = model["movement_items"]
+        visual_only_items = model["visual_only_items"]
+        movement_ids = sorted(
+            item["connection"].result_id for item in movement_items
+        )
+        visual_only_ids = sorted(
+            item["connection"].result_id for item in visual_only_items
+        )
+        if movement_ids:
+            movement_edge_index += 1
+            edge_result_id = (
+                movement_ids[0]
+                if len(movement_ids) == 1
+                else f"zone-edge-{movement_edge_index}"
+            )
+        elif len(visual_only_ids) == 1:
+            edge_result_id = visual_only_ids[0]
+        else:
+            identity = "|".join((model["parent_room_id"], first, second))
+            digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+            edge_result_id = f"visual-zone-edge-{digest}"
         minimum_support = min(
             ratio
             for item in model["items"]
             for ratio in item["support_ratios"].values()
         )
         labels = model["labels"]
+        movement_geometry = [
+            {
+                "result_id": item["connection"].result_id,
+                "label": item["connection"].label,
+                "vertices_px": [
+                    [base._round(point[0]), base._round(point[1])]
+                    for point in item["connection"].vertices
+                ],
+            }
+            for item in movement_items
+        ]
+        visual_only_geometry = [
+            {
+                "result_id": item["connection"].result_id,
+                "label": item["connection"].label,
+                "vertices_px": [
+                    [base._round(point[0]), base._round(point[1])]
+                    for point in item["connection"].vertices
+                ],
+            }
+            for item in visual_only_items
+        ]
         row = {
             "name": edge_result_id,
             "shared_name": " / ".join(labels),
             "display_name": " / ".join(labels),
-            "edge_kind": "direct_boundary",
-            "interaction": "direct_boundary",
+            "edge_kind": model["edge_kind"],
+            "interaction": model["edge_kind"],
             "connection_type": "+".join(base._snake_case(label) for label in labels),
             "connection_labels_json": base._json(labels),
-            "vector_result_ids_json": base._json(item_ids),
+            "connectivity_modalities_json": base._json(
+                model["connectivity_modalities"]
+            ),
+            "movement_vector_result_ids_json": base._json(movement_ids),
+            "visual_only_vector_result_ids_json": base._json(visual_only_ids),
+            "movement_vector_geometry_px_json": base._json(movement_geometry),
+            "visual_only_vector_geometry_px_json": base._json(
+                visual_only_geometry
+            ),
             "parent_room_id": model["parent_room_id"],
-            "opening_length_px": base._round(model["opening_length_px"]),
             "source_perimeter_px": base._round(zone_metrics[first]["perimeter_px"]),
             "target_perimeter_px": base._round(zone_metrics[second]["perimeter_px"]),
             "shared_boundary_length_px": base._round(
                 model["shared_boundary_length_px"]
             ),
-            "raw_strength": base._round(model["raw_strength"]),
-            "relative_strength": base._round(model["relative_strength"]),
-            "interface_openness": base._round(model["interface_openness"]),
+            "movement_length_px": base._round(model["movement_length_px"]),
+            "movement_raw_strength": base._round(model["movement_raw_strength"]),
+            "movement_relative_strength": base._round(
+                model["movement_relative_strength"]
+            ),
+            "movement_interface_openness": base._round(
+                model["movement_interface_openness"]
+            ),
+            "movement_room_max_raw_strength": base._round(
+                model["movement_room_max_raw_strength"]
+            ),
+            "visual_length_px": base._round(model["visual_length_px"]),
+            "visual_raw_strength": base._round(model["visual_raw_strength"]),
+            "visual_relative_strength": base._round(
+                model["visual_relative_strength"]
+            ),
+            "visual_interface_openness": base._round(
+                model["visual_interface_openness"]
+            ),
+            "visual_room_max_raw_strength": base._round(
+                model["visual_room_max_raw_strength"]
+            ),
             "minimum_boundary_support_ratio": base._round(minimum_support),
-            "room_max_raw_strength": base._round(model["room_max_raw_strength"]),
             "source_canonical_id": zone_id(first),
             "target_canonical_id": zone_id(second),
         }
+        if movement_ids:
+            row.update(
+                {
+                    "vector_result_ids_json": base._json(movement_ids),
+                    "vector_geometry_px_json": base._json(movement_geometry),
+                    "opening_length_px": base._round(model["opening_length_px"]),
+                    "raw_strength": base._round(model["raw_strength"]),
+                    "relative_strength": base._round(model["relative_strength"]),
+                    "interface_openness": base._round(model["interface_openness"]),
+                    "room_max_raw_strength": base._round(
+                        model["room_max_raw_strength"]
+                    ),
+                }
+            )
         internal_edges.append((edge_result_id, zone_id(first), zone_id(second), row))
         internal_report.append(
             {
@@ -766,6 +773,12 @@ def convert(
             for edge_result_id, _, _, row in internal_edges
             if row["parent_room_id"] == parent_id
         )
+        visual_boundary_ids = sorted(
+            edge_result_id
+            for edge_result_id, _, _, row in internal_edges
+            if row["parent_room_id"] == parent_id
+            and row["edge_kind"] == "visual_boundary"
+        )
         room_label = base._room_label(parent_result)
         manifest_groups.append(
             {
@@ -775,6 +788,7 @@ def convert(
                 "parent_node_attributes": parent_row,
                 "member_canonical_ids": sorted(zone_id(zone.result_id) for zone in room_zones),
                 "expected_internal_edge_ids": internal_ids,
+                "visual_boundary_edges": visual_boundary_ids,
                 "expected_external_opening_ids": external_openings,
             }
         )
@@ -788,12 +802,20 @@ def convert(
         "zone_nodes": len(zones),
         "room_opening_edges": room_edge_count,
         "zone_external_opening_edges": external_edge_count,
-        "direct_boundary_edges": len(internal_edges),
+        "connection_vectors": len(movement_connections),
+        "visual_connection_vectors": len(visual_only_connections),
+        "direct_boundary_edges": sum(
+            row["edge_kind"] == "direct_boundary" for _, _, _, row in internal_edges
+        ),
+        "visual_boundary_edges": sum(
+            row["edge_kind"] == "visual_boundary" for _, _, _, row in internal_edges
+        ),
         "total_data_nodes": len(node_rows),
         "total_edges": len(all_edges),
     }
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "connectivity_schema_version": 2,
         "task_id": task.get("id"),
         "annotation_id": annotation.get("id"),
         "network_name": network_name,
@@ -803,7 +825,8 @@ def convert(
     if label_palette is not None:
         manifest["label_palette"] = label_palette.manifest_data()
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "connectivity_schema_version": 2,
         "status": "ok",
         "task_id": task.get("id"),
         "annotation_id": annotation.get("id"),
@@ -817,6 +840,10 @@ def convert(
             "minimum_vector_length_px": resolved_min_length,
             "all_zones_inside_parent": True,
             "all_connection_vectors_have_exactly_two_same_room_zone_endpoints": True,
+            "all_visual_connection_vectors_have_exactly_two_same_room_zone_endpoints": True,
+            "movement_and_visual_only_vectors_do_not_overlap": True,
+            "movement_implies_visual": True,
+            "movement_and_visual_strengths_normalized_independently": True,
             "every_partitioned_opening_has_exactly_one_owner_per_partitioned_side": True,
             "every_reference_opening_emitted_once": True,
             "connected_room_ids_match_opening_endpoints": True,
@@ -826,6 +853,13 @@ def convert(
         "groups": manifest_groups,
         "external_edges": external_edge_report,
         "internal_edges": internal_report,
+        "room_max_raw_strengths": {
+            parent_id: {
+                "movement": base._round(values["movement"]),
+                "visual": base._round(values["visual"]),
+            }
+            for parent_id, values in sorted(room_maxima.items())
+        },
     }
     if label_palette is not None:
         report["label_palette"] = {
@@ -932,7 +966,12 @@ def main(argv: list[str] | None = None) -> int:
         output_dir.mkdir(parents=True, exist_ok=True)
         report_path.write_text(
             json.dumps(
-                {"schema_version": 1, "status": "error", "error": str(exc)},
+                {
+                    "schema_version": 2,
+                    "connectivity_schema_version": 2,
+                    "status": "error",
+                    "error": str(exc),
+                },
                 ensure_ascii=False,
                 indent=2,
             )

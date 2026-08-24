@@ -109,10 +109,10 @@ def zone_label(result_id, label):
     }
 
 
-def connection(result_id, vertices):
+def connection(result_id, vertices, *, from_name="connection_vector", label_value="Open passage"):
     return {
         "id": result_id,
-        "from_name": "connection_vector",
+        "from_name": from_name,
         "to_name": "image",
         "type": "vectorlabels",
         "original_width": 100,
@@ -121,7 +121,7 @@ def connection(result_id, vertices):
         "value": {
             "vertices": [{"x": x, "y": y} for x, y in vertices],
             "closed": False,
-            "vectorlabels": ["Open passage"],
+            "vectorlabels": [label_value],
         },
     }
 
@@ -216,7 +216,10 @@ class GroupedGraphMLConversionTests(unittest.TestCase):
                 "zone_nodes": 4,
                 "room_opening_edges": 1,
                 "zone_external_opening_edges": 2,
+                "connection_vectors": 2,
+                "visual_connection_vectors": 0,
                 "direct_boundary_edges": 2,
+                "visual_boundary_edges": 0,
                 "total_data_nodes": 6,
                 "total_edges": 5,
             },
@@ -233,6 +236,26 @@ class GroupedGraphMLConversionTests(unittest.TestCase):
         root = converted.graphml.getroot()
         self.assertEqual(len(root.findall(".//g:node", namespace)), 6)
         self.assertEqual(len(root.findall(".//g:edge", namespace)), 5)
+
+    def test_visual_only_edge_is_counted_and_has_no_movement_aliases(self):
+        task = synthetic_task()
+        result = task["annotations"][0]["result"]
+        movement = next(item for item in result if item.get("id") == "connection-a")
+        movement["from_name"] = "visual_connection_vector"
+        movement["value"]["vectorlabels"] = ["Visual only"]
+        converted = MODULE.convert(task, prefix="floorplan")
+        self.assertEqual(converted.report["counts"]["connection_vectors"], 1)
+        self.assertEqual(converted.report["counts"]["visual_connection_vectors"], 1)
+        self.assertEqual(converted.report["counts"]["direct_boundary_edges"], 1)
+        self.assertEqual(converted.report["counts"]["visual_boundary_edges"], 1)
+        visual = next(
+            edge for edge in converted.report["internal_edges"]
+            if edge["edge_kind"] == "visual_boundary"
+        )
+        self.assertEqual(visual["movement_length_px"], 0.0)
+        self.assertGreater(visual["visual_length_px"], 0.0)
+        self.assertNotIn("opening_length_px", visual)
+        self.assertIn(visual["edge_result_id"], converted.manifest["groups"][0]["visual_boundary_edges"])
 
     def test_rejects_missing_opening_owner(self):
         task = synthetic_task()

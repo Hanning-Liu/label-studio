@@ -51,10 +51,10 @@ def label(result_id, value):
     }
 
 
-def vector(result_id, vertices):
+def vector(result_id, vertices, *, from_name="connection_vector", label_value="Open passage"):
     return {
         "id": result_id,
-        "from_name": "connection_vector",
+        "from_name": from_name,
         "to_name": "image",
         "type": "vectorlabels",
         "original_width": 100,
@@ -63,7 +63,7 @@ def vector(result_id, vertices):
         "value": {
             "vertices": [{"x": x, "y": y} for x, y in vertices],
             "closed": False,
-            "vectorlabels": ["Open passage"],
+            "vectorlabels": [label_value],
         },
     }
 
@@ -180,6 +180,9 @@ class NestedGraphMLConversionTests(unittest.TestCase):
             "room_openings": 1,
             "zones": 2,
             "connection_vectors": 1,
+            "visual_connection_vectors": 0,
+            "direct_boundary_edges": 1,
+            "visual_boundary_edges": 0,
             "zone_edges": 1,
         })
         edge = converted.report["edges"][0]
@@ -191,6 +194,11 @@ class NestedGraphMLConversionTests(unittest.TestCase):
         self.assertAlmostEqual(edge["raw_strength"], 0.2)
         self.assertAlmostEqual(edge["relative_strength"], 1.0)
         self.assertAlmostEqual(edge["interface_openness"], 0.6)
+        self.assertAlmostEqual(edge["movement_length_px"], 60.0)
+        self.assertAlmostEqual(edge["visual_length_px"], 60.0)
+        self.assertAlmostEqual(edge["movement_relative_strength"], 1.0)
+        self.assertAlmostEqual(edge["visual_relative_strength"], 1.0)
+        self.assertEqual(edge["edge_kind"], "direct_boundary")
 
         namespace = {"g": MODULE.GRAPHML_NS}
         overview_root = converted.overview.getroot()
@@ -204,6 +212,59 @@ class NestedGraphMLConversionTests(unittest.TestCase):
         invalid = vector("bad-connection", [(0, 20), (0, 80)])
         with self.assertRaisesRegex(MODULE.ConversionError, "exactly two zone boundaries"):
             MODULE.convert(task(invalid), "room-bedroom", "bedroom")
+
+    def test_visual_only_vector_creates_visual_boundary_without_movement_aliases(self):
+        visual = vector(
+            "visual-1",
+            [(50, 20), (50, 80)],
+            from_name="visual_connection_vector",
+            label_value="Visual only",
+        )
+        converted = MODULE.convert(task(visual), "room-bedroom", "bedroom")
+        edge = converted.report["edges"][0]
+        self.assertEqual(edge["edge_kind"], "visual_boundary")
+        self.assertEqual(edge["connectivity_modalities_json"], '["visual"]')
+        self.assertEqual(edge["movement_vector_result_ids_json"], "[]")
+        self.assertEqual(edge["visual_only_vector_result_ids_json"], '["visual-1"]')
+        self.assertEqual(edge["movement_length_px"], 0.0)
+        self.assertEqual(edge["movement_relative_strength"], 0.0)
+        self.assertEqual(edge["visual_length_px"], 60.0)
+        self.assertNotIn("opening_length_px", edge)
+
+    def test_non_overlapping_visual_segment_augments_visual_union_only(self):
+        sample = task(vector("movement-1", [(50, 20), (50, 50)]))
+        sample["annotations"][0]["result"].append(
+            vector(
+                "visual-1",
+                [(50, 50), (50, 80)],
+                from_name="visual_connection_vector",
+                label_value="Visual only",
+            )
+        )
+        converted = MODULE.convert(sample, "room-bedroom", "bedroom")
+        edge = converted.report["edges"][0]
+        self.assertEqual(edge["edge_kind"], "direct_boundary")
+        self.assertEqual(edge["movement_length_px"], 30.0)
+        self.assertEqual(edge["visual_length_px"], 60.0)
+        self.assertAlmostEqual(edge["movement_raw_strength"], 0.1)
+        self.assertAlmostEqual(edge["visual_raw_strength"], 0.2)
+        self.assertEqual(edge["movement_vector_result_ids_json"], '["movement-1"]')
+        self.assertEqual(edge["visual_only_vector_result_ids_json"], '["visual-1"]')
+
+    def test_rejects_positive_overlap_between_movement_and_visual_only(self):
+        sample = task(vector("movement-1", [(50, 20), (50, 60)]))
+        sample["annotations"][0]["result"].append(
+            vector(
+                "visual-1",
+                [(50, 50), (50, 80)],
+                from_name="visual_connection_vector",
+                label_value="Visual only",
+            )
+        )
+        with self.assertRaisesRegex(
+            MODULE.ConversionError, "VISUAL_VECTOR_OVERLAPS_MOVEMENT"
+        ):
+            MODULE.convert(sample, "room-bedroom", "bedroom")
 
     def test_cli_writes_three_valid_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
