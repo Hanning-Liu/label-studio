@@ -13,7 +13,7 @@ jest.mock("../../utils/feature-flags", () => ({
 
 jest.mock("../../regions/Result", () => require("./AreaMixinMockResult"));
 
-import { AreaMixin, AreaMixinBase } from "../AreaMixin";
+import { AreaMixin, AreaMixinBase, shouldRenderRoomReference } from "../AreaMixin";
 import { ReadOnlyRegionMixin } from "../ReadOnlyMixin";
 import MockResult from "./AreaMixinMockResult";
 
@@ -77,6 +77,20 @@ const BaseWithVolatiles = types
   }));
 
 const TestArea = types.compose(BaseWithVolatiles, AreaMixinBase, ReadOnlyRegionMixin);
+
+describe("shouldRenderRoomReference", () => {
+  it("keeps Room v3 annotation regions at their configured opacity", () => {
+    expect(shouldRenderRoomReference({ isRoomReference: true, parent: { hasRoomConstraints: false } })).toBe(false);
+  });
+
+  it("fades Room v3 references in a constrained FunctionZone task", () => {
+    expect(shouldRenderRoomReference({ isRoomReference: true, parent: { hasRoomConstraints: true } })).toBe(true);
+  });
+
+  it("does not treat ordinary regions as room references", () => {
+    expect(shouldRenderRoomReference({ isRoomReference: false, parent: { hasRoomConstraints: true } })).toBe(false);
+  });
+});
 
 const Root = types
   .model("AreaMixinTestRoot", {

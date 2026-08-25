@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -69,6 +70,24 @@ def polygon(result_id, control, label, points, meta=None):
 
 
 class RoomV3PipelineTests(unittest.TestCase):
+    def test_room_label_config_uses_normal_room_opacity_only(self):
+        root = ET.parse(SCRIPTS.parent / "examples" / "room-v3" / "room-v3.xml").getroot()
+        controls = {element.get("name"): element for element in root.iter() if element.get("name")}
+        rectangle = controls["room_rectangle"]
+        polygon = controls["room_polygon"]
+        self.assertEqual(rectangle.get("opacity"), "0.6")
+        self.assertEqual(polygon.get("opacity"), "0.6")
+        self.assertEqual(controls["portal_v2_reference"].get("opacity"), "0.35")
+        self.assertIsNone(controls["portal_rectangle"].get("opacity"))
+        rectangle_palette = {
+            label.get("value"): label.get("background") for label in rectangle.findall("Label")
+        }
+        polygon_palette = {
+            label.get("value"): label.get("background") for label in polygon.findall("Label")
+        }
+        self.assertEqual(len(rectangle_palette), 18)
+        self.assertEqual(rectangle_palette, polygon_palette)
+
     def test_room_migration_separates_editable_and_reference_results(self):
         source = {
             "id": 13,

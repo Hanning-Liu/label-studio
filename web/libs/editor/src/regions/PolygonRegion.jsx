@@ -12,7 +12,7 @@ import { LabelOnPolygon } from "../components/ImageView/LabelOnRegion";
 import { PolygonPoint, PolygonPointView } from "./PolygonPoint";
 import { green } from "@ant-design/colors";
 import { guidGenerator } from "../core/Helpers";
-import { AreaMixin } from "../mixins/AreaMixin";
+import { AreaMixin, shouldRenderRoomReference } from "../mixins/AreaMixin";
 import { useRegionStyles } from "../hooks/useRegionColor";
 import { AliveRegion } from "./AliveRegion";
 import { KonvaRegionMixin } from "../mixins/KonvaRegion";
@@ -598,7 +598,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   const regionStyles = useRegionStyles(item, {
     useStrokeAsFill: true,
   });
-  const isReference = item.isRoomReference;
+  const isReference = shouldRenderRoomReference(item);
   const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
   const displayStyles = isReference
     ? {

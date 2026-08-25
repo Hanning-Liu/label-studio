@@ -8,7 +8,7 @@ import Constants from "../core/Constants";
 import { guidGenerator } from "../core/Helpers";
 import Registry from "../core/Registry";
 import { useRegionStyles } from "../hooks/useRegionColor";
-import { AreaMixin } from "../mixins/AreaMixin";
+import { AreaMixin, shouldRenderRoomReference } from "../mixins/AreaMixin";
 import { KonvaRegionMixin } from "../mixins/KonvaRegion";
 import NormalizationMixin from "../mixins/Normalization";
 import RegionsMixin from "../mixins/Regions";
@@ -438,7 +438,7 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
 
   const { suggestion } = useContext(ImageViewContext) ?? {};
   const regionStyles = useRegionStyles(item, { suggestion });
-  const isReference = item.isRoomReference;
+  const isReference = shouldRenderRoomReference(item);
   const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
   const displayStyles = isReference
     ? {

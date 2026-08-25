@@ -8,7 +8,7 @@
     roomV3Tolerance="0.02" />
 
   <Header value="1. 房间净空间（规则房间：Rectangle）" size="5" />
-  <RectangleLabels name="room_rectangle" toName="image" snap="pixel" canRotate="false">
+  <RectangleLabels name="room_rectangle" toName="image" snap="pixel" canRotate="false" opacity="0.6">
     <Label value="Bedroom" background="#FFA39E" />
     <Label value="Bathroom" background="#FFC069" />
     <Label value="Kitchen" background="#AD8B00" />
@@ -30,7 +30,7 @@
   </RectangleLabels>
 
   <Header value="2. 房间净空间（不规则房间：Polygon，沿墙体内侧完成面）" size="5" />
-  <PolygonLabels name="room_polygon" toName="image" snap="pixel" strokeWidth="2">
+  <PolygonLabels name="room_polygon" toName="image" snap="pixel" strokeWidth="2" opacity="0.6">
     <Label value="Bedroom" background="#FFA39E" />
     <Label value="Bathroom" background="#FFC069" />
     <Label value="Kitchen" background="#AD8B00" />
