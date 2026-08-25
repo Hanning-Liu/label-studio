@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import itertools
 import json
 import math
 import re
@@ -836,6 +837,342 @@ def connectivity_edge_models(
     return models, zone_metrics, room_max
 
 
+def assign_connectivity_edge_ids(models: Sequence[dict[str, Any]]) -> None:
+    """Assign the same stable IDs historically used by both converters."""
+
+    movement_edge_index = 0
+    for model in models:
+        movement_ids = sorted(
+            item["connection"].result_id for item in model["movement_items"]
+        )
+        visual_only_ids = sorted(
+            item["connection"].result_id for item in model["visual_only_items"]
+        )
+        if movement_ids:
+            movement_edge_index += 1
+            edge_result_id = (
+                movement_ids[0]
+                if len(movement_ids) == 1
+                else f"zone-edge-{movement_edge_index}"
+            )
+        elif len(visual_only_ids) == 1:
+            edge_result_id = visual_only_ids[0]
+        else:
+            first, second = model["pair"]
+            identity = "|".join((model["parent_room_id"], first, second))
+            digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+            edge_result_id = f"visual-zone-edge-{digest}"
+        model["edge_result_id"] = edge_result_id
+
+
+def _polyline_touches_point(
+    vertices: Sequence[Point], point: Point, epsilon: float
+) -> bool:
+    return any(
+        point_segment_distance(point, segment) <= epsilon
+        for segment in polyline_segments(vertices)
+    )
+
+
+def _harmonic_strength(first: float, second: float) -> float:
+    total = first + second
+    return 2.0 * first * second / total if total > 0 else 0.0
+
+
+def _junction_candidates(
+    zones: Sequence[Zone], epsilon: float
+) -> list[dict[str, Any]]:
+    """Find unique four-zone corner clusters inside each parent room."""
+
+    by_parent: dict[str, list[Zone]] = {}
+    for zone in zones:
+        parent_id = str(zone.partition_context.get("parent_room_id") or "")
+        by_parent.setdefault(parent_id, []).append(zone)
+
+    candidates: list[dict[str, Any]] = []
+    for parent_id, room_zones in sorted(by_parent.items()):
+        corners = [
+            (zone.result_id, point)
+            for zone in room_zones
+            for point in zone.polygon
+        ]
+        room_candidates: list[dict[str, Any]] = []
+        for combination in itertools.combinations(corners, 4):
+            zone_ids = tuple(sorted(zone_id for zone_id, _ in combination))
+            if len(set(zone_ids)) != 4:
+                continue
+            junction = (
+                sum(point[0] for _, point in combination) / 4.0,
+                sum(point[1] for _, point in combination) / 4.0,
+            )
+            if any(distance(point, junction) > epsilon for _, point in combination):
+                continue
+            nearby = [
+                (zone_id, point)
+                for zone_id, point in corners
+                if distance(point, junction) <= epsilon
+            ]
+            if len(nearby) != 4 or {zone_id for zone_id, _ in nearby} != set(zone_ids):
+                continue
+            existing = next(
+                (
+                    candidate
+                    for candidate in room_candidates
+                    if candidate["zone_ids"] == zone_ids
+                    and distance(candidate["point"], junction) <= epsilon
+                ),
+                None,
+            )
+            if existing is None:
+                room_candidates.append(
+                    {"parent_room_id": parent_id, "zone_ids": zone_ids, "point": junction}
+                )
+
+        by_zone_set: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+        for candidate in room_candidates:
+            by_zone_set.setdefault(candidate["zone_ids"], []).append(candidate)
+        for zone_ids, values in by_zone_set.items():
+            if len(values) > 1:
+                points = ", ".join(
+                    f"({value['point'][0]:.3f},{value['point'][1]:.3f})"
+                    for value in values
+                )
+                raise ConversionError(
+                    "AMBIGUOUS_JUNCTION: zones "
+                    + ", ".join(zone_ids)
+                    + f" have multiple four-way junction candidates: {points}"
+                )
+            candidates.append(values[0])
+    return candidates
+
+
+def derived_junction_models(
+    zones: Sequence[Zone],
+    direct_models: Sequence[dict[str, Any]],
+    epsilon: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Derive diagonal connectivity at strictly valid four-way junctions.
+
+    A modality is eligible only when its four sequential direct edges form a
+    four-cycle and every contributing Vector touches the common junction.
+    Movement and visual are evaluated independently. Derived strengths use the
+    best of the two harmonic two-edge paths and are never renormalized.
+    """
+
+    if any(not model.get("edge_result_id") for model in direct_models):
+        raise ConversionError("internal connectivity edges need IDs before junction derivation")
+
+    derived_by_key: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    junction_reports: list[dict[str, Any]] = []
+    for candidate in _junction_candidates(zones, epsilon):
+        parent_id = candidate["parent_room_id"]
+        zone_ids = tuple(candidate["zone_ids"])
+        zone_id_set = set(zone_ids)
+        junction = candidate["point"]
+        identity = "|".join(
+            [parent_id, *zone_ids, f"{junction[0]:.6f}", f"{junction[1]:.6f}"]
+        )
+        junction_id = "junction-" + hashlib.sha256(
+            identity.encode("utf-8")
+        ).hexdigest()[:12]
+        modality_reports: dict[str, Any] = {}
+
+        for mode in ("movement", "visual"):
+            eligible: dict[frozenset[str], dict[str, Any]] = {}
+            for model in direct_models:
+                if model["parent_room_id"] != parent_id:
+                    continue
+                first, second = model["pair"]
+                if first not in zone_id_set or second not in zone_id_set:
+                    continue
+                items = (
+                    model["movement_items"]
+                    if mode == "movement"
+                    else model["items"]
+                )
+                if not items:
+                    continue
+                if not any(
+                    _polyline_touches_point(
+                        item["connection"].vertices, junction, epsilon
+                    )
+                    for item in items
+                ):
+                    continue
+                eligible[frozenset((first, second))] = model
+
+            degrees = {zone_id: 0 for zone_id in zone_ids}
+            for pair in eligible:
+                for zone_id in pair:
+                    degrees[zone_id] += 1
+            complete_cycle = len(eligible) == 4 and all(
+                degree == 2 for degree in degrees.values()
+            )
+            modality_reports[mode] = {
+                "complete": complete_cycle,
+                "direct_edge_ids": sorted(
+                    model["edge_result_id"] for model in eligible.values()
+                ),
+            }
+            if not complete_cycle:
+                continue
+
+            all_pairs = {
+                frozenset(pair) for pair in itertools.combinations(zone_ids, 2)
+            }
+            opposite_pairs = sorted(
+                (tuple(sorted(pair)) for pair in all_pairs - set(eligible)),
+                key=lambda pair: pair,
+            )
+            if len(opposite_pairs) != 2:
+                continue
+            ring_strengths = [
+                float(model[f"{mode}_relative_strength"])
+                for model in eligible.values()
+            ]
+            junction_openness = sum(ring_strengths) / 4.0
+
+            for source, target in opposite_pairs:
+                paths: list[dict[str, Any]] = []
+                for via in sorted(zone_id_set - {source, target}):
+                    first_model = eligible[frozenset((source, via))]
+                    second_model = eligible[frozenset((via, target))]
+                    first_strength = float(
+                        first_model[f"{mode}_relative_strength"]
+                    )
+                    second_strength = float(
+                        second_model[f"{mode}_relative_strength"]
+                    )
+                    edge_ids = [
+                        str(first_model["edge_result_id"]),
+                        str(second_model["edge_result_id"]),
+                    ]
+                    paths.append(
+                        {
+                            "via_zone_id": via,
+                            "edge_ids": edge_ids,
+                            "relative_strengths": [first_strength, second_strength],
+                            "harmonic_strength": _harmonic_strength(
+                                first_strength, second_strength
+                            ),
+                        }
+                    )
+                paths.sort(
+                    key=lambda path: (
+                        -path["harmonic_strength"],
+                        path["via_zone_id"],
+                    )
+                )
+                best = paths[0]
+                key = (parent_id, junction_id, source, target)
+                model = derived_by_key.setdefault(
+                    key,
+                    {
+                        "parent_room_id": parent_id,
+                        "pair": (source, target),
+                        "junction_id": junction_id,
+                        "junction_point": junction,
+                        "junction_zone_ids": list(zone_ids),
+                        "derivation_method": "best_harmonic_path",
+                        "modalities": [],
+                    },
+                )
+                model["modalities"].append(mode)
+                model[mode] = {
+                    "relative_strength": best["harmonic_strength"],
+                    "junction_openness": junction_openness,
+                    "derived_from_edge_ids": best["edge_ids"],
+                    "candidate_paths": paths,
+                }
+
+        junction_reports.append(
+            {
+                "junction_id": junction_id,
+                "parent_room_id": parent_id,
+                "zone_ids": list(zone_ids),
+                "junction_x_px": _round(junction[0]),
+                "junction_y_px": _round(junction[1]),
+                "movement_complete": bool(
+                    modality_reports.get("movement", {}).get("complete")
+                ),
+                "visual_complete": bool(
+                    modality_reports.get("visual", {}).get("complete")
+                ),
+                "movement_direct_edge_ids": modality_reports.get(
+                    "movement", {}
+                ).get("direct_edge_ids", []),
+                "visual_direct_edge_ids": modality_reports.get(
+                    "visual", {}
+                ).get("direct_edge_ids", []),
+            }
+        )
+
+    derived = []
+    for key, model in sorted(derived_by_key.items()):
+        source, target = model["pair"]
+        identity = "|".join((model["junction_id"], source, target))
+        model["edge_result_id"] = "derived-junction-" + hashlib.sha256(
+            identity.encode("utf-8")
+        ).hexdigest()[:12]
+        model["modalities"] = [
+            mode for mode in ("movement", "visual") if mode in model["modalities"]
+        ]
+        derived.append(model)
+    return derived, junction_reports
+
+
+def derived_junction_edge_row(model: dict[str, Any]) -> dict[str, Any]:
+    """Serialize one dual-modal derived junction model to GraphML attributes."""
+
+    edge_result_id = str(model["edge_result_id"])
+    junction = model["junction_point"]
+    row: dict[str, Any] = {
+        "name": edge_result_id,
+        "shared_name": "Derived junction",
+        "display_name": "Derived junction",
+        "edge_kind": "derived_junction",
+        "interaction": "derived_junction",
+        "connection_type": "derived_junction",
+        "connectivity_modalities_json": _json(model["modalities"]),
+        "parent_room_id": model["parent_room_id"],
+        "junction_id": model["junction_id"],
+        "junction_x_px": _round(junction[0]),
+        "junction_y_px": _round(junction[1]),
+        "junction_zone_ids_json": _json(model["junction_zone_ids"]),
+        "derivation_method": model["derivation_method"],
+    }
+    for mode in model["modalities"]:
+        metrics = model[mode]
+        row.update(
+            {
+                f"{mode}_relative_strength": _round(
+                    metrics["relative_strength"]
+                ),
+                f"{mode}_junction_openness": _round(
+                    metrics["junction_openness"]
+                ),
+                f"{mode}_derived_from_edges_json": _json(
+                    metrics["derived_from_edge_ids"]
+                ),
+                f"{mode}_candidate_paths_json": _json(
+                    [path["edge_ids"] for path in metrics["candidate_paths"]]
+                ),
+            }
+        )
+    if "movement" in model["modalities"]:
+        movement = model["movement"]
+        row.update(
+            {
+                "relative_strength": _round(movement["relative_strength"]),
+                "junction_openness": _round(movement["junction_openness"]),
+                "derived_from_edges_json": _json(
+                    movement["derived_from_edge_ids"]
+                ),
+            }
+        )
+    return row
+
+
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
@@ -970,6 +1307,10 @@ def convert(
         min_support_ratio,
         resolved_min_length,
     )
+    assign_connectivity_edge_ids(edge_models)
+    junction_models, junction_reports = derived_junction_models(
+        zones, edge_models, resolved_epsilon
+    )
     parent_maxima = room_maxima.get(
         parent_room_id, {"movement": 0.0, "visual": 0.0}
     )
@@ -1018,7 +1359,6 @@ def convert(
 
     edge_rows: list[tuple[str, str, str, dict[str, Any]]] = []
     report_edges: list[dict[str, Any]] = []
-    movement_edge_index = 0
     for edge in edge_models:
         pair = edge["pair"]
         movement_items = edge["movement_items"]
@@ -1030,19 +1370,7 @@ def convert(
             item["connection"].result_id for item in visual_only_items
         )
         labels = edge["labels"]
-        if movement_ids:
-            movement_edge_index += 1
-            edge_id = (
-                movement_ids[0]
-                if len(movement_ids) == 1
-                else f"zone-edge-{movement_edge_index}"
-            )
-        elif len(visual_only_ids) == 1:
-            edge_id = visual_only_ids[0]
-        else:
-            identity = "|".join((parent_room_id, pair[0], pair[1]))
-            digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
-            edge_id = f"visual-zone-edge-{digest}"
+        edge_id = str(edge["edge_result_id"])
         minimum_support = min(
             ratio
             for item in edge["items"]
@@ -1131,6 +1459,22 @@ def convert(
             }
         )
 
+    for junction in junction_models:
+        first, second = junction["pair"]
+        edge_id = str(junction["edge_result_id"])
+        row = derived_junction_edge_row(junction)
+        edge_rows.append((edge_id, first, second, row))
+        report_edges.append(
+            {
+                "edge_id": edge_id,
+                "source_zone_id": first,
+                "source_zone_label": zone_by_id[first].label,
+                "target_zone_id": second,
+                "target_zone_label": zone_by_id[second].label,
+                **row,
+            }
+        )
+
     zones_graph_id = f"{prefix}-zones"
     overview_nodes: list[tuple[str, dict[str, Any]]] = []
     for reference_room in reference_rooms:
@@ -1162,6 +1506,7 @@ def convert(
                 {
                     "zone_count": len(zones),
                     "zone_connection_count": len(edge_models),
+                    "derived_junction_count": len(junction_models),
                     "connection_vector_count": len(movement_connections),
                     "visual_connection_vector_count": len(
                         visual_only_connections
@@ -1231,7 +1576,14 @@ def convert(
             "visual_boundary_edges": sum(
                 edge["edge_kind"] == "visual_boundary" for edge in edge_models
             ),
-            "zone_edges": len(edge_models),
+            "derived_junction_edges": len(junction_models),
+            "movement_derived_junction_edges": sum(
+                "movement" in edge["modalities"] for edge in junction_models
+            ),
+            "visual_derived_junction_edges": sum(
+                "visual" in edge["modalities"] for edge in junction_models
+            ),
+            "zone_edges": len(edge_models) + len(junction_models),
         },
         "validation": {
             "boundary_epsilon_px": resolved_epsilon,
@@ -1242,6 +1594,8 @@ def convert(
             "movement_and_visual_only_vectors_do_not_overlap": True,
             "movement_implies_visual": True,
             "movement_and_visual_strengths_normalized_independently": True,
+            "derived_junctions_use_best_harmonic_path": True,
+            "derived_junctions_excluded_from_direct_normalization": True,
         },
         "room_max_raw_strength": _round(room_max_raw_strength),
         "movement_room_max_raw_strength": _round(room_max_raw_strength),
@@ -1256,6 +1610,7 @@ def convert(
             for zone in sorted(zones, key=lambda item: item.result_id)
         ],
         "edges": report_edges,
+        "junctions": junction_reports,
     }
     return ConvertedNetworks(overview=overview, zones=zone_tree, report=report)
 

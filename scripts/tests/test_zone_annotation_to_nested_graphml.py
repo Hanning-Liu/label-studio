@@ -183,6 +183,9 @@ class NestedGraphMLConversionTests(unittest.TestCase):
             "visual_connection_vectors": 0,
             "direct_boundary_edges": 1,
             "visual_boundary_edges": 0,
+            "derived_junction_edges": 0,
+            "movement_derived_junction_edges": 0,
+            "visual_derived_junction_edges": 0,
             "zone_edges": 1,
         })
         edge = converted.report["edges"][0]

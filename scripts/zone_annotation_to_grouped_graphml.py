@@ -482,6 +482,10 @@ def convert(
         min_support_ratio,
         resolved_min_length,
     )
+    base.assign_connectivity_edge_ids(internal_models)
+    junction_models, junction_reports = base.derived_junction_models(
+        zones, internal_models, resolved_epsilon
+    )
     movement_connections = [
         connection for connection in connections if connection.modality == "movement"
     ]
@@ -612,7 +616,6 @@ def convert(
 
     internal_edges: list[tuple[str, str, str, dict[str, Any]]] = []
     internal_report: list[dict[str, Any]] = []
-    movement_edge_index = 0
     for model in internal_models:
         first, second = model["pair"]
         movement_items = model["movement_items"]
@@ -623,19 +626,7 @@ def convert(
         visual_only_ids = sorted(
             item["connection"].result_id for item in visual_only_items
         )
-        if movement_ids:
-            movement_edge_index += 1
-            edge_result_id = (
-                movement_ids[0]
-                if len(movement_ids) == 1
-                else f"zone-edge-{movement_edge_index}"
-            )
-        elif len(visual_only_ids) == 1:
-            edge_result_id = visual_only_ids[0]
-        else:
-            identity = "|".join((model["parent_room_id"], first, second))
-            digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
-            edge_result_id = f"visual-zone-edge-{digest}"
+        edge_result_id = str(model["edge_result_id"])
         minimum_support = min(
             ratio
             for item in model["items"]
@@ -737,6 +728,28 @@ def convert(
             }
         )
 
+    for junction in junction_models:
+        first, second = junction["pair"]
+        edge_result_id = str(junction["edge_result_id"])
+        row = base.derived_junction_edge_row(junction)
+        row.update(
+            {
+                "source_canonical_id": zone_id(first),
+                "target_canonical_id": zone_id(second),
+            }
+        )
+        internal_edges.append(
+            (edge_result_id, zone_id(first), zone_id(second), row)
+        )
+        internal_report.append(
+            {
+                "edge_result_id": edge_result_id,
+                "source_zone_id": first,
+                "target_zone_id": second,
+                **row,
+            }
+        )
+
     all_node_ids = {node_result_id for node_result_id, _ in node_rows}
     all_edges = [*opening_edges, *internal_edges]
     for edge_result_id, source, target, _ in all_edges:
@@ -779,6 +792,12 @@ def convert(
             if row["parent_room_id"] == parent_id
             and row["edge_kind"] == "visual_boundary"
         )
+        derived_junction_ids = sorted(
+            edge_result_id
+            for edge_result_id, _, _, row in internal_edges
+            if row["parent_room_id"] == parent_id
+            and row["edge_kind"] == "derived_junction"
+        )
         room_label = base._room_label(parent_result)
         manifest_groups.append(
             {
@@ -789,6 +808,7 @@ def convert(
                 "member_canonical_ids": sorted(zone_id(zone.result_id) for zone in room_zones),
                 "expected_internal_edge_ids": internal_ids,
                 "visual_boundary_edges": visual_boundary_ids,
+                "derived_junction_edges": derived_junction_ids,
                 "expected_external_opening_ids": external_openings,
             }
         )
@@ -809,6 +829,13 @@ def convert(
         ),
         "visual_boundary_edges": sum(
             row["edge_kind"] == "visual_boundary" for _, _, _, row in internal_edges
+        ),
+        "derived_junction_edges": len(junction_models),
+        "movement_derived_junction_edges": sum(
+            "movement" in model["modalities"] for model in junction_models
+        ),
+        "visual_derived_junction_edges": sum(
+            "visual" in model["modalities"] for model in junction_models
         ),
         "total_data_nodes": len(node_rows),
         "total_edges": len(all_edges),
@@ -844,6 +871,8 @@ def convert(
             "movement_and_visual_only_vectors_do_not_overlap": True,
             "movement_implies_visual": True,
             "movement_and_visual_strengths_normalized_independently": True,
+            "derived_junctions_use_best_harmonic_path": True,
+            "derived_junctions_excluded_from_direct_normalization": True,
             "every_partitioned_opening_has_exactly_one_owner_per_partitioned_side": True,
             "every_reference_opening_emitted_once": True,
             "connected_room_ids_match_opening_endpoints": True,
@@ -853,6 +882,7 @@ def convert(
         "groups": manifest_groups,
         "external_edges": external_edge_report,
         "internal_edges": internal_report,
+        "junctions": junction_reports,
         "room_max_raw_strengths": {
             parent_id: {
                 "movement": base._round(values["movement"]),

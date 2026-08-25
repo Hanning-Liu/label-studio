@@ -169,6 +169,47 @@ def synthetic_task():
     }
 
 
+def four_quadrant_task():
+    results = [
+        room("room-q", "Bedroom", 0, 100),
+        room("room-r1", "Hallway", 110, 10),
+        room("room-r2", "Bathroom", 120, 10),
+        opening("opening-r1-r2", "room-r1", "room-r2", 120),
+    ]
+    for result_id, label_value, x, y in [
+        ("zone-d", "Dining", 0, 0),
+        ("zone-s", "Storage", 50, 0),
+        ("zone-l", "Living/social", 0, 50),
+        ("zone-b", "Sleeping", 50, 50),
+    ]:
+        results.extend(
+            [
+                zone(result_id, "room-q", x, y, 50, 50),
+                zone_label(result_id, label_value),
+            ]
+        )
+    results.extend(
+        [
+            connection("edge-ds", [(50, 30), (50, 50)]),
+            connection("edge-sb", [(50, 50), (80, 50)]),
+            connection("edge-dl", [(10, 50), (50, 50)]),
+            connection("edge-lb", [(50, 50), (50, 60)]),
+        ]
+    )
+    return {
+        "id": 8,
+        "data": {"image": "four-quadrant.png"},
+        "annotations": [
+            {
+                "id": 8,
+                "updated_at": "2026-08-24T00:00:00Z",
+                "was_cancelled": False,
+                "result": results,
+            }
+        ],
+    }
+
+
 def room_config_xml(bedroom_color="#F99", polygon_bedroom_color=None):
     polygon_bedroom_color = polygon_bedroom_color or bedroom_color
     labels = {
@@ -220,6 +261,9 @@ class GroupedGraphMLConversionTests(unittest.TestCase):
                 "visual_connection_vectors": 0,
                 "direct_boundary_edges": 2,
                 "visual_boundary_edges": 0,
+                "derived_junction_edges": 0,
+                "movement_derived_junction_edges": 0,
+                "visual_derived_junction_edges": 0,
                 "total_data_nodes": 6,
                 "total_edges": 5,
             },
@@ -236,6 +280,66 @@ class GroupedGraphMLConversionTests(unittest.TestCase):
         root = converted.graphml.getroot()
         self.assertEqual(len(root.findall(".//g:node", namespace)), 6)
         self.assertEqual(len(root.findall(".//g:edge", namespace)), 5)
+
+    def test_derives_two_diagonal_edges_from_complete_four_way_junction(self):
+        converted = MODULE.convert(four_quadrant_task(), prefix="floorplan")
+        counts = converted.report["counts"]
+        self.assertEqual(counts["direct_boundary_edges"], 4)
+        self.assertEqual(counts["derived_junction_edges"], 2)
+        self.assertEqual(counts["movement_derived_junction_edges"], 2)
+        self.assertEqual(counts["visual_derived_junction_edges"], 2)
+        self.assertEqual(counts["total_edges"], 7)
+
+        derived = [
+            edge
+            for edge in converted.report["internal_edges"]
+            if edge["edge_kind"] == "derived_junction"
+        ]
+        self.assertEqual(len(derived), 2)
+        by_pair = {
+            frozenset((edge["source_zone_id"], edge["target_zone_id"])): edge
+            for edge in derived
+        }
+        dining_sleeping = by_pair[frozenset(("zone-d", "zone-b"))]
+        storage_living = by_pair[frozenset(("zone-s", "zone-l"))]
+        self.assertAlmostEqual(dining_sleeping["relative_strength"], 0.6, places=6)
+        self.assertAlmostEqual(storage_living["relative_strength"], 2 / 3, places=6)
+        self.assertAlmostEqual(dining_sleeping["junction_openness"], 0.625, places=6)
+        self.assertEqual(dining_sleeping["derivation_method"], "best_harmonic_path")
+        self.assertEqual(
+            set(json.loads(dining_sleeping["movement_derived_from_edges_json"])),
+            {"edge-ds", "edge-sb"},
+        )
+        self.assertEqual(len(converted.report["junctions"]), 1)
+        self.assertTrue(converted.report["junctions"][0]["movement_complete"])
+        self.assertTrue(converted.report["junctions"][0]["visual_complete"])
+        self.assertEqual(
+            len(converted.manifest["groups"][0]["derived_junction_edges"]), 2
+        )
+
+    def test_visual_four_cycle_derives_visual_without_creating_movement(self):
+        task = four_quadrant_task()
+        target = next(
+            result
+            for result in task["annotations"][0]["result"]
+            if result.get("id") == "edge-ds"
+        )
+        target["from_name"] = "visual_connection_vector"
+        target["value"]["vectorlabels"] = ["Visual only"]
+        converted = MODULE.convert(task, prefix="floorplan")
+        self.assertEqual(
+            converted.report["counts"]["movement_derived_junction_edges"], 0
+        )
+        self.assertEqual(
+            converted.report["counts"]["visual_derived_junction_edges"], 2
+        )
+        derived = [
+            edge
+            for edge in converted.report["internal_edges"]
+            if edge["edge_kind"] == "derived_junction"
+        ]
+        self.assertTrue(all("movement" not in json.loads(edge["connectivity_modalities_json"]) for edge in derived))
+        self.assertTrue(all("relative_strength" not in edge for edge in derived))
 
     def test_visual_only_edge_is_counted_and_has_no_movement_aliases(self):
         task = synthetic_task()
