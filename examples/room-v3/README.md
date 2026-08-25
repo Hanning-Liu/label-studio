@@ -15,3 +15,16 @@ Pilot tooling lives in `scripts/`:
 - `function_zone_v3_migration.py` creates a FunctionZone v3 seed only from an explicitly approved Room v3 annotation.
 - `room_v3_to_graphml.py` emits Room/Exterior nodes and rectangle/vector Portal edges while keeping the v2 conversion path available.
 - `room_v3_sqlite_audit.py` compares read-only before/after SQLite snapshots and verifies Legacy project configuration, counts, and normalized annotation hashes.
+
+For the browser viewer, export the project in Label Studio's raw JSON format and generate a self-describing Room v3 GraphML:
+
+```powershell
+python scripts\room_v3_to_graphml.py `
+  --input-json task-19-label-studio.json `
+  --annotation-id 10 `
+  --room-label-config examples\room-v3\room-v3.xml `
+  --output-graphml room-v3.graphml `
+  --output-json room-v3-graph.json
+```
+
+When `--room-label-config` is supplied, room and Portal colors are read from the current Label Studio XML and missing or conflicting colors stop the conversion. The GraphML includes graph-level provenance, room centroids in percent/pixels, Portal metrics, and a synthetic positioned `Exterior` node when required.

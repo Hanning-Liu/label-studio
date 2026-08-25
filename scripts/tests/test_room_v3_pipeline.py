@@ -11,7 +11,11 @@ if str(SCRIPTS) not in sys.path:
 
 from function_zone_v3_migration import convert as convert_zones  # noqa: E402
 from room_v3_migration import convert as convert_rooms  # noqa: E402
-from room_v3_to_graphml import convert as convert_graph  # noqa: E402
+from room_v3_to_graphml import (  # noqa: E402
+    convert as convert_graph,
+    load_label_palette,
+    to_graphml,
+)
 
 
 def rectangle(result_id, control, label, x, y, width, height, meta=None):
@@ -28,6 +32,8 @@ def rectangle(result_id, control, label, x, y, width, height, meta=None):
             "rotation": 0,
             **({"rectanglelabels": [label]} if control != "zone_rectangle" else {}),
         },
+        "original_width": 1000,
+        "original_height": 800,
         **({"meta": meta} if meta else {}),
     }
 
@@ -43,6 +49,21 @@ def vector(result_id, control, label, start, end, meta=None):
             "closed": False,
             "vectorlabels": [label],
         },
+        "original_width": 1000,
+        "original_height": 800,
+        **({"meta": meta} if meta else {}),
+    }
+
+
+def polygon(result_id, control, label, points, meta=None):
+    return {
+        "id": result_id,
+        "from_name": control,
+        "to_name": "image",
+        "type": "polygonlabels",
+        "value": {"points": points, "polygonlabels": [label]},
+        "original_width": 1000,
+        "original_height": 800,
         **({"meta": meta} if meta else {}),
     }
 
@@ -203,9 +224,52 @@ class RoomV3PipelineTests(unittest.TestCase):
             },
         )
         task = {"id": 101, "annotations": [{"id": 201, "result": [room, exterior_portal]}]}
-        graph = convert_graph(task)
+        palette = load_label_palette(SCRIPTS.parent / "examples" / "room-v3" / "room-v3.xml")
+        graph = convert_graph(task, palette=palette)
         self.assertEqual({node["id"] for node in graph["nodes"]}, {"room-a", "Exterior"})
         self.assertEqual(graph["edges"][0]["target"], "Exterior")
+        room_node = next(node for node in graph["nodes"] if node["id"] == "room-a")
+        exterior_node = next(node for node in graph["nodes"] if node["id"] == "Exterior")
+        self.assertEqual(room_node["display_name"], "Entryway · room-a")
+        self.assertEqual(room_node["centroid_x_percent"], 20)
+        self.assertEqual(room_node["centroid_y_percent"], 20)
+        self.assertEqual(room_node["centroid_x_px"], 200)
+        self.assertEqual(room_node["centroid_y_px"], 160)
+        self.assertEqual(room_node["label_studio_color"], "#FFC069")
+        self.assertNotEqual(
+            (exterior_node["centroid_x_px"], exterior_node["centroid_y_px"]),
+            (room_node["centroid_x_px"], room_node["centroid_y_px"]),
+        )
+        self.assertEqual(graph["edges"][0]["edge_kind"], "room_opening")
+        self.assertEqual(graph["edges"][0]["label_studio_color"], "#FF8C00")
+        self.assertEqual(graph["image_width_px"], 1000)
+        self.assertEqual(graph["image_height_px"], 800)
+        xml_root = to_graphml(graph).getroot()
+        graph_element = next(element for element in xml_root if element.tag.endswith("graph"))
+        graph_values = {element.text for element in graph_element if element.tag.endswith("data")}
+        self.assertIn("3", graph_values)
+        self.assertIn("Room v3 Task 101 Annotation 201", graph_values)
+
+    def test_graph_converter_uses_area_weighted_polygon_centroid(self):
+        room = polygon(
+            "room-l",
+            "room_polygon",
+            "Living room",
+            [[0, 0], [40, 0], [40, 20], [20, 20], [20, 40], [0, 40]],
+            {
+                "room_graph_node": {
+                    "schema_version": 3,
+                    "room_type": "Living room",
+                    "geometry_type": "polygon",
+                }
+            },
+        )
+        graph = convert_graph({"id": 102, "annotations": [{"id": 202, "result": [room]}]})
+        node = graph["nodes"][0]
+        self.assertAlmostEqual(node["centroid_x_percent"], 16.666667)
+        self.assertAlmostEqual(node["centroid_y_percent"], 16.666667)
+        self.assertAlmostEqual(node["centroid_x_px"], 166.666667)
+        self.assertAlmostEqual(node["centroid_y_px"], 133.333333)
 
 
 if __name__ == "__main__":
