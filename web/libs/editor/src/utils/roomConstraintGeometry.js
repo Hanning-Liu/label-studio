@@ -41,9 +41,13 @@ const segmentIntersectionParameters = (a, b, c, d) => {
     if (lengthSquared <= EPSILON) return [];
     const start = dot(subtract(c, a), first) / lengthSquared;
     const end = dot(subtract(d, a), first) / lengthSquared;
-    return [Math.max(0, Math.min(start, end)), Math.min(1, Math.max(start, end))].filter(
-      (value) => value >= -EPSILON && value <= 1 + EPSILON,
-    );
+    const intervalStart = Math.min(start, end);
+    const intervalEnd = Math.max(start, end);
+    if (intervalEnd < -EPSILON || intervalStart > 1 + EPSILON) return [];
+    const clippedStart = Math.max(0, intervalStart);
+    const clippedEnd = Math.min(1, intervalEnd);
+    if (clippedStart > clippedEnd + EPSILON) return [];
+    return Math.abs(clippedEnd - clippedStart) <= EPSILON ? [clippedStart] : [clippedStart, clippedEnd];
   }
   const firstParameter = cross(offset, second) / denominator;
   const secondParameter = cross(offset, first) / denominator;

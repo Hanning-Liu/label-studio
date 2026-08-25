@@ -54,6 +54,58 @@ describe("room constraint geometry", () => {
     ).toBe(false);
   });
 
+  test("accepts the two valid Task 19 rooms with separated collinear boundary segments", () => {
+    const bedroom = [
+      { x: 16.75925925925926, y: 46.944858420268254 },
+      { x: 16.75925925925926, y: 59.31445603576751 },
+      { x: 7.4074074074074066, y: 59.31445603576751 },
+      { x: 7.4074074074074066, y: 95.52906110283159 },
+      { x: 29.444444444444443, y: 95.52906110283159 },
+      { x: 29.444444444444443, y: 59.31445603576751 },
+      { x: 21.296296296296294, y: 59.31445603576751 },
+      { x: 21.296296296296294, y: 46.944858420268254 },
+    ];
+    const livingRoom = [
+      { x: 30.462962962962962, y: 36.810730253353206 },
+      { x: 46.48148148148148, y: 36.810730253353206 },
+      { x: 46.48148148148148, y: 55.73770491803278 },
+      { x: 49.44444444444444, y: 55.73770491803278 },
+      { x: 49.44444444444444, y: 59.76154992548435 },
+      { x: 46.48148148148148, y: 59.76154992548435 },
+      { x: 46.48148148148148, y: 78.98658718330849 },
+      { x: 30.462962962962962, y: 78.98658718330849 },
+    ];
+
+    expect(isSimplePolygon(bedroom)).toBe(true);
+    expect(isSimplePolygon(livingRoom)).toBe(true);
+  });
+
+  test("rejects non-adjacent collinear overlap and endpoint contact", () => {
+    const collinearOverlap = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+      { x: 0, y: 5 },
+      { x: 8, y: 5 },
+      { x: 8, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2, y: 4 },
+      { x: 0, y: 4 },
+    ];
+    const endpointContact = [
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 2, y: 2 },
+      { x: 4, y: 4 },
+      { x: 0, y: 4 },
+      { x: 2, y: 2 },
+    ];
+
+    expect(isSimplePolygon(collinearOverlap)).toBe(false);
+    expect(isSimplePolygon(endpointContact)).toBe(false);
+  });
+
   test("builds the four corners of a rotated rectangle", () => {
     const points = rotatedRectanglePoints({ x: 2, y: 3, width: 4, height: 2, rotation: 90 });
     expect(points[1].x).toBeCloseTo(2);
