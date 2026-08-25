@@ -1,0 +1,73 @@
+<View>
+  <Image name="image" value="$image" zoom="true" smoothing="false"
+    roomV3Validate="true"
+    roomV3Controls="room_rectangle,room_polygon"
+    portalRectangleControls="portal_rectangle"
+    portalVectorControls="portal_vector"
+    roomV3ReferenceControls="portal_v2_reference"
+    roomV3Tolerance="0.02" />
+
+  <Header value="1. 房间净空间（规则房间：Rectangle）" size="5" />
+  <RectangleLabels name="room_rectangle" toName="image" snap="pixel" canRotate="false">
+    <Label value="Bedroom" background="#FFA39E" />
+    <Label value="Bathroom" background="#FFC069" />
+    <Label value="Kitchen" background="#AD8B00" />
+    <Label value="Living room" background="#389E0D" />
+    <Label value="Multipurpose room" background="#13C2C2" />
+    <Label value="Laundry room" background="#096DD9" />
+    <Label value="Dining room" background="#ADC6FF" />
+    <Label value="Study room" background="#9254DE" />
+    <Label value="Guest room" background="#F759AB" />
+    <Label value="Children room" background="#FFA39E" />
+    <Label value="Dressing room" background="#D4380D" />
+    <Label value="Entryway" background="#FFC069" />
+    <Label value="Hallway" background="#AD8B00" />
+    <Label value="Storage room" background="#D3F261" />
+    <Label value="Balcony" background="#389E0D" />
+    <Label value="Staircase" background="#FFA39E" />
+    <Label value="Elevator" background="#D4380D" />
+    <Label value="Pipe" background="#9E9E9E" />
+  </RectangleLabels>
+
+  <Header value="2. 房间净空间（不规则房间：Polygon，沿墙体内侧完成面）" size="5" />
+  <PolygonLabels name="room_polygon" toName="image" snap="pixel" strokeWidth="2">
+    <Label value="Bedroom" background="#FFA39E" />
+    <Label value="Bathroom" background="#FFC069" />
+    <Label value="Kitchen" background="#AD8B00" />
+    <Label value="Living room" background="#389E0D" />
+    <Label value="Multipurpose room" background="#13C2C2" />
+    <Label value="Laundry room" background="#096DD9" />
+    <Label value="Dining room" background="#ADC6FF" />
+    <Label value="Study room" background="#9254DE" />
+    <Label value="Guest room" background="#F759AB" />
+    <Label value="Children room" background="#FFA39E" />
+    <Label value="Dressing room" background="#D4380D" />
+    <Label value="Entryway" background="#FFC069" />
+    <Label value="Hallway" background="#AD8B00" />
+    <Label value="Storage room" background="#D3F261" />
+    <Label value="Balcony" background="#389E0D" />
+    <Label value="Staircase" background="#FFA39E" />
+    <Label value="Elevator" background="#D4380D" />
+    <Label value="Pipe" background="#9E9E9E" />
+  </PolygonLabels>
+
+  <Header value="3. Portal（有墙体进深：Rectangle；长边为净宽，短边为墙体进深）" size="5" />
+  <RectangleLabels name="portal_rectangle" toName="image" snap="pixel" canRotate="true" showInline="true">
+    <Label value="Door" background="#FF8C00" />
+    <Label value="Sliding door" background="#8E44AD" />
+    <Label value="Open passage" background="#00A878" />
+  </RectangleLabels>
+
+  <Header value="4. Open passage（无墙体进深：两个房间共享边界上的两点 Vector）" size="5" />
+  <VectorLabels name="portal_vector" toName="image" choice="single" closable="false" curves="false"
+    minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+    <Label value="Open passage" background="#00A878" />
+  </VectorLabels>
+
+  <Header value="5. Room v2 Door / Sliding door 参考（只读淡显，不作为 v3 正式 Portal）" size="5" />
+  <VectorLabels name="portal_v2_reference" toName="image" choice="single" closable="false" curves="false"
+    minPoints="2" maxPoints="2" snap="pixel" strokeWidth="3" pointSize="small" opacity="0.35" showInline="true">
+    <Label value="Door" background="#FF8C00" />
+    <Label value="Sliding door" background="#8E44AD" />
+  </VectorLabels>
+</View>

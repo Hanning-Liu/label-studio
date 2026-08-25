@@ -1,0 +1,111 @@
+<View>
+  <Image name="image" value="$image" zoom="true" smoothing="false"
+    partitionContextSchema="3"
+    functionZoneV3Validate="true"
+    functionZoneControls="zone_rectangle,zone_polygon"
+    connectionVectorControls="connection_vector,visual_connection_vector"
+    geometryReviewMap="connection_vector:connection_review,visual_connection_vector:visual_connection_review"
+    functionZoneCoverageTolerance="0.001" />
+
+  <Header value="1. Room v3 净空间参考（只读）" size="5" />
+  <RectangleLabels name="room_rectangle" toName="image" snap="pixel" canRotate="false">
+    <Label value="Bedroom" background="#FFA39E" />
+    <Label value="Bathroom" background="#FFC069" />
+    <Label value="Kitchen" background="#AD8B00" />
+    <Label value="Living room" background="#389E0D" />
+    <Label value="Multipurpose room" background="#13C2C2" />
+    <Label value="Laundry room" background="#096DD9" />
+    <Label value="Dining room" background="#ADC6FF" />
+    <Label value="Study room" background="#9254DE" />
+    <Label value="Guest room" background="#F759AB" />
+    <Label value="Children room" background="#FFA39E" />
+    <Label value="Dressing room" background="#D4380D" />
+    <Label value="Entryway" background="#FFC069" />
+    <Label value="Hallway" background="#AD8B00" />
+    <Label value="Storage room" background="#D3F261" />
+    <Label value="Balcony" background="#389E0D" />
+    <Label value="Staircase" background="#FFA39E" />
+    <Label value="Elevator" background="#D4380D" />
+    <Label value="Pipe" background="#9E9E9E" />
+  </RectangleLabels>
+  <PolygonLabels name="room_polygon" toName="image" snap="pixel" strokeWidth="2">
+    <Label value="Bedroom" background="#FFA39E" />
+    <Label value="Bathroom" background="#FFC069" />
+    <Label value="Kitchen" background="#AD8B00" />
+    <Label value="Living room" background="#389E0D" />
+    <Label value="Multipurpose room" background="#13C2C2" />
+    <Label value="Laundry room" background="#096DD9" />
+    <Label value="Dining room" background="#ADC6FF" />
+    <Label value="Study room" background="#9254DE" />
+    <Label value="Guest room" background="#F759AB" />
+    <Label value="Children room" background="#FFA39E" />
+    <Label value="Dressing room" background="#D4380D" />
+    <Label value="Entryway" background="#FFC069" />
+    <Label value="Hallway" background="#AD8B00" />
+    <Label value="Storage room" background="#D3F261" />
+    <Label value="Balcony" background="#389E0D" />
+    <Label value="Staircase" background="#FFA39E" />
+    <Label value="Elevator" background="#D4380D" />
+    <Label value="Pipe" background="#9E9E9E" />
+  </PolygonLabels>
+
+  <Header value="2. Room v3 Portal 参考（只读）" size="5" />
+  <RectangleLabels name="portal_rectangle" toName="image" snap="pixel" canRotate="true">
+    <Label value="Door" background="#FF8C00" />
+    <Label value="Sliding door" background="#8E44AD" />
+    <Label value="Open passage" background="#00A878" />
+  </RectangleLabels>
+  <VectorLabels name="portal_vector" toName="image" choice="single" closable="false" curves="false"
+    minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+    <Label value="Open passage" background="#00A878" />
+  </VectorLabels>
+
+  <Header value="3. 功能分区类别（选择类别后使用 Rectangle / Polygon 绘制）" size="5" />
+  <Labels name="function_zone" toName="image">
+    <Label value="Entry/transition" background="#FFB74D" />
+    <Label value="Circulation" background="#D4AC0D" />
+    <Label value="Cooking/preparation" background="#C49A00" />
+    <Label value="Dining" background="#90CAF9" />
+    <Label value="Living/social" background="#66BB6A" />
+    <Label value="Sleeping" background="#EF9A9A" />
+    <Label value="Study/work" background="#9575CD" />
+    <Label value="Dressing/grooming" background="#FF7043" />
+    <Label value="Bathing/washing" background="#4FC3F7" />
+    <Label value="Toilet" background="#26A69A" />
+    <Label value="Laundry" background="#42A5F5" />
+    <Label value="Storage" background="#AED581" />
+    <Label value="Balcony/leisure" background="#81C784" />
+    <Label value="Garden/outdoor" background="#43A047" />
+    <Label value="Equipment/service" background="#78909C" />
+    <Label value="Vertical circulation" background="#BCAAA4" />
+    <Label value="Unclear/other" background="#BDBDBD" />
+  </Labels>
+  <Rectangle name="zone_rectangle" toName="image" snap="pixel" canRotate="true"
+    constrainTo="room_rectangle,room_polygon" openingFrom="portal_rectangle,portal_vector"
+    constraintSnapPx="10" openingSnapAngleDeg="5" />
+  <Polygon name="zone_polygon" toName="image" snap="pixel" strokeWidth="2"
+    constrainTo="room_rectangle,room_polygon" openingFrom="portal_rectangle,portal_vector"
+    constraintSnapPx="10" openingSnapAngleDeg="5" />
+
+  <Header value="4. 交通连通 Vector（迁移后必须复核）" size="5" />
+  <VectorLabels name="connection_vector" toName="image" choice="single" closable="false" curves="false"
+    minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+    <Label value="Open passage" background="#00A878" />
+    <Label value="Door" background="#FF8C00" />
+    <Label value="Sliding door" background="#8E44AD" />
+  </VectorLabels>
+  <Choices name="connection_review" toName="image" perRegion="true" required="true"
+    visibleWhen="region-selected" whenTagName="connection_vector" requiredMessage="请复核交通 Vector 后选择 Reviewed">
+    <Choice value="Reviewed" />
+  </Choices>
+
+  <Header value="5. 仅视觉连通 Vector（迁移后必须复核）" size="5" />
+  <VectorLabels name="visual_connection_vector" toName="image" choice="single" closable="false" curves="false"
+    minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+    <Label value="Visual only" background="#00B8D9" />
+  </VectorLabels>
+  <Choices name="visual_connection_review" toName="image" perRegion="true" required="true"
+    visibleWhen="region-selected" whenTagName="visual_connection_vector" requiredMessage="请复核视觉 Vector 后选择 Reviewed">
+    <Choice value="Reviewed" />
+  </Choices>
+</View>

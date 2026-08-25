@@ -430,6 +430,7 @@ const Model = types
       updatePointsFromKonvaVector(points) {
         // Store whatever format KonvaVector gives us
         self.vertices.replace(points);
+        self.invalidateGeometryReview?.();
       },
 
       onPathClosedChange(isClosed) {

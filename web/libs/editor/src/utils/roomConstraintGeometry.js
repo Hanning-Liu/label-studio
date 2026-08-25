@@ -269,6 +269,110 @@ export const collinearPositiveOverlap = (first, second, tolerance = 1e-5) => {
   return Math.min(1, Math.max(start, end)) - Math.max(0, Math.min(start, end)) > tolerance;
 };
 
+export const polygonArea = (polygon) => {
+  if (!Array.isArray(polygon) || polygon.length < 3) return 0;
+  let doubledArea = 0;
+  for (let index = 0; index < polygon.length; index++) {
+    doubledArea += cross(polygon[index], polygon[(index + 1) % polygon.length]);
+  }
+  return Math.abs(doubledArea) / 2;
+};
+
+export const collinearOverlapSegment = (first, second, tolerance = 1e-5) => {
+  const [a, b] = first;
+  const [c, d] = second;
+  const direction = subtract(b, a);
+  const lengthSquared = dot(direction, direction);
+  const length = Math.sqrt(lengthSquared);
+  if (length <= tolerance || distance(c, d) <= tolerance) return null;
+  if (Math.abs(orientation(a, b, c)) > tolerance * length || Math.abs(orientation(a, b, d)) > tolerance * length) {
+    return null;
+  }
+  const cParameter = dot(subtract(c, a), direction) / lengthSquared;
+  const dParameter = dot(subtract(d, a), direction) / lengthSquared;
+  const startParameter = Math.max(0, Math.min(cParameter, dParameter));
+  const endParameter = Math.min(1, Math.max(cParameter, dParameter));
+  if ((endParameter - startParameter) * length <= tolerance) return null;
+  const overlap = [add(a, scale(direction, startParameter)), add(a, scale(direction, endParameter))];
+  return dot(subtract(overlap[1], overlap[0]), subtract(d, c)) < 0 ? overlap.reverse() : overlap;
+};
+
+const strictlyInsidePolygon = (point, polygon) =>
+  pointInPolygon(point, polygon, true) &&
+  !polygon.some((vertex, index) => pointOnSegment(point, vertex, polygon[(index + 1) % polygon.length]));
+
+const segmentsProperlyCross = (a, b, c, d, tolerance = 1e-5) => {
+  const first = orientation(a, b, c);
+  const second = orientation(a, b, d);
+  const third = orientation(c, d, a);
+  const fourth = orientation(c, d, b);
+  return (
+    ((first > tolerance && second < -tolerance) || (first < -tolerance && second > tolerance)) &&
+    ((third > tolerance && fourth < -tolerance) || (third < -tolerance && fourth > tolerance))
+  );
+};
+
+export const polygonsHavePositiveOverlap = (first, second, tolerance = 1e-5) => {
+  if (!isSimplePolygon(first) || !isSimplePolygon(second)) return false;
+  if (first.some((point) => strictlyInsidePolygon(point, second))) return true;
+  if (second.some((point) => strictlyInsidePolygon(point, first))) return true;
+  for (let firstIndex = 0; firstIndex < first.length; firstIndex++) {
+    const a = first[firstIndex];
+    const b = first[(firstIndex + 1) % first.length];
+    const midpoint = scale(add(a, b), 0.5);
+    if (strictlyInsidePolygon(midpoint, second)) return true;
+    for (let secondIndex = 0; secondIndex < second.length; secondIndex++) {
+      if (segmentsProperlyCross(a, b, second[secondIndex], second[(secondIndex + 1) % second.length], tolerance)) {
+        return true;
+      }
+    }
+  }
+  if (second.every((point) => pointInPolygon(point, first, true))) return true;
+  if (first.every((point) => pointInPolygon(point, second, true))) return true;
+  return false;
+};
+
+export const polygonBoundaryOverlaps = (polygon, segment, tolerance = 1e-5) => {
+  const overlaps = [];
+  for (let index = 0; index < polygon.length; index++) {
+    const overlap = collinearOverlapSegment(
+      [polygon[index], polygon[(index + 1) % polygon.length]],
+      segment,
+      tolerance,
+    );
+    if (overlap) overlaps.push(overlap);
+  }
+  return overlaps;
+};
+
+const segmentLength = ([start, end]) => distance(start, end);
+const midpoint = ([start, end]) => scale(add(start, end), 0.5);
+
+export const rectanglePortalGeometry = (rectangle, tolerance = 1e-5) => {
+  if (!Array.isArray(rectangle) || rectangle.length !== 4) return null;
+  const edges = rectangle.map((point, index) => [point, rectangle[(index + 1) % rectangle.length]]);
+  const lengths = edges.map(segmentLength);
+  const firstPair = lengths[0] + lengths[2];
+  const secondPair = lengths[1] + lengths[3];
+  const longEdgeIndexes = firstPair >= secondPair ? [0, 2] : [1, 3];
+  const shortEdgeIndexes = firstPair >= secondPair ? [1, 3] : [0, 2];
+  const clearWidth = (lengths[longEdgeIndexes[0]] + lengths[longEdgeIndexes[1]]) / 2;
+  const depth = (lengths[shortEdgeIndexes[0]] + lengths[shortEdgeIndexes[1]]) / 2;
+  if (clearWidth <= tolerance || depth <= tolerance) return null;
+
+  const firstLong = edges[longEdgeIndexes[0]];
+  const oppositeLong = edges[longEdgeIndexes[1]];
+  const centerline = [midpoint([firstLong[0], oppositeLong[1]]), midpoint([firstLong[1], oppositeLong[0]])];
+  return {
+    edges,
+    longEdges: longEdgeIndexes.map((index) => edges[index]),
+    shortEdges: shortEdgeIndexes.map((index) => edges[index]),
+    clearWidth,
+    depth,
+    centerline,
+  };
+};
+
 export const relatedOpenings = (polygon, openings, tolerance = 1e-5) => {
   const related = [];
   for (const opening of openings) {
@@ -280,7 +384,7 @@ export const relatedOpenings = (polygon, openings, tolerance = 1e-5) => {
   return related;
 };
 
-export const partitionContext = (polygon, parentRoomId, openings, tolerance = 1e-5) => {
+export const partitionContext = (polygon, parentRoomId, openings, tolerance = 1e-5, schemaVersion = 1) => {
   const matched = relatedOpenings(polygon, openings, tolerance);
   const connectedRoomIds = new Set();
   for (const opening of matched) {
@@ -289,7 +393,7 @@ export const partitionContext = (polygon, parentRoomId, openings, tolerance = 1e
     }
   }
   return {
-    schema_version: 1,
+    schema_version: schemaVersion,
     parent_room_id: parentRoomId,
     opening_ids: matched.map((opening) => opening.id).sort(),
     connected_room_ids: [...connectedRoomIds].sort(),

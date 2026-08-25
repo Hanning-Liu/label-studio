@@ -233,14 +233,40 @@ export const AreaMixinBase = types
       self.refreshPartitionContext();
     },
 
-    refreshPartitionContext() {
+    refreshPartitionContext(invalidateReviews = true) {
       const result = self.results.find((candidate) => candidate.from_name?.constrainto);
       const parentRoomId = result?.meta?.partition_context?.parent_room_id;
 
       if (!result || !parentRoomId) return;
       const context = self.parent?.buildPartitionContext?.(self, parentRoomId);
 
-      if (context) result.setMetaValue("partition_context", context);
+      if (context) {
+        const previous = result.meta?.partition_context || {};
+        const geometryChanged =
+          previous.parent_room_id !== context.parent_room_id ||
+          JSON.stringify(previous.opening_ids || []) !== JSON.stringify(context.opening_ids || []) ||
+          JSON.stringify(previous.connected_room_ids || []) !== JSON.stringify(context.connected_room_ids || []);
+        result.setMetaValue("partition_context", { ...previous, ...context });
+        if (invalidateReviews && geometryChanged) self.parent?.invalidateGeometryReviews?.();
+      }
+    },
+
+    invalidateGeometryReview() {
+      const labeling = self.results.find((result) =>
+        self.parent?.connectionVectorControlNames?.has(result.from_name?.name),
+      );
+      if (!labeling) return;
+      const reviewControl = self.parent?.geometryReviewControlFor?.(labeling.from_name?.name);
+      self.results
+        .filter((result) => result.from_name?.name === reviewControl)
+        .slice()
+        .forEach((result) => self.removeResult(result));
+      labeling.setMetaValue("geometry_review", {
+        ...(labeling.meta?.geometry_review || {}),
+        schema_version: 3,
+        status: "pending",
+        reason: "geometry_changed",
+      });
     },
 
     /**

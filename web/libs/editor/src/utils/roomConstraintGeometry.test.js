@@ -2,11 +2,16 @@ import {
   clampPointToPolygon,
   clampPolygonTransform,
   clampRectangleTransform,
+  collinearOverlapSegment,
   collinearPositiveOverlap,
   isSimplePolygon,
   partitionContext,
   pointInPolygon,
+  polygonArea,
   polygonInsidePolygon,
+  polygonBoundaryOverlaps,
+  polygonsHavePositiveOverlap,
+  rectanglePortalGeometry,
   rotatedRectanglePoints,
   snapSegmentToOpening,
 } from "./roomConstraintGeometry";
@@ -174,6 +179,64 @@ describe("room constraint geometry", () => {
         ],
       ),
     ).toBe(false);
+  });
+
+  test("computes polygon area independent of winding", () => {
+    const polygon = rotatedRectanglePoints({ x: 0, y: 0, width: 10, height: 4 });
+    expect(polygonArea(polygon)).toBeCloseTo(40);
+    expect(polygonArea([...polygon].reverse())).toBeCloseTo(40);
+  });
+
+  test("returns the exact positive boundary overlap segment", () => {
+    expect(
+      collinearOverlapSegment(
+        [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+        [
+          { x: 3, y: 0 },
+          { x: 7, y: 0 },
+        ],
+      ),
+    ).toEqual([
+      { x: 3, y: 0 },
+      { x: 7, y: 0 },
+    ]);
+  });
+
+  test("distinguishes shared boundaries from positive room overlap", () => {
+    const first = rotatedRectanglePoints({ x: 0, y: 0, width: 10, height: 10 });
+    const touching = rotatedRectanglePoints({ x: 10, y: 0, width: 10, height: 10 });
+    const overlapping = rotatedRectanglePoints({ x: 9, y: 0, width: 10, height: 10 });
+    expect(polygonsHavePositiveOverlap(first, touching)).toBe(false);
+    expect(polygonsHavePositiveOverlap(first, overlapping)).toBe(true);
+  });
+
+  test("extracts rectangle portal long edges, dimensions, and centerline", () => {
+    const rectangle = rotatedRectanglePoints({ x: 2, y: 4, width: 8, height: 2 });
+    const geometry = rectanglePortalGeometry(rectangle);
+    expect(geometry.longEdges).toHaveLength(2);
+    expect(geometry.clearWidth).toBeCloseTo(8);
+    expect(geometry.depth).toBeCloseTo(2);
+    expect(geometry.centerline).toEqual([
+      { x: 2, y: 5 },
+      { x: 10, y: 5 },
+    ]);
+  });
+
+  test("finds a portal segment supported by a room boundary", () => {
+    const room = rotatedRectanglePoints({ x: 0, y: 0, width: 10, height: 10 });
+    const overlaps = polygonBoundaryOverlaps(room, [
+      { x: 3, y: 10 },
+      { x: 8, y: 10 },
+    ]);
+    expect(overlaps).toEqual([
+      [
+        { x: 3, y: 10 },
+        { x: 8, y: 10 },
+      ],
+    ]);
   });
 
   test("builds stable partition opening and connected-room metadata", () => {

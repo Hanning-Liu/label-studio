@@ -3,6 +3,7 @@ import { inject } from "mobx-react";
 import { destroy, getRoot, getType, types } from "mobx-state-tree";
 
 import ImageView from "../../../components/ImageView/ImageView";
+import InfoModal from "../../../components/Infomodal/Infomodal";
 import { customTypes } from "../../../core/CustomTypes";
 import Registry from "../../../core/Registry";
 import { AnnotationMixin } from "../../../mixins/AnnotationMixin";
@@ -28,10 +29,15 @@ import MultiItemObjectBase from "../MultiItemObjectBase";
 import {
   clampPointToPolygon,
   clampRectangleTransform,
+  isSimplePolygon,
   nearestPointOnPolygon,
   partitionContext,
   pointInPolygon,
+  polygonArea,
+  polygonBoundaryOverlaps,
   polygonInsidePolygon,
+  polygonsHavePositiveOverlap,
+  rectanglePortalGeometry,
   rotatedRectanglePoints,
   segmentInsidePolygon,
   snapSegmentToOpening,
@@ -71,6 +77,22 @@ const regionToInternalPolygon = (region, image) => {
   if (region.type === "polygonregion") return region.points.map((point) => ({ x: point.x, y: point.y }));
   return null;
 };
+
+const vectorToInternalSegment = (region, image) => {
+  const vertices = Array.from(region?.vertices || []).slice(0, 2);
+  if (vertices.length !== 2) return null;
+  return vertices.map((point) => ({
+    x: region.converted ? image.imageToInternalX(point.x) : point.x,
+    y: region.converted ? image.imageToInternalY(point.y) : point.y,
+  }));
+};
+
+const segmentLength = ([start, end]) => Math.hypot(end.x - start.x, end.y - start.y);
+const normalizedOpeningType = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
 
 const canvasRectangleFromEdge = (attrs, edgeIndex, snapped) => {
   const [start, end] = snapped;
@@ -191,6 +213,21 @@ const TagAttrs = types.model({
   defaultzoom: types.optional(types.enumeration(["auto", "original", "fit"]), "fit"),
 
   crossorigin: types.optional(types.enumeration(["none", "anonymous", "use-credentials"]), "none"),
+  roomv3validate: types.optional(types.boolean, false),
+  roomv3controls: types.optional(types.string, "room_rectangle,room_polygon"),
+  portalrectanglecontrols: types.optional(types.string, "portal_rectangle"),
+  portalvectorcontrols: types.optional(types.string, "portal_vector"),
+  roomv3referencecontrols: types.optional(types.string, "portal_v2_reference"),
+  roomv3tolerance: types.optional(types.string, "0.02"),
+  partitioncontextschema: types.optional(types.string, "1"),
+  functionzonev3validate: types.optional(types.boolean, false),
+  functionzonecontrols: types.optional(types.string, "zone_rectangle,zone_polygon"),
+  connectionvectorcontrols: types.optional(types.string, "connection_vector,visual_connection_vector"),
+  geometryreviewmap: types.optional(
+    types.string,
+    "connection_vector:connection_review,visual_connection_vector:visual_connection_review",
+  ),
+  functionzonecoveragetolerance: types.optional(types.string, "0.001"),
 });
 
 const IMAGE_CONSTANTS = {
@@ -367,6 +404,68 @@ const Model = types
       return names;
     },
 
+    get roomV3RoomControlNames() {
+      return csvNames(self.roomv3controls);
+    },
+
+    get roomV3PortalRectangleControlNames() {
+      return csvNames(self.portalrectanglecontrols);
+    },
+
+    get roomV3PortalVectorControlNames() {
+      return csvNames(self.portalvectorcontrols);
+    },
+
+    get roomV3ReferenceControlNames() {
+      return csvNames(self.roomv3referencecontrols);
+    },
+
+    get roomV3Regions() {
+      return self.regs.filter((region) =>
+        region.results.some((result) => self.roomV3RoomControlNames.has(result.from_name?.name)),
+      );
+    },
+
+    get roomV3PortalRegions() {
+      return self.regs.filter((region) =>
+        region.results.some(
+          (result) =>
+            self.roomV3PortalRectangleControlNames.has(result.from_name?.name) ||
+            self.roomV3PortalVectorControlNames.has(result.from_name?.name),
+        ),
+      );
+    },
+
+    get functionZoneControlNames() {
+      return csvNames(self.functionzonecontrols);
+    },
+
+    get connectionVectorControlNames() {
+      return csvNames(self.connectionvectorcontrols);
+    },
+
+    geometryReviewControlFor(vectorControlName) {
+      const mapping = new Map(
+        String(self.geometryreviewmap || "")
+          .split(",")
+          .map((item) => item.split(":").map((value) => value.trim()))
+          .filter(([source, review]) => source && review),
+      );
+      return mapping.get(vectorControlName) || null;
+    },
+
+    get functionZoneRegions() {
+      return self.regs.filter((region) =>
+        region.results.some((result) => self.functionZoneControlNames.has(result.from_name?.name)),
+      );
+    },
+
+    get connectionVectorRegions() {
+      return self.regs.filter((region) =>
+        region.results.some((result) => self.connectionVectorControlNames.has(result.from_name?.name)),
+      );
+    },
+
     get roomReferenceRegions() {
       const byId = new Map();
       [...self.regs, ...self.suggestions].forEach((region) => {
@@ -428,17 +527,27 @@ const Model = types
       return self.openingReferenceRegions
         .filter((opening) => {
           const result = opening.results.find((candidate) => candidate.meta?.room_graph_edge);
-          return allowed.has(result?.from_name?.name) && opening.roomGraphEdge?.room_ids?.includes(parentRoomId);
+          const roomIds = opening.roomGraphEdge?.connected_room_ids || opening.roomGraphEdge?.room_ids || [];
+          return allowed.has(result?.from_name?.name) && roomIds.includes(parentRoomId);
         })
-        .map((opening) => {
-          const vertices = Array.from(opening.vertices || []).slice(0, 2);
-          const points = vertices.map((point) => ({
-            x: opening.converted ? self.imageToInternalX(point.x) : point.x,
-            y: opening.converted ? self.imageToInternalY(point.y) : point.y,
-          }));
-          return points.length === 2
-            ? { id: opening.cleanId, roomIds: opening.roomGraphEdge.room_ids || [], points }
-            : null;
+        .flatMap((opening) => {
+          const edge = opening.roomGraphEdge || {};
+          const roomIds = edge.connected_room_ids || edge.room_ids || [];
+          const storedSegments = edge.boundary_segments?.[parentRoomId];
+          if (Array.isArray(storedSegments) && storedSegments.length) {
+            return storedSegments
+              .map((segment) => {
+                const points = Array.isArray(segment)
+                  ? segment
+                  : segment?.start && segment?.end
+                    ? [segment.start, segment.end]
+                    : null;
+                return points?.length === 2 ? { id: opening.cleanId, roomIds, points } : null;
+              })
+              .filter(Boolean);
+          }
+          const points = vectorToInternalSegment(opening, self);
+          return points ? [{ id: opening.cleanId, roomIds, points }] : [];
         })
         .filter(Boolean);
     },
@@ -446,7 +555,13 @@ const Model = types
     buildPartitionContext(area, parentRoomId) {
       const polygon = self.getAreaPolygon(area);
       if (!polygon || polygon.length < 3) return null;
-      return partitionContext(polygon, parentRoomId, self.getOpeningSegments(parentRoomId, area.constraintControl));
+      return partitionContext(
+        polygon,
+        parentRoomId,
+        self.getOpeningSegments(parentRoomId, area.constraintControl),
+        1e-5,
+        Number.parseInt(self.partitioncontextschema, 10) || 1,
+      );
     },
 
     constrainPoint(area, previous, target) {
@@ -974,6 +1089,247 @@ const Model = types
     };
   })
   .actions((self) => ({
+    refreshRoomV3Metadata() {
+      if (!self.roomv3validate) return [];
+      const tolerance = Number.parseFloat(self.roomv3tolerance) || 0.02;
+      const rooms = self.roomV3Regions
+        .map((region) => {
+          const polygon = regionToInternalPolygon(region, self);
+          const result = region.results.find((candidate) => self.roomV3RoomControlNames.has(candidate.from_name?.name));
+          if (result) {
+            result.setMetaValue("room_graph_node", {
+              ...(result.meta?.room_graph_node || {}),
+              schema_version: 3,
+              node_id: region.cleanId,
+              room_type: region.labelName || result.meta?.room_graph_node?.room_type || "Unclear/other",
+              geometry_type: region.type === "rectangleregion" ? "rectangle" : "polygon",
+            });
+          }
+          return { id: region.cleanId, region, result, polygon };
+        })
+        .filter((room) => room.result);
+      const errors = [];
+      rooms.forEach((room) => {
+        if (!isSimplePolygon(room.polygon)) errors.push(`房间 ${room.id} 的几何无效或存在自交。`);
+      });
+      for (let first = 0; first < rooms.length; first++) {
+        for (let second = first + 1; second < rooms.length; second++) {
+          if (polygonsHavePositiveOverlap(rooms[first].polygon, rooms[second].polygon, tolerance)) {
+            errors.push(`房间 ${rooms[first].id} 与 ${rooms[second].id} 发生面积重叠。`);
+          }
+        }
+      }
+
+      const pointToPixels = (point) => ({
+        x: self.internalToImageX(point.x),
+        y: self.internalToImageY(point.y),
+      });
+      const analyzeBoundaryContacts = (segments) => {
+        const contacts = {};
+        const segmentRooms = segments.map(() => new Set());
+        segments.forEach((segment, segmentIndex) => {
+          rooms.forEach((room) => {
+            const overlaps = polygonBoundaryOverlaps(room.polygon, segment, tolerance);
+            if (!overlaps.length) return;
+            segmentRooms[segmentIndex].add(room.id);
+            contacts[room.id] = [...(contacts[room.id] || []), ...overlaps];
+          });
+        });
+        return { contacts, segmentRooms };
+      };
+
+      self.roomV3PortalRegions.forEach((portal) => {
+        const result = portal.results.find(
+          (candidate) =>
+            self.roomV3PortalRectangleControlNames.has(candidate.from_name?.name) ||
+            self.roomV3PortalVectorControlNames.has(candidate.from_name?.name),
+        );
+        if (!result) return;
+        const openingType = normalizedOpeningType(portal.labelName || result.meta?.room_graph_edge?.opening_type);
+        let connectedRoomIds = [];
+        let boundarySegments = {};
+        let geometryType = "vector";
+        let clearWidthPercent = 0;
+        let depthPercent = 0;
+        let clearWidthPx = 0;
+        let depthPx = 0;
+        let centerline = [];
+        let centerlinePx = [];
+
+        if (self.roomV3PortalRectangleControlNames.has(result.from_name?.name)) {
+          geometryType = "rectangle";
+          const polygon = regionToInternalPolygon(portal, self);
+          const geometry = rectanglePortalGeometry(polygon, tolerance);
+          if (!geometry) {
+            errors.push(`Portal ${portal.cleanId} 的矩形几何无效。`);
+          } else {
+            const contacts = analyzeBoundaryContacts(geometry.longEdges);
+            boundarySegments = contacts.contacts;
+            connectedRoomIds = Object.keys(boundarySegments).sort();
+            const occupiedLongEdges = contacts.segmentRooms.filter((roomIds) => roomIds.size > 0).length;
+            const duplicatedRoom = connectedRoomIds.some(
+              (roomId) => contacts.segmentRooms.filter((roomIds) => roomIds.has(roomId)).length > 1,
+            );
+            const overlapsRoomInterior = rooms.some((room) =>
+              polygonsHavePositiveOverlap(polygon, room.polygon, tolerance),
+            );
+            if (connectedRoomIds.length === 0 || connectedRoomIds.length > 2) {
+              errors.push(`Portal ${portal.cleanId} 必须连接 1 个室内房间（入户）或 2 个室内房间。`);
+            }
+            if (connectedRoomIds.length === 2 && occupiedLongEdges !== 2) {
+              errors.push(`Portal ${portal.cleanId} 的两条房间侧长边必须分别与两个房间共边。`);
+            }
+            if (connectedRoomIds.length === 1 && occupiedLongEdges !== 1) {
+              errors.push(`入户 Portal ${portal.cleanId} 只能有一条房间侧长边与室内房间共边。`);
+            }
+            if (duplicatedRoom) errors.push(`Portal ${portal.cleanId} 的两条长边不能同时连接同一房间。`);
+            if (overlapsRoomInterior) errors.push(`Portal ${portal.cleanId} 不得进入房间净空间内部。`);
+            clearWidthPercent = geometry.clearWidth;
+            depthPercent = geometry.depth;
+            centerline = geometry.centerline;
+            const pixelGeometry = rectanglePortalGeometry(polygon.map(pointToPixels), tolerance);
+            clearWidthPx = pixelGeometry?.clearWidth || 0;
+            depthPx = pixelGeometry?.depth || 0;
+            centerlinePx = pixelGeometry?.centerline || [];
+          }
+        } else {
+          const segment = vectorToInternalSegment(portal, self);
+          if (!segment || segmentLength(segment) <= tolerance) {
+            errors.push(`Open passage ${portal.cleanId} 必须是正长度两点 Vector。`);
+          } else {
+            const contacts = analyzeBoundaryContacts([segment]);
+            boundarySegments = contacts.contacts;
+            connectedRoomIds = Object.keys(boundarySegments).sort();
+            const fullySupported = connectedRoomIds.every((roomId) => {
+              const supportedLength = boundarySegments[roomId].reduce(
+                (total, supported) => total + segmentLength(supported),
+                0,
+              );
+              return supportedLength >= segmentLength(segment) - tolerance;
+            });
+            if (openingType !== "open_passage") {
+              errors.push(`Portal Vector ${portal.cleanId} 只允许标注 Open passage。`);
+            }
+            if (connectedRoomIds.length !== 2 || !fullySupported) {
+              errors.push(`Open passage ${portal.cleanId} 必须完整位于两个房间的共享边界上。`);
+            }
+            clearWidthPercent = segmentLength(segment);
+            clearWidthPx = segmentLength(segment.map(pointToPixels));
+            centerline = segment;
+            centerlinePx = segment.map(pointToPixels);
+          }
+        }
+
+        result.setMetaValue("room_graph_edge", {
+          ...(result.meta?.room_graph_edge || {}),
+          schema_version: 3,
+          edge_id: portal.cleanId,
+          opening_type: openingType,
+          geometry_type: geometryType,
+          connected_room_ids: connectedRoomIds,
+          room_ids: connectedRoomIds,
+          connects_to_exterior: geometryType === "rectangle" && connectedRoomIds.length === 1,
+          clear_width_percent: clearWidthPercent,
+          depth_percent: depthPercent,
+          clear_width_px: clearWidthPx,
+          depth_px: depthPx,
+          centerline,
+          centerline_px: centerlinePx,
+          boundary_segments: boundarySegments,
+        });
+      });
+      return errors;
+    },
+
+    refreshGeometryReviewMetadata() {
+      self.connectionVectorRegions.forEach((region) => {
+        const labeling = region.results.find((result) => self.connectionVectorControlNames.has(result.from_name?.name));
+        if (!labeling) return;
+        const reviewControl = self.geometryReviewControlFor(labeling.from_name?.name);
+        const reviewed = region.results.some(
+          (result) => result.from_name?.name === reviewControl && result.mainValue?.includes?.("Reviewed"),
+        );
+        labeling.setMetaValue("geometry_review", {
+          ...(labeling.meta?.geometry_review || {}),
+          schema_version: 3,
+          status: reviewed ? "reviewed" : "pending",
+        });
+      });
+    },
+
+    validateFunctionZoneV3() {
+      if (!self.functionzonev3validate) return [];
+      const errors = [];
+      const coverageTolerance = Number.parseFloat(self.functionzonecoveragetolerance) || 0.001;
+      const zones = self.functionZoneRegions.map((region) => ({
+        id: region.cleanId,
+        region,
+        polygon: regionToInternalPolygon(region, self),
+        parentRoomId: region.partitionContext?.parent_room_id,
+      }));
+      const byRoom = new Map();
+      zones.forEach((zone) => {
+        const room = self.getRoomById(zone.parentRoomId);
+        const roomPolygon = regionToInternalPolygon(room, self);
+        if (!zone.parentRoomId || !roomPolygon) {
+          errors.push(`功能分区 ${zone.id} 未能唯一归属到 Room v3 房间。`);
+          return;
+        }
+        if (!isSimplePolygon(zone.polygon) || !polygonInsidePolygon(zone.polygon, roomPolygon)) {
+          errors.push(`功能分区 ${zone.id} 超出父房间 ${zone.parentRoomId} 的净空间。`);
+        }
+        if (!byRoom.has(zone.parentRoomId)) byRoom.set(zone.parentRoomId, []);
+        byRoom.get(zone.parentRoomId).push(zone);
+      });
+
+      byRoom.forEach((roomZones, roomId) => {
+        for (let first = 0; first < roomZones.length; first++) {
+          for (let second = first + 1; second < roomZones.length; second++) {
+            if (polygonsHavePositiveOverlap(roomZones[first].polygon, roomZones[second].polygon)) {
+              errors.push(`房间 ${roomId} 内的分区 ${roomZones[first].id} 与 ${roomZones[second].id} 重叠。`);
+            }
+          }
+        }
+      });
+
+      self.roomReferenceRegions.forEach((room) => {
+        const roomPolygon = regionToInternalPolygon(room, self);
+        if (!roomPolygon) return;
+        const roomArea = polygonArea(roomPolygon);
+        const zoneArea = (byRoom.get(room.cleanId) || []).reduce((total, zone) => total + polygonArea(zone.polygon), 0);
+        if (roomArea <= 0 || Math.abs(roomArea - zoneArea) / roomArea > coverageTolerance) {
+          errors.push(`房间 ${room.cleanId} 的功能分区未完整覆盖净空间。`);
+        }
+      });
+
+      self.connectionVectorRegions.forEach((region) => {
+        const labeling = region.results.find((result) => self.connectionVectorControlNames.has(result.from_name?.name));
+        const reviewControl = self.geometryReviewControlFor(labeling?.from_name?.name);
+        const reviewed = region.results.some(
+          (result) => result.from_name?.name === reviewControl && result.mainValue?.includes?.("Reviewed"),
+        );
+        if (!reviewed) errors.push(`连通 Vector ${region.cleanId} 修改或迁移后尚未复核。`);
+      });
+      return errors;
+    },
+
+    invalidateGeometryReviews() {
+      self.connectionVectorRegions.forEach((region) => region.invalidateGeometryReview?.());
+    },
+
+    beforeSend() {
+      self.refreshRoomV3Metadata();
+      self.regs.forEach((region) => region.refreshPartitionContext?.(false));
+      self.refreshGeometryReviewMetadata();
+    },
+
+    validate() {
+      const errors = [...self.refreshRoomV3Metadata(), ...self.validateFunctionZoneV3()];
+      if (!errors.length) return true;
+      InfoModal.warning(`v3 几何校验未通过：\n${errors.map((error) => `• ${error}`).join("\n")}`);
+      return false;
+    },
+
     setFocusedRoom(roomId) {
       self.focusedRoomId = roomId || null;
       self.roomConstraintNotice = null;
@@ -986,7 +1342,11 @@ const Model = types
 
     updateRoomConstraintTools() {
       const enabled = !!self.focusedRoom;
-      const referenceControls = new Set([...self.roomControlNames, ...self.openingControlNames]);
+      const referenceControls = new Set([
+        ...self.roomControlNames,
+        ...self.openingControlNames,
+        ...self.roomV3ReferenceControlNames,
+      ]);
       self
         .getToolsManager()
         .allTools()
