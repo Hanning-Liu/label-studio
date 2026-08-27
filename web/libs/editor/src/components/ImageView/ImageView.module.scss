@@ -175,6 +175,7 @@
   top: 8px;
   right: 56px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
   max-width: min(720px, calc(100% - 120px));
@@ -203,4 +204,39 @@
     color: var(--color-negative-content, #b42318);
     white-space: nowrap;
   }
+}
+
+.roomFocusRow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; }
+
+// The enclosing config View spans the full annotation, including the label groups.
+// Sticky therefore remains active throughout .lsf-main-content, not just the canvas.
+.reviewDock {
+  position: sticky;
+  top: 0;
+  z-index: 220;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  background: var(--color-neutral-background, #fff);
+  border: 1px solid #c6d6e6;
+  border-radius: 6px;
+  box-shadow: 0 2px 5px #0002;
+  font-size: 13px;
+}
+.roomFocus.roomFocusCompact {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  gap: 0;
+  .roomFocusRow { gap: 6px; width: auto; }
+  select { padding: 2px 6px; min-width: 180px; max-width: 260px; }
+}
+
+.roomFocusDocked {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  margin-bottom: 8px;
 }

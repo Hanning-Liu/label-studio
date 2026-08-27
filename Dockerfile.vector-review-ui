@@ -1,0 +1,5 @@
+# Frontend-only follow-up: preserve the deployed reference-sync backend verbatim.
+FROM hanning-liu/label-studio:1.23.0-room-v3.4-reference-sync@sha256:11ed12356faf1f48ad9ff6beb50410d95f81ac8c98c62fa57970193e3ea733f4
+LABEL org.opencontainers.image.version="1.23.0-room-v3.4.1-vector-review-ui"
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+USER 1001

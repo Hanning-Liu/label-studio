@@ -1,0 +1,10 @@
+# Local immutable base alias is created from the verified v3.3 image ID before build.
+FROM label-studio-reference-sync-base:20260826-v3.3
+LABEL org.opencontainers.image.title="Label Studio Room to L2 reference synchronization"
+LABEL org.opencontainers.image.version="1.23.0-room-v3.4-reference-sync"
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+COPY --chown=1001:0 label_studio/tasks /label-studio/label_studio/tasks
+COPY --chown=1001:0 label_studio/core/context_processors.py /label-studio/label_studio/core/context_processors.py
+COPY --chown=1001:0 label_studio/templates/base.html /label-studio/label_studio/templates/base.html
+COPY --chown=1001:0 deploy/reference_sync_healthcheck.py /label-studio/deploy/reference_sync_healthcheck.py
+USER 1001

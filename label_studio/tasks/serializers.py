@@ -118,6 +118,12 @@ class PredictionSerializer(ModelSerializer):
 
         return data
 
+    def to_representation(self, obj):
+        from tasks.reference_sync.service import response_tokens
+        ret = super().to_representation(obj)
+        ret.update(response_tokens(obj))
+        return ret
+
     class Meta:
         model = Prediction
         fields = '__all__'
@@ -198,6 +204,8 @@ class AnnotationSerializer(FlexFieldsModelSerializer):
             and flag_set('fflag_feat_fit_710_fsm_state_fields', user=user)
         ):
             ret.pop('state', None)
+        from tasks.reference_sync.service import response_tokens
+        ret.update(response_tokens(obj))
         return ret
 
     class Meta:
@@ -851,6 +859,11 @@ class AnnotationDraftSerializer(ModelSerializer):
     user = serializers.CharField(default=serializers.CurrentUserDefault())
     created_username = serializers.SerializerMethodField(default='', read_only=True, help_text='User name string')
     created_ago = serializers.CharField(default='', read_only=True, help_text='Delta time from creation time')
+    expected_updated_at = serializers.DateTimeField(required=False, write_only=True)
+
+    def create(self, validated_data):
+        validated_data.pop('expected_updated_at', None)
+        return super().create(validated_data)
 
     def get_created_username(self, draft):
         user = draft.user
@@ -873,6 +886,8 @@ class AnnotationDraftSerializer(ModelSerializer):
             and flag_set('fflag_feat_fit_710_fsm_state_fields', user=user)
         ):
             ret.pop('state', None)
+        from tasks.reference_sync.service import response_tokens
+        ret.update(response_tokens(obj))
         return ret
 
     class Meta:

@@ -527,6 +527,7 @@ class Task(TaskMixin, FsmHistoryStateModel):
     def ensure_unique_groundtruth(self, annotation_id):
         self.annotations.exclude(id=annotation_id).update(ground_truth=False)
 
+    @transaction.atomic
     def save(self, *args, update_fields=None, **kwargs):
         if self.inner_id == 0:
             task = Task.objects.filter(project=self.project).order_by('-inner_id').first()
@@ -1560,3 +1561,5 @@ def bulk_update_stats_project_tasks(tasks, project=None):
 
 Q_finished_annotations = Q(was_cancelled=False) & Q(result__isnull=False)
 Q_task_finished_annotations = Q(annotations__was_cancelled=False) & Q(annotations__result__isnull=False)
+
+from tasks.reference_sync.models import ReferenceSyncAudit, ReferenceSyncBinding, ReferenceSyncMapping  # noqa: E402,F401

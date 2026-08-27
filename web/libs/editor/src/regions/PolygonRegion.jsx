@@ -150,6 +150,14 @@ const Model = types
         const isSelected = self.selectedPoint === point;
 
         if (willNotEliminateClosedShape || isLastPoint) return;
+        if (
+          self.closed &&
+          self.parent?.occupancyEnabled &&
+          !self.parent.acceptOccupancyEdit(self, {
+            points: self.points.filter((p) => p !== point).map((p) => [p.x, p.y]),
+          })
+        )
+          return;
         if (isSelected) self.selectedPoint = null;
         destroy(point);
         self.refreshPartitionContext?.();
@@ -160,6 +168,10 @@ const Model = types
 
         let point = self.control?.getSnappedPoint({ x, y }) || { x, y };
         const previous = self.points[self.points.length - 1];
+        if (self.parent?.occupancyConstrains?.(self)) {
+          point = self.parent.occupancyNextPoint(self, { x, y });
+          if (!point) return;
+        }
 
         if (self.control?.constrainto) {
           point = self.parent.constrainPoint(self, previous || point, point);
@@ -179,6 +191,8 @@ const Model = types
       setPoints(points) {
         const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
         let target = self.points.map((_, index) => ({ x: points[index * 2], y: points[index * 2 + 1] }));
+        if (self.parent?.occupancyConstrains?.(self))
+          target = self.parent.constrainOccupancyPolygon(self, previous, target);
         if (self.control?.constrainto) {
           const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
           if (room) target = clampPolygonTransform(previous, target, room);
@@ -195,6 +209,8 @@ const Model = types
         const dy = self.parent.canvasToInternalY(offsetY);
         const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
         let target = previous.map((point) => ({ x: point.x + dx, y: point.y + dy }));
+        if (self.parent?.occupancyConstrains?.(self))
+          target = self.parent.constrainOccupancyPolygon(self, previous, target);
         if (self.control?.constrainto) {
           const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
           if (room) target = clampPolygonTransform(previous, target, room);
@@ -207,6 +223,18 @@ const Model = types
       },
 
       moveVertex(point, target) {
+        if (self.parent?.occupancyConstrains?.(self)) {
+          const previous = self.points.map((p) => ({ x: p.x, y: p.y }));
+          const accepted = self.parent.constrainOccupancyPolygon(
+            self,
+            previous,
+            self.points.map((p, i) => (p === point ? target : previous[i])),
+          );
+          const value = accepted[self.points.indexOf(point)];
+          point.x = value.x;
+          point.y = value.y;
+          return;
+        }
         let accepted = self.parent.constrainPoint(self, { x: point.x, y: point.y }, target);
         const index = self.points.indexOf(point);
         const previous = self.points[(index - 1 + self.points.length) % self.points.length];
@@ -247,6 +275,10 @@ const Model = types
           x: self.parent.canvasToInternalX(x),
           y: self.parent.canvasToInternalY(y),
         });
+        if (self.parent?.occupancyConstrains?.(self)) {
+          pointCoords = self.parent.occupancyDrawingPoint(pointCoords, self);
+          if (!pointCoords) return;
+        }
         if (self.control?.constrainto) {
           pointCoords = self.parent.constrainPoint(self, self.points[insertIdx - 1] || pointCoords, pointCoords);
         }
@@ -267,6 +299,12 @@ const Model = types
           style: self.pointStyle,
           index: self.points.length,
         };
+
+        if (self.closed && self.parent?.occupancyEnabled) {
+          const points = self.points.map((point) => [point.x, point.y]);
+          points.splice(insertIdx, 0, [p.x, p.y]);
+          if (!self.parent.acceptOccupancyEdit(self, { points })) return;
+        }
 
         self.points.splice(insertIdx, 0, p);
         self.refreshPartitionContext?.();
@@ -296,6 +334,13 @@ const Model = types
 
       closePoly() {
         if (self.closed || self.points.length < 3) return;
+        if (
+          self.parent?.occupancyConstrains?.(self) &&
+          !self.parent.acceptOccupancyEdit(self, {
+            points: self.points.map((p) => [p.x, p.y]),
+          })
+        )
+          return;
         if (self.control?.constrainto) {
           const polygon = self.points.map((point) => ({ x: point.x, y: point.y }));
           const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
@@ -502,6 +547,11 @@ const Poly = memo(
             t.setAttr("y", 0);
             t.setAttr("scaleX", 1);
             t.setAttr("scaleY", 1);
+            if (item.parent?.occupancyConstrains?.(item))
+              t.setAttr(
+                "points",
+                item.points.flatMap((p) => [p.canvasX, p.canvasY]),
+              );
           }}
           draggable={draggable}
         />
@@ -645,7 +695,23 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
 
         item.annotation.history.freeze(item.id);
       },
-      dragBoundFunc: createDragBoundFunc(item, { x: -item.bboxCoords.left, y: -item.bboxCoords.top }),
+      dragBoundFunc: item.parent?.occupancyConstrains?.(item)
+        ? (pos) =>
+            item.parent.fixForZoomWrapper(pos, (p) => {
+              const previous = item.points.map((point) => ({ x: point.x, y: point.y }));
+              const dx = item.parent.canvasToInternalX(p.x),
+                dy = item.parent.canvasToInternalY(p.y);
+              const accepted = item.parent.constrainOccupancyPolygon(
+                item,
+                previous,
+                previous.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+              );
+              return {
+                x: item.parent.internalToCanvasX(accepted[0].x - previous[0].x),
+                y: item.parent.internalToCanvasY(accepted[0].y - previous[0].y),
+              };
+            })
+        : createDragBoundFunc(item, { x: -item.bboxCoords.left, y: -item.bboxCoords.top }),
       onDragEnd: (e) => {
         if (!isDragging) return;
         const t = e.target;

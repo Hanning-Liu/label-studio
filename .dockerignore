@@ -15,6 +15,8 @@ label_studio/**/*.pyc
 # FRONTEND
 !web
 !Dockerfile.room-focus
+!Dockerfile.reference-sync
+!deploy/reference_sync_healthcheck.py
 !.git
 # Re-ignore node_modules and nx cache
 **/node_modules
@@ -25,3 +27,6 @@ label_studio/**/*.pyc
 !LICENSE
 !pyproject.toml
 !poetry.lock
+!examples/occupancy-v1/**
+!Dockerfile.occupancy
+!Dockerfile.occupancy-backend-qa

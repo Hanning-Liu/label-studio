@@ -14,6 +14,7 @@ import { RelationsControls } from "./RelationsControls";
 import { EmptyState } from "../Components/EmptyState";
 import { IconCursor, IconRelationLink } from "@humansignal/icons";
 import { getDocsUrl } from "../../../utils/docs";
+import { OccupancyDetails } from "../../../occupancy/OccupancyOutliner";
 
 interface DetailsPanelProps extends PanelProps {
   regions: any;
@@ -41,6 +42,9 @@ const DetailsComponent: FC<DetailsPanelProps> = ({ currentEntity, regions }) => 
 };
 
 const Content: FC<any> = observer(function Content({ selection, currentEntity }: any): JSX.Element {
+  const occupancy = currentEntity?.objects?.find((object: any) => object.occupancyEnabled);
+  if (occupancy && selection.list?.some((region: any) => region.results?.some((r: any) => r.meta?.occupancy_context)))
+    return <OccupancyDetails item={occupancy} />;
   return <>{selection.size ? <RegionsPanel regions={selection} /> : <GeneralPanel currentEntity={currentEntity} />}</>;
 });
 

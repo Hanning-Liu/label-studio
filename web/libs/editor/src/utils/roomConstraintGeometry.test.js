@@ -15,6 +15,14 @@ import {
   rotatedRectanglePoints,
   snapSegmentToOpening,
 } from "./roomConstraintGeometry";
+import syncGeometryCases from "../../../../../label_studio/tasks/reference_sync/geometry_cases.json";
+
+test.each(syncGeometryCases)("Room sync backend parity: $name", (fixture) => {
+  const point = ([x, y]) => ({ x, y });
+  const context = partitionContext(fixture.polygon.map(point), fixture.room,
+    fixture.openings.map((opening) => ({ ...opening, points: opening.points.map(point) })), 1e-5, 3);
+  expect(context).toEqual({ schema_version: 3, parent_room_id: fixture.room, ...fixture.expected });
+});
 
 const concaveRoom = [
   { x: 0, y: 0 },

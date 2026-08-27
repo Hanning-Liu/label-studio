@@ -30,21 +30,29 @@ export const DraftGuard = () => {
     const unsubscribe = history.block(() => {
       const selected = window.Htx?.annotationStore?.selected;
       const submissionInProgress = !!selected?.submissionStarted;
-      const hasChanges = !!selected?.history.undoIdx && !submissionInProgress;
+      const dirty =
+        selected?.savedResultFingerprint != null
+          ? selected.draftResultFingerprint !== selected.savedResultFingerprint
+          : !!selected?.history.undoIdx;
+      const hasChanges =
+        !!selected && !submissionInProgress && (dirty || selected.isDraftSaving || selected.draftSaveError);
 
       if (hasChanges) {
-        selected.saveDraftImmediatelyWithResults()?.then((res) => {
-          const status = res?.$meta?.status;
+        selected
+          .saveDraftImmediatelyWithResults()
+          ?.then((res) => {
+            const status = res?.$meta?.status;
 
-          if (status === 200 || status === 201) {
-            toast.show({ message: "Draft saved successfully", type: "info" });
-            unblock();
-          } else if (status !== undefined) {
-            toast.show({ message: "There was an error saving your draft", type: "error" });
-          } else {
-            unblock();
-          }
-        });
+            if (status === 200 || status === 201) {
+              toast.show({ message: "Draft saved successfully", type: "info" });
+              unblock();
+            } else if (status !== undefined) {
+              toast.show({ message: "There was an error saving your draft", type: "error" });
+            } else toast.show({ message: "草稿尚未确认保存，请保留当前窗口", type: "error" });
+          })
+          .catch((error) => {
+            toast.show({ message: error?.message || "草稿保存失败，请保留当前窗口", type: "error" });
+          });
 
         return DRAFT_GUARD_KEY;
       }

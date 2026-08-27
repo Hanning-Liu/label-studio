@@ -1,0 +1,4838 @@
+[
+  {
+    "name": "island-hole",
+    "input": {
+      "name": "island-hole",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            0,
+            100
+          ]
+        ]
+      ],
+      "obstacles": [
+        [
+          [
+            [
+              30,
+              30
+            ],
+            [
+              70,
+              30
+            ],
+            [
+              70,
+              70
+            ],
+            [
+              30,
+              70
+            ]
+          ]
+        ]
+      ]
+    },
+    "results": [
+      {
+        "id": "fixture0001",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0001",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0003",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              30,
+              30
+            ],
+            [
+              70,
+              30
+            ],
+            [
+              70,
+              70
+            ],
+            [
+              30,
+              70
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0002",
+            "group_id": "fixture0002",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e"
+          }
+        }
+      },
+      {
+        "id": "fixture0003",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0005",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              30,
+              30
+            ],
+            [
+              30,
+              70
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0005",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0006",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              70,
+              30
+            ],
+            [
+              30,
+              30
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0006",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0007",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              30,
+              70
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0007",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0008",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              70,
+              30
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0008",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0009",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ],
+            [
+              30,
+              70
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0009",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0010",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              70,
+              70
+            ],
+            [
+              70,
+              30
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0010",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0011",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              100
+            ],
+            [
+              30,
+              70
+            ],
+            [
+              70,
+              70
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0011",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0012",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              70,
+              70
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0004",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0001",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+            "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae"
+          }
+        }
+      },
+      {
+        "id": "fixture0012",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0002",
+          "group_id": "fixture0002",
+          "group_type": "storage",
+          "group_note": "",
+          "parent_zone_id": "fixture0001",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "manual",
+          "review_status": "reviewed",
+          "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+          "occupancy_type": "furniture_group",
+          "storage_ids": [
+            "fixture0003"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    30,
+                    30
+                  ],
+                  [
+                    70,
+                    30
+                  ],
+                  [
+                    70,
+                    70
+                  ],
+                  [
+                    30,
+                    70
+                  ],
+                  [
+                    30,
+                    30
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0004",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0001",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e",
+          "remainder_input_fingerprint": "24a1f8e3e5b6845c42af3890d54e684d48e42efcd760c6f2eaefb1eabe7e72ae",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0005",
+            "fixture0006",
+            "fixture0007",
+            "fixture0008",
+            "fixture0009",
+            "fixture0010",
+            "fixture0011",
+            "fixture0012"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    0,
+                    100
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                [
+                  [
+                    30,
+                    30
+                  ],
+                  [
+                    30,
+                    70
+                  ],
+                  [
+                    70,
+                    70
+                  ],
+                  [
+                    70,
+                    30
+                  ],
+                  [
+                    30,
+                    30
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+    "review_fingerprint": "ad1bf53abc6004bb60667bd98dd4a479c65b43de6c74adf10f839170847b394e"
+  },
+  {
+    "name": "disjoint-bed-cabinet",
+    "input": {
+      "name": "disjoint-bed-cabinet",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            0,
+            100
+          ]
+        ]
+      ],
+      "obstacles": [
+        [
+          [
+            [
+              10,
+              10
+            ],
+            [
+              25,
+              10
+            ],
+            [
+              25,
+              40
+            ],
+            [
+              10,
+              40
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              30,
+              10
+            ],
+            [
+              35,
+              10
+            ],
+            [
+              35,
+              15
+            ],
+            [
+              30,
+              15
+            ]
+          ]
+        ]
+      ]
+    },
+    "results": [
+      {
+        "id": "fixture0013",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0013",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0015",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              10,
+              10
+            ],
+            [
+              25,
+              10
+            ],
+            [
+              25,
+              40
+            ],
+            [
+              10,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0014",
+            "group_id": "fixture0014",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c"
+          }
+        }
+      },
+      {
+        "id": "fixture0015",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0016",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              30,
+              10
+            ],
+            [
+              35,
+              10
+            ],
+            [
+              35,
+              15
+            ],
+            [
+              30,
+              15
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0014",
+            "group_id": "fixture0014",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c"
+          }
+        }
+      },
+      {
+        "id": "fixture0016",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0018",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              25,
+              10
+            ],
+            [
+              30,
+              10
+            ],
+            [
+              30,
+              15
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0018",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0019",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              35,
+              10
+            ],
+            [
+              10,
+              10
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0019",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0020",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0020",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0021",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              10
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0021",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0022",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              25,
+              40
+            ],
+            [
+              25,
+              10
+            ],
+            [
+              30,
+              15
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0022",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0023",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              35,
+              10
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0023",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0024",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              10,
+              10
+            ],
+            [
+              10,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0024",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0025",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              25,
+              40
+            ],
+            [
+              30,
+              15
+            ],
+            [
+              35,
+              15
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0025",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0026",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              35,
+              15
+            ],
+            [
+              35,
+              10
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0026",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0027",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              10,
+              40
+            ],
+            [
+              25,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0027",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0028",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              25,
+              40
+            ],
+            [
+              35,
+              15
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0028",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0029",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              0,
+              100
+            ],
+            [
+              25,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0017",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0013",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+            "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65"
+          }
+        }
+      },
+      {
+        "id": "fixture0029",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0014",
+          "group_id": "fixture0014",
+          "group_type": "storage",
+          "group_note": "",
+          "parent_zone_id": "fixture0013",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "manual",
+          "review_status": "reviewed",
+          "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+          "occupancy_type": "furniture_group",
+          "storage_ids": [
+            "fixture0015",
+            "fixture0016"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    10,
+                    10
+                  ],
+                  [
+                    25,
+                    10
+                  ],
+                  [
+                    25,
+                    40
+                  ],
+                  [
+                    10,
+                    40
+                  ],
+                  [
+                    10,
+                    10
+                  ]
+                ]
+              ],
+              [
+                [
+                  [
+                    30,
+                    10
+                  ],
+                  [
+                    35,
+                    10
+                  ],
+                  [
+                    35,
+                    15
+                  ],
+                  [
+                    30,
+                    15
+                  ],
+                  [
+                    30,
+                    10
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0017",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0013",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c",
+          "remainder_input_fingerprint": "0517b860b5b0992d7f22b68041039261c2aaa03737835ffbe8fb8fe95ad84d65",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0018",
+            "fixture0019",
+            "fixture0020",
+            "fixture0021",
+            "fixture0022",
+            "fixture0023",
+            "fixture0024",
+            "fixture0025",
+            "fixture0026",
+            "fixture0027",
+            "fixture0028",
+            "fixture0029"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    0,
+                    100
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                [
+                  [
+                    10,
+                    10
+                  ],
+                  [
+                    10,
+                    40
+                  ],
+                  [
+                    25,
+                    40
+                  ],
+                  [
+                    25,
+                    10
+                  ],
+                  [
+                    10,
+                    10
+                  ]
+                ],
+                [
+                  [
+                    30,
+                    10
+                  ],
+                  [
+                    30,
+                    15
+                  ],
+                  [
+                    35,
+                    15
+                  ],
+                  [
+                    35,
+                    10
+                  ],
+                  [
+                    30,
+                    10
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+    "review_fingerprint": "cfc233c8c11c2f30f03bc2e4fa67359e83d20cf42570c840d9c742276fee1b0c"
+  },
+  {
+    "name": "concave-parent-two-holes",
+    "input": {
+      "name": "concave-parent-two-holes",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            60,
+            100
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            0,
+            60
+          ]
+        ]
+      ],
+      "obstacles": [
+        [
+          [
+            [
+              10,
+              10
+            ],
+            [
+              20,
+              10
+            ],
+            [
+              20,
+              20
+            ],
+            [
+              10,
+              20
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              30,
+              10
+            ],
+            [
+              40,
+              10
+            ],
+            [
+              40,
+              20
+            ],
+            [
+              30,
+              20
+            ]
+          ]
+        ]
+      ]
+    },
+    "results": [
+      {
+        "id": "fixture0030",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              60,
+              100
+            ],
+            [
+              60,
+              60
+            ],
+            [
+              0,
+              60
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0030",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0032",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              10,
+              10
+            ],
+            [
+              20,
+              10
+            ],
+            [
+              20,
+              20
+            ],
+            [
+              10,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0031",
+            "group_id": "fixture0031",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5"
+          }
+        }
+      },
+      {
+        "id": "fixture0032",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0033",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              30,
+              10
+            ],
+            [
+              40,
+              10
+            ],
+            [
+              40,
+              20
+            ],
+            [
+              30,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0031",
+            "group_id": "fixture0031",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5"
+          }
+        }
+      },
+      {
+        "id": "fixture0033",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0035",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              20,
+              10
+            ],
+            [
+              30,
+              10
+            ],
+            [
+              30,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0035",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0036",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              10
+            ],
+            [
+              10,
+              10
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0036",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0037",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              60,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0037",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0038",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              60
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              10
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0038",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0039",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              20,
+              20
+            ],
+            [
+              20,
+              10
+            ],
+            [
+              30,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0039",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0040",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              10
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0040",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0041",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              60,
+              100
+            ],
+            [
+              60,
+              60
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0041",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0042",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              60
+            ],
+            [
+              10,
+              10
+            ],
+            [
+              10,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0042",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0043",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              20
+            ],
+            [
+              40,
+              10
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0043",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0044",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              60,
+              60
+            ],
+            [
+              0,
+              60
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0044",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0045",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              60
+            ],
+            [
+              10,
+              20
+            ],
+            [
+              20,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0045",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0046",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              20
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              0,
+              60
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0046",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0047",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              60
+            ],
+            [
+              20,
+              20
+            ],
+            [
+              30,
+              20
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0047",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0048",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              30,
+              20
+            ],
+            [
+              40,
+              20
+            ],
+            [
+              0,
+              60
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0034",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0030",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+            "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e"
+          }
+        }
+      },
+      {
+        "id": "fixture0048",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0031",
+          "group_id": "fixture0031",
+          "group_type": "storage",
+          "group_note": "",
+          "parent_zone_id": "fixture0030",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+          "generation": "manual",
+          "review_status": "reviewed",
+          "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+          "occupancy_type": "furniture_group",
+          "storage_ids": [
+            "fixture0032",
+            "fixture0033"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    10,
+                    10
+                  ],
+                  [
+                    20,
+                    10
+                  ],
+                  [
+                    20,
+                    20
+                  ],
+                  [
+                    10,
+                    20
+                  ],
+                  [
+                    10,
+                    10
+                  ]
+                ]
+              ],
+              [
+                [
+                  [
+                    30,
+                    10
+                  ],
+                  [
+                    40,
+                    10
+                  ],
+                  [
+                    40,
+                    20
+                  ],
+                  [
+                    30,
+                    20
+                  ],
+                  [
+                    30,
+                    10
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0034",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0030",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5",
+          "remainder_input_fingerprint": "3ad309e0aced1b6fa9bb20f50f7c83ed9be19285260b24e9afc178648ec1673e",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0035",
+            "fixture0036",
+            "fixture0037",
+            "fixture0038",
+            "fixture0039",
+            "fixture0040",
+            "fixture0041",
+            "fixture0042",
+            "fixture0043",
+            "fixture0044",
+            "fixture0045",
+            "fixture0046",
+            "fixture0047",
+            "fixture0048"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    60,
+                    100
+                  ],
+                  [
+                    60,
+                    60
+                  ],
+                  [
+                    0,
+                    60
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                [
+                  [
+                    10,
+                    10
+                  ],
+                  [
+                    10,
+                    20
+                  ],
+                  [
+                    20,
+                    20
+                  ],
+                  [
+                    20,
+                    10
+                  ],
+                  [
+                    10,
+                    10
+                  ]
+                ],
+                [
+                  [
+                    30,
+                    10
+                  ],
+                  [
+                    30,
+                    20
+                  ],
+                  [
+                    40,
+                    20
+                  ],
+                  [
+                    40,
+                    10
+                  ],
+                  [
+                    30,
+                    10
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "ea1adab8b912ab75992d654916a51c12bf48b959cd69702d93b9f56c1ac7324b",
+    "review_fingerprint": "ff8752d9ccbab397f56ac7501307a36fc17230e892231347eba89e340d1efcd5"
+  },
+  {
+    "name": "multiple-remainders",
+    "input": {
+      "name": "multiple-remainders",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            0,
+            100
+          ]
+        ]
+      ],
+      "obstacles": [
+        [
+          [
+            [
+              49,
+              0
+            ],
+            [
+              51,
+              0
+            ],
+            [
+              51,
+              100
+            ],
+            [
+              49,
+              100
+            ]
+          ]
+        ]
+      ]
+    },
+    "results": [
+      {
+        "id": "fixture0049",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0049",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0051",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              49,
+              0
+            ],
+            [
+              51,
+              0
+            ],
+            [
+              51,
+              100
+            ],
+            [
+              49,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0050",
+            "group_id": "fixture0050",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0049",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb"
+          }
+        }
+      },
+      {
+        "id": "fixture0051",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0053",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              49,
+              0
+            ],
+            [
+              49,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0052",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0049",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb",
+            "remainder_input_fingerprint": "b5b3e8df9587235b32e78ec37948f0b9942402e31080c35e0386f79582bf1ea9"
+          }
+        }
+      },
+      {
+        "id": "fixture0053",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0055",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              51,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              51,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0054",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0049",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb",
+            "remainder_input_fingerprint": "b5b3e8df9587235b32e78ec37948f0b9942402e31080c35e0386f79582bf1ea9"
+          }
+        }
+      },
+      {
+        "id": "fixture0055",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0050",
+          "group_id": "fixture0050",
+          "group_type": "storage",
+          "group_note": "",
+          "parent_zone_id": "fixture0049",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "manual",
+          "review_status": "reviewed",
+          "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb",
+          "occupancy_type": "furniture_group",
+          "storage_ids": [
+            "fixture0051"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    49,
+                    0
+                  ],
+                  [
+                    51,
+                    0
+                  ],
+                  [
+                    51,
+                    100
+                  ],
+                  [
+                    49,
+                    100
+                  ],
+                  [
+                    49,
+                    0
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0052",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0049",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb",
+          "remainder_input_fingerprint": "b5b3e8df9587235b32e78ec37948f0b9942402e31080c35e0386f79582bf1ea9",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0053"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    49,
+                    0
+                  ],
+                  [
+                    49,
+                    100
+                  ],
+                  [
+                    0,
+                    100
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0054",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0049",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb",
+          "remainder_input_fingerprint": "b5b3e8df9587235b32e78ec37948f0b9942402e31080c35e0386f79582bf1ea9",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0055"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    51,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    51,
+                    100
+                  ],
+                  [
+                    51,
+                    0
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+    "review_fingerprint": "8d35e9cc8c8cd127a41042301c81902fff2079830e955c81d4c0600f83c89afb"
+  },
+  {
+    "name": "no-furniture",
+    "input": {
+      "name": "no-furniture",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            0,
+            100
+          ]
+        ]
+      ],
+      "obstacles": []
+    },
+    "results": [
+      {
+        "id": "fixture0056",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0056",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0058",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0057",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0056",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "7fb4c286d744a43bb5081548e489a456ee0b58fa5a80815548575c2151680793",
+            "remainder_input_fingerprint": "c283f710f4837ac7be1a553cbe123339e734629670561afc153e26f725b1c3b5"
+          }
+        }
+      },
+      {
+        "id": "fixture0058",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0057",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0056",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "7fb4c286d744a43bb5081548e489a456ee0b58fa5a80815548575c2151680793",
+          "remainder_input_fingerprint": "c283f710f4837ac7be1a553cbe123339e734629670561afc153e26f725b1c3b5",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0058"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    0,
+                    100
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+    "review_fingerprint": "7fb4c286d744a43bb5081548e489a456ee0b58fa5a80815548575c2151680793"
+  },
+  {
+    "name": "narrow-remainder",
+    "input": {
+      "name": "narrow-remainder",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            0,
+            100
+          ]
+        ]
+      ],
+      "obstacles": [
+        [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              99.999999,
+              0
+            ],
+            [
+              99.999999,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        ]
+      ]
+    },
+    "results": [
+      {
+        "id": "fixture0059",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0059",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0061",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              99.999999,
+              0
+            ],
+            [
+              99.999999,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0060",
+            "group_id": "fixture0060",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0059",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "b0e40a203620a3162d835901dc339d2d984a51cceb1f848c57ee8e20bef7f727"
+          }
+        }
+      },
+      {
+        "id": "fixture0061",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0063",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              99.999999,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              99.999999,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0062",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0059",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "b0e40a203620a3162d835901dc339d2d984a51cceb1f848c57ee8e20bef7f727",
+            "remainder_input_fingerprint": "d4f4d5b4b8fe131098448e26f5d025d3c85359d9896dbde87236124df2d53364"
+          }
+        }
+      },
+      {
+        "id": "fixture0063",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "restricted_free"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0060",
+          "group_id": "fixture0060",
+          "group_type": "storage",
+          "group_note": "",
+          "parent_zone_id": "fixture0059",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "manual",
+          "review_status": "reviewed",
+          "review_fingerprint": "b0e40a203620a3162d835901dc339d2d984a51cceb1f848c57ee8e20bef7f727",
+          "occupancy_type": "furniture_group",
+          "storage_ids": [
+            "fixture0061"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    99.999999,
+                    0
+                  ],
+                  [
+                    99.999999,
+                    100
+                  ],
+                  [
+                    0,
+                    100
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0062",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0059",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "b0e40a203620a3162d835901dc339d2d984a51cceb1f848c57ee8e20bef7f727",
+          "remainder_input_fingerprint": "d4f4d5b4b8fe131098448e26f5d025d3c85359d9896dbde87236124df2d53364",
+          "occupancy_type": "restricted_free",
+          "storage_ids": [
+            "fixture0063"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    99.999999,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    99.999999,
+                    100
+                  ],
+                  [
+                    99.999999,
+                    0
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+    "review_fingerprint": "b0e40a203620a3162d835901dc339d2d984a51cceb1f848c57ee8e20bef7f727"
+  },
+  {
+    "name": "overlapping-desk-chair",
+    "input": {
+      "name": "overlapping-desk-chair",
+      "parent": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            100,
+            0
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            0,
+            100
+          ]
+        ]
+      ],
+      "obstacles": [
+        [
+          [
+            [
+              10,
+              10
+            ],
+            [
+              30,
+              10
+            ],
+            [
+              30,
+              30
+            ],
+            [
+              10,
+              30
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              20,
+              20
+            ],
+            [
+              40,
+              20
+            ],
+            [
+              40,
+              40
+            ],
+            [
+              20,
+              40
+            ]
+          ]
+        ]
+      ]
+    },
+    "results": [
+      {
+        "id": "fixture0064",
+        "from_name": "zone_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "partition_context": {
+            "parent_room_id": "room"
+          }
+        }
+      },
+      {
+        "id": "fixture0064",
+        "from_name": "function_zone",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "Sanitary/general"
+          ]
+        }
+      },
+      {
+        "id": "fixture0066",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              10,
+              10
+            ],
+            [
+              30,
+              10
+            ],
+            [
+              30,
+              20
+            ],
+            [
+              40,
+              20
+            ],
+            [
+              40,
+              40
+            ],
+            [
+              20,
+              40
+            ],
+            [
+              20,
+              30
+            ],
+            [
+              10,
+              30
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0065",
+            "group_id": "fixture0065",
+            "group_type": "storage",
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "manual",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6"
+          }
+        }
+      },
+      {
+        "id": "fixture0066",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "furniture_group"
+          ]
+        }
+      },
+      {
+        "id": "fixture0068",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              10
+            ],
+            [
+              10,
+              30
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0068",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0069",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              10,
+              30
+            ],
+            [
+              20,
+              30
+            ],
+            [
+              20,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0069",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0070",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              20
+            ],
+            [
+              30,
+              20
+            ],
+            [
+              30,
+              10
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0070",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0071",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              30,
+              10
+            ],
+            [
+              10,
+              10
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0071",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0072",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0072",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0073",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              30
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0073",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0074",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              30,
+              10
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0074",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0075",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              10,
+              30
+            ],
+            [
+              20,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0075",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0076",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              20
+            ],
+            [
+              30,
+              10
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0076",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0077",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              0,
+              100
+            ],
+            [
+              20,
+              40
+            ],
+            [
+              40,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0077",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0078",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              40,
+              40
+            ],
+            [
+              40,
+              20
+            ],
+            [
+              100,
+              0
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0078",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      },
+      {
+        "id": "fixture0079",
+        "from_name": "occupancy_polygon",
+        "to_name": "image",
+        "type": "polygon",
+        "original_width": 1080,
+        "original_height": 671,
+        "image_rotation": 0,
+        "value": {
+          "points": [
+            [
+              100,
+              0
+            ],
+            [
+              0,
+              100
+            ],
+            [
+              40,
+              40
+            ]
+          ]
+        },
+        "meta": {
+          "occupancy_context": {
+            "schema_version": 1,
+            "logical_id": "fixture0067",
+            "group_id": null,
+            "group_type": null,
+            "group_note": "",
+            "parent_zone_id": "fixture0064",
+            "parent_room_id": "room",
+            "source_version": "v1",
+            "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+            "generation": "remainder",
+            "review_status": "reviewed",
+            "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+            "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425"
+          }
+        }
+      },
+      {
+        "id": "fixture0079",
+        "from_name": "occupancy_type",
+        "to_name": "image",
+        "type": "labels",
+        "value": {
+          "labels": [
+            "walkable"
+          ]
+        }
+      }
+    ],
+    "logical": {
+      "schema_version": 1,
+      "coordinate_system": "image_percent",
+      "source_version": "v1",
+      "regions": [
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0065",
+          "group_id": "fixture0065",
+          "group_type": "storage",
+          "group_note": "",
+          "parent_zone_id": "fixture0064",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "manual",
+          "review_status": "reviewed",
+          "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+          "occupancy_type": "furniture_group",
+          "storage_ids": [
+            "fixture0066"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    10,
+                    10
+                  ],
+                  [
+                    30,
+                    10
+                  ],
+                  [
+                    30,
+                    20
+                  ],
+                  [
+                    40,
+                    20
+                  ],
+                  [
+                    40,
+                    40
+                  ],
+                  [
+                    20,
+                    40
+                  ],
+                  [
+                    20,
+                    30
+                  ],
+                  [
+                    10,
+                    30
+                  ],
+                  [
+                    10,
+                    10
+                  ]
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "schema_version": 1,
+          "logical_id": "fixture0067",
+          "group_id": null,
+          "group_type": null,
+          "group_note": "",
+          "parent_zone_id": "fixture0064",
+          "parent_room_id": "room",
+          "source_version": "v1",
+          "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+          "generation": "remainder",
+          "review_status": "reviewed",
+          "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6",
+          "remainder_input_fingerprint": "e6a030f22d5b64d60553fcf5b2cbe51ed06aee1317fecf5bf4e5c4d6bfb36425",
+          "occupancy_type": "walkable",
+          "storage_ids": [
+            "fixture0068",
+            "fixture0069",
+            "fixture0070",
+            "fixture0071",
+            "fixture0072",
+            "fixture0073",
+            "fixture0074",
+            "fixture0075",
+            "fixture0076",
+            "fixture0077",
+            "fixture0078",
+            "fixture0079"
+          ],
+          "geometry": {
+            "type": "MultiPolygon",
+            "coordinates": [
+              [
+                [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    100,
+                    0
+                  ],
+                  [
+                    100,
+                    100
+                  ],
+                  [
+                    0,
+                    100
+                  ],
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                [
+                  [
+                    10,
+                    10
+                  ],
+                  [
+                    10,
+                    30
+                  ],
+                  [
+                    20,
+                    30
+                  ],
+                  [
+                    20,
+                    40
+                  ],
+                  [
+                    40,
+                    40
+                  ],
+                  [
+                    40,
+                    20
+                  ],
+                  [
+                    30,
+                    20
+                  ],
+                  [
+                    30,
+                    10
+                  ],
+                  [
+                    10,
+                    10
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "parent_fingerprint": "344182f35b088813c83d6a1fbaed432e1a50aae007fa875399778de51f7e018a",
+    "review_fingerprint": "24b57e932dae0ecb16277935b1530a4cd86d0b74ab2481ea48911c59ab3aaca6"
+  }
+]

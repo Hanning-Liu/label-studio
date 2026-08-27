@@ -23,6 +23,11 @@ import { fixRectToFit, mapKonvaBrightness } from "../../utils/image";
 import { FF_DEV_1442, FF_LSDV_4930, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
 import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
+import { WholeRoomInheritanceControls } from "./WholeRoomInheritanceControls";
+import { ReferenceSyncControls } from "./ReferenceSyncControls";
+import { OccupancyControls } from "../../occupancy/OccupancyControls";
+import { OccupancyLayer } from "../../occupancy/OccupancyLayer";
+import { occupancyToolbarTools } from "../../occupancy/editing";
 
 Konva.showWarnings = false;
 
@@ -507,16 +512,16 @@ const CanvasOverlay = observer(({ item }) => {
   );
 });
 
-const RoomFocusSelector = observer(({ item }) => {
+const RoomFocusSelector = observer(({ item, compact = false }) => {
   if (!item.hasRoomConstraints) return null;
   const selectedId = item.focusedRoom?.cleanId || "";
-
-  return (
-    <div className={styles.roomFocus} data-testid="room-focus-selector">
+  const focusControl = (
+    <div className={styles.roomFocusRow}>
       <label htmlFor={`room-focus-${item.name}`}>Focus room</label>
       <select
         id={`room-focus-${item.name}`}
         value={selectedId}
+        disabled={!!item.vectorReviewBusy}
         onChange={(event) => item.setFocusedRoom(event.target.value)}
       >
         <option value="">Select a room…</option>
@@ -527,6 +532,15 @@ const RoomFocusSelector = observer(({ item }) => {
         ))}
       </select>
       {item.roomConstraintNotice ? <span role="alert">{item.roomConstraintNotice}</span> : null}
+    </div>
+  );
+  return (
+    <div
+      className={`${styles.roomFocus} ${item.wholeRoomInheritanceEnabled ? styles.roomFocusDocked : ""} ${compact ? styles.roomFocusCompact : ""}`}
+      data-testid="room-focus-selector"
+    >
+      {!compact && focusControl}
+      <WholeRoomInheritanceControls item={item} compact={compact} focusControl={compact ? focusControl : null} />
     </div>
   );
 });
@@ -1033,11 +1047,11 @@ export default observer(
 
       if (store.annotationStore.viewingAll) return null;
 
-      const tools = item.getToolsManager().allTools();
+      const tools = occupancyToolbarTools(item.getToolsManager().allTools(), item.occupancyEnabled);
 
       return (
         <>
-          <RoomFocusSelector item={item} />
+          {!item.wholeRoomInheritanceEnabled && <RoomFocusSelector item={item} />}
           <Toolbar tools={tools} />
         </>
       );
@@ -1086,122 +1100,137 @@ export default observer(
       const isViewingAll = store.annotationStore.viewingAll;
 
       return (
-        <ObjectTag item={item} className={wrapperClasses.join(" ")}>
-          {paginationEnabled ? (
-            <div
-              className={styles.pagination}
-              title={isViewingAll ? "Pagination is not supported in View All Annotations" : undefined}
-            >
-              <Pagination
-                size="small"
-                outline={false}
-                align="left"
-                noPadding
-                hotkey={{
-                  prev: "image:prev",
-                  next: "image:next",
-                }}
-                currentPage={item.currentImage + 1}
-                totalPages={item.parsedValueList.length}
-                onChange={(n) => item.setCurrentImage(n - 1)}
-                pageSizeSelectable={false}
-                disabled={isViewingAll}
-              />
-            </div>
-          ) : null}
+        <>
+          {!isViewingAll &&
+            (item.occupancyEnabled ? <OccupancyControls item={item} /> : item.wholeRoomInheritanceEnabled && item.hasRoomConstraints ? (
+              <section
+                className={styles.reviewDock}
+                data-testid="function-zone-review-dock"
+                aria-label="功能分区复核工具条"
+              >
+                <ReferenceSyncControls item={item} compact />
+                <RoomFocusSelector item={item} compact />
+              </section>
+            ) : (
+              <ReferenceSyncControls item={item} />
+            ))}
+          <ObjectTag item={item} className={wrapperClasses.join(" ")}>
+            {paginationEnabled ? (
+              <div
+                className={styles.pagination}
+                title={isViewingAll ? "Pagination is not supported in View All Annotations" : undefined}
+              >
+                <Pagination
+                  size="small"
+                  outline={false}
+                  align="left"
+                  noPadding
+                  hotkey={{
+                    prev: "image:prev",
+                    next: "image:next",
+                  }}
+                  currentPage={item.currentImage + 1}
+                  totalPages={item.parsedValueList.length}
+                  onChange={(n) => item.setCurrentImage(n - 1)}
+                  pageSizeSelectable={false}
+                  disabled={isViewingAll}
+                />
+              </div>
+            ) : null}
 
-          <div
-            ref={(node) => {
-              item.setContainerRef(node);
-              this.attachObserver(node);
-            }}
-            className={containerClassName}
-            style={containerStyle}
-          >
             <div
               ref={(node) => {
-                this.filler = node;
+                item.setContainerRef(node);
+                this.attachObserver(node);
               }}
-              className={styles.filler}
-              style={{ width: "100%", marginTop: item.fillerHeight }}
-            />
-
-            <Image
-              ref={(ref) => {
-                item.setImageRef(ref);
-                this.imageRef.current = ref;
-              }}
-              usedValue={item.usedValue}
-              imageEntity={item.currentImageEntity}
-              imageTransform={item.imageTransform}
-              updateImageSize={item.updateImageSize}
-              size={item.canvasSize}
-              overlay={<CanvasOverlay item={item} />}
-            />
-            {/* @todo this is dirty hack; rewrite to proper async waiting for data to load */}
-            {stageLoading || !toolsReady ? (
-              <div className={styles.loading}>
-                <LoadingOutlined />
-              </div>
-            ) : imageIsLoaded ? (
-              <EntireStage
-                item={item}
-                crosshairRef={this.crosshairRef}
-                onClick={this.handleOnClick}
-                imagePositionClassnames={imagePositionClassnames}
-                state={this.state}
-                onMouseEnter={() => {
-                  if (this.crosshairRef.current) {
-                    this.crosshairRef.current.updateVisibility(true);
-                  }
+              className={containerClassName}
+              style={containerStyle}
+            >
+              <div
+                ref={(node) => {
+                  this.filler = node;
                 }}
-                onMouseLeave={(e) => {
-                  if (this.crosshairRef.current) {
-                    this.crosshairRef.current.updateVisibility(false);
-                  }
-                  const { width: stageWidth, height: stageHeight } = item.canvasSize;
-                  const { offsetX: mouseposX, offsetY: mouseposY } = e.evt;
-                  const newEvent = { ...e };
-
-                  if (mouseposX <= 0) {
-                    e.offsetX = 0;
-                  } else if (mouseposX >= stageWidth) {
-                    e.offsetX = stageWidth;
-                  }
-
-                  if (mouseposY <= 0) {
-                    e.offsetY = 0;
-                  } else if (mouseposY >= stageHeight) {
-                    e.offsetY = stageHeight;
-                  }
-                  this.handleMouseMove(newEvent);
-                }}
-                onDragMove={this.updateCrosshair}
-                onMouseDown={this.handleMouseDown}
-                onMouseMove={this.handleMouseMove}
-                onMouseUp={this.handleMouseUp}
-                onWheel={item.zoom ? this.handleZoom : () => {}}
+                className={styles.filler}
+                style={{ width: "100%", marginTop: item.fillerHeight }}
               />
-            ) : null}
-          </div>
 
-          {toolsReady && imageIsLoaded && this.renderTools()}
-          {item.images.length > 1 && (
-            <div className={styles.gallery}>
-              {item.images.map((src, i) => (
-                <img
-                  {...imgDefaultProps}
-                  alt=""
-                  key={src}
-                  src={src}
-                  className={i === item.currentImage && styles.active}
-                  height="60"
-                  onClick={() => item.setCurrentImage(i)}
+              <Image
+                ref={(ref) => {
+                  item.setImageRef(ref);
+                  this.imageRef.current = ref;
+                }}
+                usedValue={item.usedValue}
+                imageEntity={item.currentImageEntity}
+                imageTransform={item.imageTransform}
+                updateImageSize={item.updateImageSize}
+                size={item.canvasSize}
+                overlay={<CanvasOverlay item={item} />}
+              />
+              {/* @todo this is dirty hack; rewrite to proper async waiting for data to load */}
+              {stageLoading || !toolsReady ? (
+                <div className={styles.loading}>
+                  <LoadingOutlined />
+                </div>
+              ) : imageIsLoaded ? (
+                <EntireStage
+                  item={item}
+                  crosshairRef={this.crosshairRef}
+                  onClick={this.handleOnClick}
+                  imagePositionClassnames={imagePositionClassnames}
+                  state={this.state}
+                  onMouseEnter={() => {
+                    if (this.crosshairRef.current) {
+                      this.crosshairRef.current.updateVisibility(true);
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (this.crosshairRef.current) {
+                      this.crosshairRef.current.updateVisibility(false);
+                    }
+                    const { width: stageWidth, height: stageHeight } = item.canvasSize;
+                    const { offsetX: mouseposX, offsetY: mouseposY } = e.evt;
+                    const newEvent = { ...e };
+
+                    if (mouseposX <= 0) {
+                      e.offsetX = 0;
+                    } else if (mouseposX >= stageWidth) {
+                      e.offsetX = stageWidth;
+                    }
+
+                    if (mouseposY <= 0) {
+                      e.offsetY = 0;
+                    } else if (mouseposY >= stageHeight) {
+                      e.offsetY = stageHeight;
+                    }
+                    this.handleMouseMove(newEvent);
+                  }}
+                  onDragMove={this.updateCrosshair}
+                  onMouseDown={this.handleMouseDown}
+                  onMouseMove={this.handleMouseMove}
+                  onMouseUp={this.handleMouseUp}
+                  onWheel={item.zoom ? this.handleZoom : () => {}}
                 />
-              ))}
+              ) : null}
             </div>
-          )}
-        </ObjectTag>
+
+            {toolsReady && imageIsLoaded && this.renderTools()}
+            {item.images.length > 1 && (
+              <div className={styles.gallery}>
+                {item.images.map((src, i) => (
+                  <img
+                    {...imgDefaultProps}
+                    alt=""
+                    key={src}
+                    src={src}
+                    className={i === item.currentImage && styles.active}
+                    height="60"
+                    onClick={() => item.setCurrentImage(i)}
+                  />
+                ))}
+              </div>
+            )}
+          </ObjectTag>
+        </>
       );
     }
   },
@@ -1419,7 +1448,7 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
   if (!store.task || !item.currentSrc) return null;
 
   // Keep selected or highlighted region on top
-  const regions = [...item.regs].sort((r) => (r.highlighted || r.selected ? 1 : -1));
+  const regions = [...item.regs].filter((r) => !item.occupancyEnabled || !r.results.some((x) => x.meta?.occupancy_context) || r.results.some((x) => x.meta?.occupancy_context?.generation === "pending") || r.cleanId === item.occupancyActivePartId).sort((r) => (r.highlighted || r.selected ? 1 : -1));
   const paginationEnabled = !!item.isMultiItem;
   const wrapperClasses = [styles.wrapperComponent, item.images.length > 1 ? styles.withGallery : styles.wrapper];
   const tool = item.getToolsManager().findSelectedTool();
@@ -1470,7 +1499,8 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
           <Fragment key={groupName} />
         );
       })}
-      <Selection item={item} isPanning={state.isPanning} />
+      <OccupancyLayer item={item} />
+      {(!item.occupancyEnabled || item.occupancyActivePartId) && <Selection item={item} isPanning={state.isPanning} />}
       <DrawingRegion item={item} />
       {item.smoothingEnabled === false && <PixelGridLayer item={item} />}
 

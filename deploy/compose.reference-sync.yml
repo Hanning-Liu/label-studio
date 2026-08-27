@@ -1,0 +1,42 @@
+services:
+  web:
+    image: ${REFERENCE_SYNC_IMAGE:?Set the verified fixed image tag or ID}
+    container_name: label-studio
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment: &environment
+      LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED: "true"
+      LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT: /nas
+      COLLECT_ANALYTICS: "False"
+      LATEST_VERSION_CHECK: "false"
+    volumes: &volumes
+      - label-studio-data:/label-studio/data
+      - nas-share:/nas:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 60s
+  reference-sync:
+    image: ${REFERENCE_SYNC_IMAGE:?Set the verified fixed image tag or ID}
+    container_name: label-studio-reference-sync
+    restart: unless-stopped
+    entrypoint: ["python", "/label-studio/label_studio/manage.py", "reference_sync_worker"]
+    environment: *environment
+    volumes: *volumes
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "/label-studio/deploy/reference_sync_healthcheck.py"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+volumes:
+  label-studio-data:
+    external: true
+  nas-share:
+    external: true

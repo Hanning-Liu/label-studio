@@ -1,12 +1,15 @@
 import { ff } from "@humansignal/core";
 import { inject } from "mobx-react";
-import { destroy, getRoot, getType, types } from "mobx-state-tree";
+import { destroy, getRoot, getType, isAlive, types } from "mobx-state-tree";
 
 import ImageView from "../../../components/ImageView/ImageView";
 import InfoModal from "../../../components/Infomodal/Infomodal";
 import { customTypes } from "../../../core/CustomTypes";
 import Registry from "../../../core/Registry";
 import { AnnotationMixin } from "../../../mixins/AnnotationMixin";
+import { WholeRoomInheritance } from "../../../mixins/WholeRoomInheritance";
+import { VectorReview } from "../../../mixins/VectorReview";
+import { Occupancy } from "../../../mixins/Occupancy";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
@@ -532,7 +535,8 @@ const Model = types
         })
         .flatMap((opening) => {
           const edge = opening.roomGraphEdge || {};
-          const roomIds = edge.connected_room_ids || edge.room_ids || [];
+          const roomIds = [...(edge.connected_room_ids || edge.room_ids || [])];
+          if (edge.connects_to_exterior && !roomIds.includes("Exterior")) roomIds.push("Exterior");
           const storedSegments = edge.boundary_segments?.[parentRoomId];
           if (Array.isArray(storedSegments) && storedSegments.length) {
             return storedSegments
@@ -894,7 +898,7 @@ const Model = types
       };
       const imgTransform = [];
 
-      if (self.zoomScale !== 1) {
+      if (self.zoomScale !== 1 || self.zoomingPositionX || self.zoomingPositionY) {
         const { zoomingPositionX = 0, zoomingPositionY = 0 } = self;
 
         imgTransform.push(`translate3d(${zoomingPositionX}px,${zoomingPositionY}px, 0)`);
@@ -1042,6 +1046,10 @@ const Model = types
     return {
       views: {
         getSkipInteractions() {
+          if (self.occupancyEnabled && !self.occupancyActivePartId) {
+            const tool = self.getToolsManager().findSelectedTool();
+            if (tool?.isDrawingTool && ["occupancy_rectangle", "occupancy_polygon"].includes(tool.control?.name)) return true;
+          }
           if (isFF(FF_ZOOM_OPTIM)) {
             if (skipInteractions) return true;
 
@@ -1318,13 +1326,25 @@ const Model = types
     },
 
     beforeSend() {
+      if (self.occupancyEnabled) { self.refreshOccupancyReviews(); return; }
       self.refreshRoomV3Metadata();
       self.regs.forEach((region) => region.refreshPartitionContext?.(false));
       self.refreshGeometryReviewMetadata();
+      self.refreshWholeRoomReviews();
     },
 
     validate() {
-      const errors = [...self.refreshRoomV3Metadata(), ...self.validateFunctionZoneV3()];
+      if (self.occupancyEnabled) {
+        const errors = self.occupancyErrors;
+        if (!errors.length) return true;
+        InfoModal.warning(`L3 校验未通过（${errors.length} 项），请使用顶部“复核与问题”逐项定位。\n${errors.slice(0, 6).map((e) => e.message).join("\n")}`);
+        return false;
+      }
+      const errors = [
+        ...self.refreshRoomV3Metadata(),
+        ...self.validateFunctionZoneV3(),
+        ...self.validateWholeRoomInheritance(),
+      ];
       if (!errors.length) return true;
       InfoModal.warning(`v3 几何校验未通过：\n${errors.map((error) => `• ${error}`).join("\n")}`);
       return false;
@@ -1351,6 +1371,10 @@ const Model = types
         .getToolsManager()
         .allTools()
         .forEach((tool) => {
+          if (self.occupancyEnabled) {
+            if (isAlive(tool) && self.occupancyIsReference(tool.control?.name)) tool.disable();
+            return;
+          }
           if (referenceControls.has(tool.control?.name)) tool.disable();
           else if (tool.control?.constrainto) enabled ? tool.enable() : tool.disable();
         });
@@ -1478,8 +1502,8 @@ const Model = types
     /**
      * Set zoom
      */
-    setZoom(scale) {
-      scale = clamp(scale, 1, Number.POSITIVE_INFINITY);
+    setZoom(scale, { reviewFit = false } = {}) {
+      scale = clamp(scale, reviewFit && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? 0.1 : 1, Number.POSITIVE_INFINITY);
       self.currentZoom = scale;
 
       // cool comment about all this stuff
@@ -1541,7 +1565,7 @@ const Model = types
       }
     },
 
-    setZoomPosition(x, y) {
+    setZoomPosition(x, y, { reviewFocus = false } = {}) {
       const [width, height] = isFF(FF_DEV_3377)
         ? [self.canvasSize.width, self.canvasSize.height]
         : [self.containerWidth, self.containerHeight];
@@ -1551,8 +1575,12 @@ const Model = types
         height - self.stageComponentSize.height * self.zoomScale,
       ];
 
-      self.zoomingPositionX = clamp(x, minX, 0);
-      self.zoomingPositionY = clamp(y, minY, 0);
+      // Review navigation may center an edge line without zooming in. Only view
+      // translation gets extra space; normal drawing/panning retains its limits.
+      const extraX = reviewFocus && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? width : 0;
+      const extraY = reviewFocus && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? height : 0;
+      self.zoomingPositionX = clamp(x, minX - extraX, extraX);
+      self.zoomingPositionY = clamp(y, minY - extraY, extraY);
     },
 
     resetZoomPositionToCenter() {
@@ -1961,6 +1989,9 @@ const CoordsCalculations = types
 
 const ImageModel = types.compose(
   "ImageModel",
+  WholeRoomInheritance,
+  VectorReview,
+  Occupancy,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),

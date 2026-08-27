@@ -94,6 +94,15 @@ const DrawingTool = types
       event(name, ev, [x, y, canvasX, canvasY]) {
         // filter right clicks and middle clicks and shift pressed
         if (ev.button > 0 || ev.shiftKey) return;
+        if (self.obj?.occupancyEnabled && ["occupancy_rectangle", "occupancy_polygon"].includes(self.control?.name)) {
+          const point = self.obj.occupancyDrawingPoint(
+            { x, y },
+            self.currentArea,
+            !self.currentArea && ["mousedown", "click", "dblclick"].includes(name),
+          );
+          if (!point) return;
+          [x, y] = [point.x, point.y];
+        }
         let fn = `${name}Ev`;
 
         if (typeof self[fn] !== "undefined") self[fn].call(self, ev, [x, y], [canvasX, canvasY]);
@@ -123,10 +132,13 @@ const DrawingTool = types
         const control = self.control;
         const resultValue = control.getResultValue();
 
-        self.currentArea = self.obj.createDrawingRegion(opts, resultValue, control, false);
+        const drawingOptions = self.obj.occupancyEnabled && control.name === "occupancy_rectangle"
+          ? { ...opts, width: 0, height: 0 } : opts;
+        self.currentArea = self.obj.createDrawingRegion(drawingOptions, resultValue, control, false);
         self.currentArea.setDrawing(true);
 
         self.applyActiveStates(self.currentArea);
+        self.obj.initializeOccupancyRegion?.(self.currentArea);
         self.annotation.setIsDrawing(true);
         return self.currentArea;
       },
@@ -159,8 +171,14 @@ const DrawingTool = types
         const newArea = self.annotation.createResult(value, main.value.toJSON(), control, obj);
 
         //when user is using two different labels tag to draw a region, the other labels will be added to the region
-        rest.forEach((r) => newArea.addResult(r.toJSON()));
+        rest.forEach((r) => {
+          // createResult may already attach active per-region labels. Avoid a
+          // duplicate occupancy_type when committing a transient L3 drawing.
+          if (obj.occupancyEnabled && newArea.results.some((existing) => existing.from_name === r.from_name)) return;
+          newArea.addResult(r.toJSON());
+        });
         newArea.initializeRoomConstraint?.(obj.focusedRoom?.cleanId);
+        obj.initializeOccupancyRegion?.(newArea);
 
         currentArea.setDrawing(false);
         self.deleteRegion();
@@ -188,6 +206,7 @@ const DrawingTool = types
           self.applyActiveStates(self.currentArea);
         }
         self.currentArea.initializeRoomConstraint?.(self.obj.focusedRoom?.cleanId);
+        self.obj.initializeOccupancyRegion?.(self.currentArea);
         return self.currentArea;
       },
       deleteRegion() {
@@ -207,6 +226,11 @@ const DrawingTool = types
       },
 
       canStartDrawing() {
+        if (
+          self.obj?.occupancyEnabled &&
+          (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason())
+        )
+          return false;
         return (
           !self.disabled &&
           !self.isIncorrectControl() &&
@@ -431,8 +455,10 @@ const MultipleClicksDrawingTool = DrawingTool.named("MultipleClicksMixin")
 
         self.annotation.regionStore.selection.drawingUnselect();
 
-        pointsCount = 0;
         self.closeCurrent();
+        if (self.obj?.occupancyEnabled && self.currentArea?.type === "polygonregion" && !self.currentArea.closed)
+          return;
+        pointsCount = 0;
         setTimeout(() => {
           self._finishDrawing();
         });
@@ -531,6 +557,12 @@ const ThreePointsDrawingTool = DrawingTool.named("ThreePointsDrawingTool")
 
     return {
       canStartDrawing() {
+        if (
+          self.obj?.occupancyEnabled &&
+          !self.currentArea &&
+          (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason())
+        )
+          return false;
         return !self.isIncorrectControl();
       },
       updateDraw: (x, y) => {

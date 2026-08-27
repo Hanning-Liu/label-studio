@@ -105,7 +105,13 @@ module.exports = composePlugins(
               ? "/playground-assets/"
               : "auto",
         scriptType: "text/javascript",
+        ...(!isDevelopment ? { chunkFilename: "[id].[contenthash:12].js" } : {}),
       };
+
+      if (!isDevelopment) {
+        const cssExtractPlugin = config.plugins.find((plugin) => plugin.constructor.name === "MiniCssExtractPlugin");
+        if (cssExtractPlugin) cssExtractPlugin.options.chunkFilename = "[id].[contenthash:12].css";
+      }
 
       config.optimization = {
         runtimeChunk: "single",

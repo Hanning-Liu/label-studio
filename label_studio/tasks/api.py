@@ -11,20 +11,22 @@ from data_manager.api import TaskListAPI as DMTaskListAPI
 from data_manager.functions import evaluate_predictions
 from data_manager.models import PrepareParams
 from data_manager.serializers import DataManagerTaskSerializer
-from django.db import transaction
-from django.db.models import Q
+from django.db import connection, transaction
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from projects.functions.stream_history import fill_history_annotation
-from projects.models import Project
+from projects.models import Project, ProjectSummary
 from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task
+from tasks.reference_sync.service import prepare_write, sync_atomic, target_binding, snapshot, SyncConflict
+from tasks.reference_sync.models import ReferenceSyncAudit
 from tasks.openapi_schema import (
     annotation_request_schema,
     annotation_response_example,
@@ -644,9 +646,27 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AnnotationSerializer
     queryset = Annotation.objects.all()
 
+    def perform_update(self, serializer):
+        annotation = serializer.instance
+        base = annotation
+        draft_id = self.request.data.get('draft_id')
+        if draft_id and target_binding(annotation.task):
+            base = AnnotationDraft.objects.filter(pk=draft_id,task=annotation.task,annotation=annotation,user=self.request.user).first()
+            if base is None:
+                raise SyncConflict('关联草稿已改变，请保留当前窗口并重新核对','draft_version_conflict')
+        merged, binding = prepare_write(annotation.task,self.request.data,base,submission=True)
+        before = snapshot(annotation.task) if binding else None
+        if binding:
+            serializer.validated_data['result'] = merged
+        super().perform_update(serializer)
+        if binding:
+            ReferenceSyncAudit.objects.create(binding=binding,source_hash=binding.applied_hash,operation='user_submit',
+                before=before,after=snapshot(annotation.task),summary={'annotation_id':annotation.id,'user_id':self.request.user.id})
+
     def perform_destroy(self, annotation):
         annotation.delete()
 
+    @sync_atomic
     def update(self, request, *args, **kwargs):
         # save user history with annotator_id, time & annotation result
         annotation = self.get_object()
@@ -759,6 +779,10 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
     )
     parent_queryset = Task.objects.all()
 
+    @sync_atomic
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
     serializer_class = AnnotationSerializer
 
     def get(self, request, *args, **kwargs):
@@ -830,6 +854,11 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
             # if the annotation will be created from draft - get created_at from draft to keep continuity of history
             extra_args['draft_created_at'] = draft.created_at
 
+        merged, binding = prepare_write(task,self.request.data,draft,submission=True)
+        before_sync_submit = snapshot(task) if binding else None
+        if binding:
+            ser.validated_data['result'] = merged
+
         # create annotation
         logger.debug(f'User={self.request.user}: save annotation')
         annotation = ser.save(**extra_args)
@@ -851,6 +880,9 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
             annotation.task.ensure_unique_groundtruth(annotation_id=annotation.id)
 
         fill_history_annotation(user, task, annotation)
+        if binding:
+            ReferenceSyncAudit.objects.create(binding=binding,source_hash=binding.applied_hash,operation='user_submit',
+                before=before_sync_submit,after=snapshot(task),summary={'annotation_id':annotation.id,'user_id':user.id})
 
         return annotation
 
@@ -865,6 +897,10 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
     )
     queryset = AnnotationDraft.objects.all()
 
+    @sync_atomic
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
     def filter_queryset(self, queryset):
         task_id = self.kwargs['pk']
         return queryset.filter(task_id=task_id)
@@ -873,6 +909,21 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
         task_id = self.kwargs['pk']
         annotation_id = self.kwargs.get('annotation_id')
         user = self.request.user
+        task = generics.get_object_or_404(Task.objects.for_user(user),pk=task_id)
+        if target_binding(task):
+            drafts = list(AnnotationDraft.objects.filter(task=task,annotation_id=annotation_id,user=user))
+            if len(drafts)>1:
+                raise SyncConflict('存在多份草稿，请先解决草稿冲突','draft_version_conflict')
+            base = drafts[0] if drafts else None
+            if base is None and annotation_id:
+                base = generics.get_object_or_404(Annotation,pk=annotation_id,task=task)
+                if not base.has_permission(user):
+                    raise PermissionDenied()
+            merged, _ = prepare_write(task,self.request.data,base)
+            serializer.validated_data['result'] = merged
+            serializer.validated_data.pop('expected_updated_at',None)
+            if drafts:
+                serializer.instance = drafts[0]
         logger.debug(f'User {user} is going to create draft for task={task_id}, annotation={annotation_id}')
         serializer.save(task_id=self.kwargs['pk'], annotation_id=annotation_id, user=self.request.user)
 
@@ -888,6 +939,49 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         PATCH=all_permissions.annotations_change,
         DELETE=all_permissions.annotations_delete,
     )
+
+    @sync_atomic
+    def update(self, request, *args, **kwargs):
+        # Authorize and validate before acquiring locks. On PostgreSQL preserve
+        # AnnotationDraft.save's summary -> draft lock ordering. SQLite ignores
+        # select_for_update, so acquire its write lock with an atomic version
+        # predicate before reading the row in this transaction.
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+        serializer.is_valid(raise_exception=True)
+        expected = serializer.validated_data.pop('expected_updated_at', None)
+
+        if target_binding(instance.task):
+            if instance.user_id != request.user.id:
+                raise PermissionDenied('不能覆盖其他用户的草稿')
+            current = AnnotationDraft.objects.get(pk=instance.pk)
+            merged, _ = prepare_write(current.task,request.data,current)
+            serializer.instance = current
+            serializer.validated_data['result'] = merged
+            self.perform_update(serializer)
+            return Response(serializer.data)
+
+        def conflict(updated_at):
+            return Response({
+                'detail': '草稿已在其他窗口更新。当前修改仍保留在本窗口，请先导出备份并处理版本冲突，不要直接刷新。',
+                'code': 'draft_version_conflict',
+                'updated_at': updated_at,
+            }, status=409)
+
+        with transaction.atomic():
+            draft = self.get_queryset().filter(pk=instance.pk)
+            if connection.vendor == 'sqlite':
+                claim = draft.filter(updated_at=expected) if expected is not None else draft
+                if not claim.update(updated_at=F('updated_at')):
+                    return conflict(draft.values_list('updated_at', flat=True).first())
+            else:
+                ProjectSummary.objects.select_for_update().filter(project_id=instance.task.project_id).first()
+            current = draft.select_for_update().get()
+            if expected is not None and expected != current.updated_at:
+                return conflict(current.updated_at)
+            serializer.instance = current
+            self.perform_update(serializer)
+            return Response(serializer.data)
 
 
 @method_decorator(

@@ -1,0 +1,17 @@
+.controls {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #c6d6e6;
+  border-radius: 6px;
+  background: #f5f9fd;
+  font-size: 13px;
+
+  p { margin: 6px 0 0; }
+  [role="alert"] { color: #a02020; }
+  button { padding: 4px 8px; border: 1px solid #bac8d5; border-radius: 4px; background: white; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+}
+
+.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.compact { padding: 0 0 4px; margin: 0 0 4px; border: 0; border-bottom: 1px solid #e0e7ef; border-radius: 0; background: transparent; }
+.review { margin-top: 8px; max-height: 220px; overflow: auto; }

@@ -188,7 +188,7 @@ const Model = types
       }
       const proposed = { x: self.x, y: self.y, width: self.width, height: self.height, rotation: self.rotation };
 
-      if (self.control?.constrainto) {
+      if (self.control?.constrainto || self.parent?.occupancyConstrains?.(self)) {
         self.x = previous.x;
         self.y = previous.y;
         self.width = previous.width;
@@ -237,9 +237,11 @@ const Model = types
         height: self.height,
         rotation: self.rotation,
       };
-      const accepted = self.control?.constrainto
-        ? self.parent?.constrainRectangle?.(self, previous, target) || previous
-        : target;
+      const accepted = self.parent?.occupancyConstrains?.(self)
+        ? self.parent.constrainOccupancyRectangle(self, previous, target)
+        : self.control?.constrainto
+          ? self.parent?.constrainRectangle?.(self, previous, target) || previous
+          : target;
 
       self.x = accepted.x;
       self.y = accepted.y;
@@ -293,7 +295,7 @@ const Model = types
       const internalHeight = self.parent.canvasToInternalY(height);
 
       // Apply snap to pixel if enabled
-      if (self.control?.snap === "pixel") {
+      if (self.control?.snap === "pixel" && !self.parent?.occupancyConstrains?.(self)) {
         // Snap top-left corner
         const topLeftPoint = self.control.getSnappedPoint({
           x: internalX,
@@ -475,15 +477,16 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
       t.setAttr("scaleX", 1);
       t.setAttr("scaleY", 1);
 
-      if (item.control?.snap === "pixel") {
+      if (item.control?.snap === "pixel" || item.parent?.occupancyConstrains?.(item)) {
         // If snap is enabled, we need to snap the coordinates to the pixel grid -
         // Sync Konva shape attributes back to computed canvas coordinates to cause a re-render
         // Canvas coordinates are updated in the setPosition method
-        t.position({
+        t.setAttrs({
           x: item.canvasX,
           y: item.canvasY,
           width: item.canvasWidth,
           height: item.canvasHeight,
+          rotation: item.rotation,
         });
       }
 
@@ -510,15 +513,16 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
       item.setPosition(t.getAttr("x"), t.getAttr("y"), t.getAttr("width"), t.getAttr("height"), t.getAttr("rotation"));
       item.setScale(t.getAttr("scaleX"), t.getAttr("scaleY"));
 
-      if (item.control?.snap === "pixel") {
+      if (item.control?.snap === "pixel" || item.parent?.occupancyConstrains?.(item)) {
         // If snap is enabled, we need to snap the coordinates to the pixel grid -
         // Sync Konva shape attributes back to computed canvas coordinates to cause a re-render
         // Canvas coordinates are updated in the setPosition method
-        t.position({
+        t.setAttrs({
           x: item.canvasX,
           y: item.canvasY,
           width: item.canvasWidth,
           height: item.canvasHeight,
+          rotation: item.rotation,
         });
       }
 
@@ -531,6 +535,17 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
       x: item.x - item.bboxCoords.left,
       y: item.y - item.bboxCoords.top,
     });
+    if (item.parent.occupancyConstrains?.(item))
+      eventHandlers.dragBoundFunc = (pos) =>
+        item.parent.fixForZoomWrapper(pos, (p) => {
+          const previous = { x: item.x, y: item.y, width: item.width, height: item.height, rotation: item.rotation };
+          const accepted = item.parent.constrainOccupancyRectangle(item, previous, {
+            ...previous,
+            x: item.parent.canvasToInternalX(p.x),
+            y: item.parent.canvasToInternalY(p.y),
+          });
+          return { x: item.parent.internalToCanvasX(accepted.x), y: item.parent.internalToCanvasY(accepted.y) };
+        });
   }
 
   return (

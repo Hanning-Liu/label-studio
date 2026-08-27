@@ -214,6 +214,8 @@ export const AreaMixinBase = types
     deleteRegion() {
       if (self.annotation.isReadOnly()) return;
       if (self.isReadOnly()) return;
+      if (self.parent?.occupancyEnabled && !self.annotation.isDrawing && !self.annotation.hasIncompletePolygons &&
+          self.results.some((r) => r.meta?.occupancy_context)) return;
       if (self.selected) self.annotation.unselectAll(true);
       if (self.destroyRegion) self.destroyRegion();
       self.annotation.deleteRegion(self);

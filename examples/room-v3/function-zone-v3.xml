@@ -2,12 +2,14 @@
   <Image name="image" value="$image" zoom="true" smoothing="false"
     partitionContextSchema="3"
     functionZoneV3Validate="true"
+    wholeRoomZoneInheritance="true"
     functionZoneControls="zone_rectangle,zone_polygon"
     connectionVectorControls="connection_vector,visual_connection_vector"
     geometryReviewMap="connection_vector:connection_review,visual_connection_vector:visual_connection_review"
     functionZoneCoverageTolerance="0.001" />
 
-  <Header value="1. Room v3 净空间参考（只读）" size="5" />
+  <View className="function-zone-room-reference-controls" style="display: none;">
+  <Header value="Room v3 净空间参考（只读）" size="5" />
   <RectangleLabels name="room_rectangle" toName="image" snap="pixel" canRotate="false">
     <Label value="Bedroom" background="#FFA39E" />
     <Label value="Bathroom" background="#FFC069" />
@@ -49,7 +51,8 @@
     <Label value="Pipe" background="#9E9E9E" />
   </PolygonLabels>
 
-  <Header value="2. Room v3 Portal 参考（只读）" size="5" />
+  </View>
+  <Header value="1. Room v3 Portal 参考（只读）" size="5" />
   <RectangleLabels name="portal_rectangle" toName="image" snap="pixel" canRotate="true">
     <Label value="Door" background="#FF8C00" />
     <Label value="Sliding door" background="#8E44AD" />
@@ -60,7 +63,7 @@
     <Label value="Open passage" background="#00A878" />
   </VectorLabels>
 
-  <Header value="3. 功能分区类别（选择类别后使用 Rectangle / Polygon 绘制）" size="5" />
+  <Header value="2. 功能分区类别（先选 Focus room，再选择类别绘制）" size="5" />
   <Labels name="function_zone" toName="image">
     <Label value="Entry/transition" background="#FFB74D" />
     <Label value="Circulation" background="#D4AC0D" />
@@ -71,6 +74,7 @@
     <Label value="Study/work" background="#9575CD" />
     <Label value="Dressing/grooming" background="#FF7043" />
     <Label value="Bathing/washing" background="#4FC3F7" />
+    <Label value="Sanitary/general" background="#36B8B5" />
     <Label value="Toilet" background="#26A69A" />
     <Label value="Laundry" background="#42A5F5" />
     <Label value="Storage" background="#AED581" />
@@ -87,7 +91,7 @@
     constrainTo="room_rectangle,room_polygon" openingFrom="portal_rectangle,portal_vector"
     constraintSnapPx="10" openingSnapAngleDeg="5" />
 
-  <Header value="4. 交通连通 Vector（迁移后必须复核）" size="5" />
+  <Header value="3. 交通连通 Vector（迁移后必须复核）" size="5" />
   <VectorLabels name="connection_vector" toName="image" choice="single" closable="false" curves="false"
     minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
     <Label value="Open passage" background="#00A878" />
@@ -99,7 +103,7 @@
     <Choice value="Reviewed" />
   </Choices>
 
-  <Header value="5. 仅视觉连通 Vector（迁移后必须复核）" size="5" />
+  <Header value="4. 仅视觉连通 Vector（迁移后必须复核）" size="5" />
   <VectorLabels name="visual_connection_vector" toName="image" choice="single" closable="false" curves="false"
     minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
     <Label value="Visual only" background="#00B8D9" />

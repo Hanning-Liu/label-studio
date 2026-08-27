@@ -1,0 +1,5 @@
+# Frontend-only: retain the currently deployed backend and safe-sync behavior.
+FROM hanning-liu/label-studio:1.23.0-room-v3.4.1-vector-review-ui@sha256:18e3d11c1aa92f80db994e9aaec152d27033f973ab9c66088c6f106bb44114d0
+LABEL org.opencontainers.image.version="1.23.0-room-v3.4.2-vector-review-v2"
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+USER 1001

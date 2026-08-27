@@ -1,0 +1,6 @@
+FROM hanning-liu/label-studio:1.23.0-room-v3.4.2-vector-review-v2@sha256:43b3ab8c74ce79a1da7877ae7f46823076923b3d8a931c249f77a3870906b480
+USER root
+RUN /label-studio/.venv/bin/python -m ensurepip && /label-studio/.venv/bin/python -m pip install --no-cache-dir shapely==2.1.2
+COPY --chown=1001:0 label_studio/tasks /label-studio/label_studio/tasks
+COPY --chown=1001:0 examples/occupancy-v1 /label-studio/examples/occupancy-v1
+USER 1001

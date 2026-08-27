@@ -4,6 +4,7 @@ import { getBoundingBoxAfterChanges } from "../../utils/image";
 import LSTransformer from "./LSTransformer";
 import LSTransformerOld from "./LSTransformerOld";
 import { FF_DEV_2671, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
+import { constrainOccupancyBox } from "../../occupancy/transform";
 
 const EPSILON = 0.001;
 
@@ -137,6 +138,10 @@ export default class TransformerComponent extends Component {
 
     if (newBox.width < MIN_SIZE) newBox.width = MIN_SIZE;
     if (newBox.height < MIN_SIZE) newBox.height = MIN_SIZE;
+    const image = this.props.item,
+      selected = image.selectedRegions;
+    if (selected?.length === 1 && image.occupancyConstrains?.(selected[0]))
+      return constrainOccupancyBox(image, selected[0], oldBox, newBox);
 
     // // it's harder to fix sizes for rotated box, so just block changes out of stage
     if (rotation || isRotated) {

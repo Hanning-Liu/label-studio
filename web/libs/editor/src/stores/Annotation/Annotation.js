@@ -1,5 +1,16 @@
 import { throttle } from "@humansignal/core/lib/utils/lodash-replacements";
-import { destroy, detach, flow, getEnv, getParent, getRoot, isAlive, onSnapshot, types } from "mobx-state-tree";
+import {
+  destroy,
+  detach,
+  flow,
+  getEnv,
+  getParent,
+  getRoot,
+  getSnapshot,
+  isAlive,
+  onSnapshot,
+  types,
+} from "mobx-state-tree";
 import { ff } from "@humansignal/core";
 import { errorBuilder } from "../../core/DataValidator/ConfigValidator";
 import { guidGenerator } from "../../core/Helpers";
@@ -284,6 +295,18 @@ const _Annotation = types
       return results;
     },
 
+    get draftResultFingerprint() {
+      // Result.serialize is an MST action (untracked by MobX). Subscribe to
+      // tracked geometry/metadata explicitly so this view also updates on edits.
+      getSnapshot(self.trackedState);
+      return JSON.stringify(
+        self.results
+          .map((result) => result.serialize({ fast: true }))
+          .filter(Boolean)
+          .concat(self.relationStore.serialize({ fast: true })),
+      );
+    },
+
     get hasIncompletePolygons() {
       if (!isAlive(self)) return false;
       for (const area of self.areas.values()) {
@@ -375,6 +398,13 @@ const _Annotation = types
     draftSelected: false,
     autosaveDelay: 5000,
     isDraftSaving: false,
+    draftSavingPromise: null,
+    draftSaveError: null,
+    draftRevision: null,
+    referenceVersion: null,
+    baseManualHash: null,
+    referenceTokens: {},
+    savedResultFingerprint: null,
     // This flag indicates that we are accepting suggestions right now (an accepting is started and not finished yet)
     isSuggestionsAccepting: false,
     submissionStarted: 0,
@@ -626,6 +656,10 @@ const _Annotation = types
      */
     deleteRegion(region) {
       if (region.isReadOnly()) return;
+      // L3 deletion must use the logical transaction with save/backup protection.
+      // Incomplete drawing cancellation still needs the ordinary tool path.
+      if (region.parent?.occupancyEnabled && !self.isDrawing && !self.hasIncompletePolygons &&
+          region.results.some((r) => r.meta?.occupancy_context)) return;
 
       const { regions } = self.regionStore;
       // move all children into the parent region of the given one
@@ -768,6 +802,9 @@ const _Annotation = types
         self.deserializeResults(self.versions.result);
       }
       self.draftSelected = shouldSelectDraft;
+      const tokens = self.referenceTokens[shouldSelectDraft ? "draft" : "result"];
+      if (tokens) self.setReferenceBaseline(tokens);
+      if (tokens) self.markDraftLoaded(tokens.updated_at);
 
       // reinit objects
       self.updateObjects();
@@ -795,7 +832,7 @@ const _Annotation = types
           // if autosave is paused, do nothing
           if (self.autosave.paused) return;
 
-          self.saveDraft();
+          self.saveDraft().catch(() => {}); // The persisted error is shown by the draft status UI.
         },
         self.autosaveDelay,
         { leading: false },
@@ -804,26 +841,70 @@ const _Annotation = types
       onSnapshot(self.areas, self.autosave);
     }),
 
-    async saveDraft(params) {
+    saveDraft: flow(function* (params = {}) {
       // There is no draft to save as it was already saved as an annotation
       if (self.submissionStarted) return;
       // if this is now a history item or prediction don't save it
       if (!self.editable) return;
 
+      // Serialize saves, including an explicit save while autosave is in flight.
+      if (self.draftSavingPromise) {
+        yield self.draftSavingPromise;
+        return yield self.saveDraft(params);
+      }
+
+      self.objects.forEach((object) => object.refreshWholeRoomReviews?.());
       const result = self.serializeAnnotation({ fast: true });
+      const fingerprint = JSON.stringify(result);
+      const startedAt = Utils.UDate.currentISODate();
 
       self.setDraftSelected();
       self.versions.draft = result;
       self.setDraftSaving(true);
-      return self.store.submitDraft(self, params).then((res) => {
-        self.onDraftSaved(res);
-
+      self.draftSaveError = null;
+      try {
+        self.draftSavingPromise = self.store.submitDraft(self, params);
+        const res = yield self.draftSavingPromise;
+        if (res?.$meta?.status >= 400) throw new Error(res?.detail || res?.response?.detail || "草稿保存失败");
+        self.savedResultFingerprint = fingerprint;
+        self.setDraftSaved(startedAt);
+        if (res?.updated_at) self.draftRevision = res.updated_at;
         return res;
-      });
-    },
+      } catch (error) {
+        self.draftSaveError = error?.message || "草稿保存失败，当前修改仍保留在窗口中";
+        throw error;
+      } finally {
+        self.draftSavingPromise = null;
+        self.setDraftSaving(false);
+      }
+    }),
 
     submissionInProgress() {
       self.submissionStarted = Date.now();
+    },
+
+    submissionFinished() {
+      self.submissionStarted = 0;
+    },
+
+    setDraftRevision(revision) {
+      self.draftRevision = revision || null;
+    },
+
+    setReferenceBaseline(raw, loaded = true) {
+      if (!raw?.reference_version || !raw?.base_manual_hash) return;
+      self.baseManualHash = raw.base_manual_hash;
+      if (loaded) self.referenceVersion = raw.reference_version;
+      self.referenceTokens[self.draftSelected ? "draft" : "result"] = raw;
+    },
+
+    setReferenceTokens(version, raw) {
+      self.referenceTokens[version] = raw;
+    },
+
+    markDraftLoaded(revision) {
+      self.draftRevision = revision || null;
+      self.savedResultFingerprint = self.draftResultFingerprint;
     },
 
     saveDraftImmediately() {
@@ -832,11 +913,9 @@ const _Annotation = types
 
     async saveDraftImmediatelyWithResults(params) {
       // There is no draft to save as it was already saved as an annotation
-      if (self.submissionStarted || self.isDraftSaving) return {};
-      self.setDraftSaving(true);
-      const res = await self.saveDraft(params);
-
-      return res;
+      if (self.submissionStarted) throw new Error("提交正在进行，请稍后保存草稿");
+      self.autosave?.cancel?.();
+      return self.saveDraft(params);
     },
 
     pauseAutosave() {
@@ -868,6 +947,8 @@ const _Annotation = types
       self.draftId = 0;
       self.draftSelected = false;
       self.draftSaved = undefined;
+      self.draftRevision = null;
+      self.savedResultFingerprint = null;
       self.versions.draft = undefined;
     },
 

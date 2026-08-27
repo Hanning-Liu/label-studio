@@ -1,0 +1,16 @@
+.dock { position: sticky; top: 0; z-index: 220; background: var(--color-neutral-background, #fff); padding: 8px 10px; border: 1px solid #d5dfda; border-radius: 6px; box-shadow: 0 2px 6px #0001; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 3px 0; }
+.row select { max-width: 440px; }
+.dock button, .dialog button, .dock select, .dialog select, .dialog input { padding: 4px 7px; border: 1px solid #bec9c4; border-radius: 4px; background: #fff; }
+.dock button:disabled, .dialog button:disabled { opacity: .45; }
+.status { font-size: 12px; color: #53615b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.error { color: #a42c38; }
+.list { max-height: 58vh; overflow: auto; }
+.item { border-bottom: 1px solid #ddd; padding: 9px 2px; }
+.small { font-size: 12px; color: #647168; overflow-wrap: anywhere; }
+.preview { max-height: 45vh; width: 100%; background: #f5f6f5; border: 1px solid #ddd; }
+.outliner { padding: 10px; overflow: auto; font-size: 12px; }
+.outliner details { margin: 8px 0; }
+.logicalRow { display: block; width: 100%; text-align: left; padding: 8px; margin: 4px 0; border: 1px solid #d5dfda; border-radius: 4px; background: transparent; }
+.logicalRow[aria-pressed="true"] { background: #e4f2eb; }
+.logicalRow small { display: block; overflow-wrap: anywhere; }

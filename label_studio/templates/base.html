@@ -25,7 +25,7 @@
 
   <!-- CSS -->
   {% block app-css %}
-    <link href="{{settings.FRONTEND_HOSTNAME}}/react-app/main.css?v={{ versions.backend.commit }}" rel="stylesheet">
+    <link href="{{settings.FRONTEND_HOSTNAME}}/react-app/main.css?v={{ versions.frontend_assets }}" rel="stylesheet">
   {% endblock %}
 
   {% block theme_colors %}
@@ -206,13 +206,9 @@
 </script>
 
 {% block app-js %}
-<script src="{{settings.FRONTEND_HOSTNAME}}/react-app/runtime.js?v={{ versions.backend.commit }}"></script>
-{% comment %}
-  NOTE: purposely setting this to not cache using backend commit as we do not intend this to change frequently.
-  If for any reason we need to invalidate the cache, we can do so by changing the version number.
-{% endcomment %}
-<script src="{{settings.FRONTEND_HOSTNAME}}/react-app/vendor.js?v=1"></script>
-<script src="{{settings.FRONTEND_HOSTNAME}}/react-app/main.js?v={{ versions.backend.commit }}"></script>
+<script src="{{settings.FRONTEND_HOSTNAME}}/react-app/runtime.js?v={{ versions.frontend_assets }}"></script>
+<script src="{{settings.FRONTEND_HOSTNAME}}/react-app/vendor.js?v={{ versions.frontend_assets }}"></script>
+<script src="{{settings.FRONTEND_HOSTNAME}}/react-app/main.js?v={{ versions.frontend_assets }}"></script>
 {% endblock %}
 
 {% block bottomjs %}

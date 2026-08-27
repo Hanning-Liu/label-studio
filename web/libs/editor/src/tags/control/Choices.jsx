@@ -25,6 +25,7 @@ import PerItemMixin from "../../mixins/PerItem";
 import Infomodal from "../../components/Infomodal/Infomodal";
 import { useMemo } from "react";
 import { Select, Tooltip } from "@humansignal/ui";
+import { dockedVectorReviewImage } from "../../utils/vectorReviewDock";
 
 /**
  * The `Choices` tag is used to create a group of choices, with radio buttons or checkboxes. It can be used for single or multi-class classification. Also, it is used for advanced classification tasks where annotators can choose one or multiple answers.
@@ -290,7 +291,8 @@ const ChoicesSelectLayout = observer(({ item }) => {
   );
 });
 
-const HtxChoices = observer(({ item }) => {
+const HtxChoices = observer(({ item, vectorReviewDock = false }) => {
+  if (!vectorReviewDock && dockedVectorReviewImage(item)) return null;
   return (
     <div
       className={cn("choices")

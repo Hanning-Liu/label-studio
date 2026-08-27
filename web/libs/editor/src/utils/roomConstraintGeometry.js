@@ -399,7 +399,7 @@ export const partitionContext = (polygon, parentRoomId, openings, tolerance = 1e
   return {
     schema_version: schemaVersion,
     parent_room_id: parentRoomId,
-    opening_ids: matched.map((opening) => opening.id).sort(),
+    opening_ids: [...new Set(matched.map((opening) => opening.id))].sort(),
     connected_room_ids: [...connectedRoomIds].sort(),
   };
 };

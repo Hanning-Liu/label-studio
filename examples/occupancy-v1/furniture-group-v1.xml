@@ -1,0 +1,99 @@
+<View>
+  <Image name="image" value="$image" zoom="true" smoothing="false" occupancyV1="true" />
+  <View className="occupancy-reference-controls" style="display: none;">
+    <RectangleLabels name="room_rectangle" toName="image" snap="pixel" canRotate="false">
+      <Label value="Bedroom" background="#FFA39E" />
+      <Label value="Bathroom" background="#FFC069" />
+      <Label value="Kitchen" background="#AD8B00" />
+      <Label value="Living room" background="#389E0D" />
+      <Label value="Multipurpose room" background="#13C2C2" />
+      <Label value="Laundry room" background="#096DD9" />
+      <Label value="Dining room" background="#ADC6FF" />
+      <Label value="Study room" background="#9254DE" />
+      <Label value="Guest room" background="#F759AB" />
+      <Label value="Children room" background="#FFA39E" />
+      <Label value="Dressing room" background="#D4380D" />
+      <Label value="Entryway" background="#FFC069" />
+      <Label value="Hallway" background="#AD8B00" />
+      <Label value="Storage room" background="#D3F261" />
+      <Label value="Balcony" background="#389E0D" />
+      <Label value="Staircase" background="#FFA39E" />
+      <Label value="Elevator" background="#D4380D" />
+      <Label value="Pipe" background="#9E9E9E" />
+    </RectangleLabels>
+    <PolygonLabels name="room_polygon" toName="image" snap="pixel" strokeWidth="2">
+      <Label value="Bedroom" background="#FFA39E" />
+      <Label value="Bathroom" background="#FFC069" />
+      <Label value="Kitchen" background="#AD8B00" />
+      <Label value="Living room" background="#389E0D" />
+      <Label value="Multipurpose room" background="#13C2C2" />
+      <Label value="Laundry room" background="#096DD9" />
+      <Label value="Dining room" background="#ADC6FF" />
+      <Label value="Study room" background="#9254DE" />
+      <Label value="Guest room" background="#F759AB" />
+      <Label value="Children room" background="#FFA39E" />
+      <Label value="Dressing room" background="#D4380D" />
+      <Label value="Entryway" background="#FFC069" />
+      <Label value="Hallway" background="#AD8B00" />
+      <Label value="Storage room" background="#D3F261" />
+      <Label value="Balcony" background="#389E0D" />
+      <Label value="Staircase" background="#FFA39E" />
+      <Label value="Elevator" background="#D4380D" />
+      <Label value="Pipe" background="#9E9E9E" />
+    </PolygonLabels>
+    <RectangleLabels name="portal_rectangle" toName="image" snap="pixel" canRotate="true">
+      <Label value="Door" background="#FF8C00" />
+      <Label value="Sliding door" background="#8E44AD" />
+      <Label value="Open passage" background="#00A878" />
+    </RectangleLabels>
+    <VectorLabels name="portal_vector" toName="image" choice="single" closable="false" curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+      <Label value="Open passage" background="#00A878" />
+    </VectorLabels>
+    <Labels name="function_zone" toName="image">
+      <Label value="Entry/transition" background="#FFB74D" />
+      <Label value="Circulation" background="#D4AC0D" />
+      <Label value="Cooking/preparation" background="#C49A00" />
+      <Label value="Dining" background="#90CAF9" />
+      <Label value="Living/social" background="#66BB6A" />
+      <Label value="Sleeping" background="#EF9A9A" />
+      <Label value="Study/work" background="#9575CD" />
+      <Label value="Dressing/grooming" background="#FF7043" />
+      <Label value="Bathing/washing" background="#4FC3F7" />
+      <Label value="Sanitary/general" background="#36B8B5" />
+      <Label value="Toilet" background="#26A69A" />
+      <Label value="Laundry" background="#42A5F5" />
+      <Label value="Storage" background="#AED581" />
+      <Label value="Balcony/leisure" background="#81C784" />
+      <Label value="Garden/outdoor" background="#43A047" />
+      <Label value="Equipment/service" background="#78909C" />
+      <Label value="Vertical circulation" background="#BCAAA4" />
+      <Label value="Unclear/other" background="#BDBDBD" />
+    </Labels>
+    <Rectangle name="zone_rectangle" toName="image" snap="pixel" canRotate="true" openingSnapAngleDeg="5" />
+    <Polygon name="zone_polygon" toName="image" snap="pixel" strokeWidth="2" openingSnapAngleDeg="5" />
+    <VectorLabels name="connection_vector" toName="image" choice="single" closable="false" curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+      <Label value="Open passage" background="#00A878" />
+      <Label value="Door" background="#FF8C00" />
+      <Label value="Sliding door" background="#8E44AD" />
+    </VectorLabels>
+    <Choices name="connection_review" toName="image" perRegion="true" visibleWhen="region-selected" whenTagName="connection_vector" requiredMessage="请复核交通 Vector 后选择 Reviewed">
+      <Choice value="Reviewed" />
+    </Choices>
+    <VectorLabels name="visual_connection_vector" toName="image" choice="single" closable="false" curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
+      <Label value="Visual only" background="#00B8D9" />
+    </VectorLabels>
+    <Choices name="visual_connection_review" toName="image" perRegion="true" visibleWhen="region-selected" whenTagName="visual_connection_vector" requiredMessage="请复核视觉 Vector 后选择 Reviewed">
+      <Choice value="Reviewed" />
+    </Choices>
+    <Labels name="occupancy_type" toName="image">
+      <Label value="furniture_group" background="#b06e28" />
+      <Label value="walkable" background="#249376" />
+      <Label value="restricted_free" background="#5967b6" />
+      <Label value="unclassified" background="#c36d94" />
+    </Labels>
+  </View>
+  <Rectangle name="occupancy_rectangle" toName="image" canRotate="true" />
+  <Polygon name="occupancy_polygon" toName="image" strokeWidth="2" />
+  <Header value="L3：选择 Focus 功能分区 → 创建组团并绘制实际障碍占地 → 生成剩余空间 → 人工分类 → 复核。" size="5" />
+  <Header value="新轮廓绘制后请点顶部“绘制预览”。家具间空隙不要填满；地毯通常不贡献障碍占地。未完成可保存草稿。" size="5" />
+</View>

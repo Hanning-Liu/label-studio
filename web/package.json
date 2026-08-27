@@ -44,6 +44,9 @@
   },
   "private": true,
   "dependencies": {
+    "polygon-clipping": "0.15.7",
+    "earcut": "2.2.4",
+    "@noble/hashes": "1.8.0",
     "@ant-design/colors": "6.0.0",
     "@ant-design/icons": "4.8.1",
     "@humansignal/audio-file-decoder": "0.1.5",

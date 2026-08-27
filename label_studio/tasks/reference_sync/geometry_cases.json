@@ -1,0 +1,7 @@
+[
+  {"name":"hallway bathroom passage","polygon":[[0,0],[50,0],[50,100],[0,100]],"room":"hall","openings":[{"id":"passage","points":[[50,20],[50,30]],"roomIds":["hall","bath"]}],"expected":{"opening_ids":["passage"],"connected_room_ids":["bath"]}},
+  {"name":"point contact is not opening","polygon":[[0,0],[50,0],[50,20],[0,20]],"room":"hall","openings":[{"id":"passage","points":[[50,20],[50,30]],"roomIds":["hall","bath"]}],"expected":{"opening_ids":[],"connected_room_ids":[]}},
+  {"name":"multiple segments of one door","polygon":[[0,0],[50,0],[50,100],[0,100]],"room":"hall","openings":[{"id":"door","points":[[50,20],[50,25]],"roomIds":["hall","bath"]},{"id":"door","points":[[50,25],[50,30]],"roomIds":["hall","bath"]}],"expected":{"opening_ids":["door"],"connected_room_ids":["bath"]}},
+  {"name":"exterior is explicit","polygon":[[0,0],[50,0],[50,100],[0,100]],"room":"hall","openings":[{"id":"exit","points":[[10,0],[20,0]],"roomIds":["hall","Exterior"]}],"expected":{"opening_ids":["exit"],"connected_room_ids":["Exterior"]}},
+  {"name":"rotated boundary","polygon":[[10,0],[30,20],[10,40],[-10,20]],"room":"hall","openings":[{"id":"sliding","points":[[15,5],[25,15]],"roomIds":["hall","bath"]}],"expected":{"opening_ids":["sliding"],"connected_room_ids":["bath"]}}
+]
