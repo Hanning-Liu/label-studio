@@ -2,6 +2,7 @@
   <Image name="image" value="$image" zoom="true" smoothing="false"
     partitionContextSchema="3"
     functionZoneV3Validate="true"
+    wholeRoomZoneInheritance="true"
     functionZoneControls="zone_rectangle,zone_polygon"
     connectionVectorControls="connection_vector,visual_connection_vector"
     geometryReviewMap="connection_vector:connection_review,visual_connection_vector:visual_connection_review"
@@ -71,6 +72,7 @@
     <Label value="Study/work" background="#9575CD" />
     <Label value="Dressing/grooming" background="#FF7043" />
     <Label value="Bathing/washing" background="#4FC3F7" />
+    <Label value="Sanitary/general" background="#36B8B5" />
     <Label value="Toilet" background="#26A69A" />
     <Label value="Laundry" background="#42A5F5" />
     <Label value="Storage" background="#AED581" />

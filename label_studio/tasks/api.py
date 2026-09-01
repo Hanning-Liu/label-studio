@@ -11,15 +11,15 @@ from data_manager.api import TaskListAPI as DMTaskListAPI
 from data_manager.functions import evaluate_predictions
 from data_manager.models import PrepareParams
 from data_manager.serializers import DataManagerTaskSerializer
-from django.db import transaction
-from django.db.models import Q
+from django.db import connection, transaction
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from projects.functions.stream_history import fill_history_annotation
-from projects.models import Project
+from projects.models import Project, ProjectSummary
 from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -888,6 +888,38 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         PATCH=all_permissions.annotations_change,
         DELETE=all_permissions.annotations_delete,
     )
+
+    def update(self, request, *args, **kwargs):
+        # Authorize and validate before acquiring locks. On PostgreSQL preserve
+        # AnnotationDraft.save's summary -> draft lock ordering. SQLite ignores
+        # select_for_update, so acquire its write lock with an atomic version
+        # predicate before reading the row in this transaction.
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+        serializer.is_valid(raise_exception=True)
+        expected = serializer.validated_data.pop('expected_updated_at', None)
+
+        def conflict(updated_at):
+            return Response({
+                'detail': '草稿已在其他窗口更新。当前修改仍保留在本窗口，请先导出备份并处理版本冲突，不要直接刷新。',
+                'code': 'draft_version_conflict',
+                'updated_at': updated_at,
+            }, status=409)
+
+        with transaction.atomic():
+            draft = self.get_queryset().filter(pk=instance.pk)
+            if connection.vendor == 'sqlite':
+                claim = draft.filter(updated_at=expected) if expected is not None else draft
+                if not claim.update(updated_at=F('updated_at')):
+                    return conflict(draft.values_list('updated_at', flat=True).first())
+            else:
+                ProjectSummary.objects.select_for_update().filter(project_id=instance.task.project_id).first()
+            current = draft.select_for_update().get()
+            if expected is not None and expected != current.updated_at:
+                return conflict(current.updated_at)
+            serializer.instance = current
+            self.perform_update(serializer)
+            return Response(serializer.data)
 
 
 @method_decorator(

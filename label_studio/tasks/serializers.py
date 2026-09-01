@@ -851,6 +851,11 @@ class AnnotationDraftSerializer(ModelSerializer):
     user = serializers.CharField(default=serializers.CurrentUserDefault())
     created_username = serializers.SerializerMethodField(default='', read_only=True, help_text='User name string')
     created_ago = serializers.CharField(default='', read_only=True, help_text='Delta time from creation time')
+    expected_updated_at = serializers.DateTimeField(required=False, write_only=True)
+
+    def create(self, validated_data):
+        validated_data.pop('expected_updated_at', None)
+        return super().create(validated_data)
 
     def get_created_username(self, draft):
         user = draft.user
