@@ -55,6 +55,7 @@ import "../../tags/object/RichText";
 import Tree from "../../core/Tree";
 import Registry from "../../core/Registry";
 import AppStore from "../AppStore";
+import { FF_CUSTOM_SCRIPT } from "../../utils/feature-flags";
 
 const MINIMAL_CONFIG = `<View><Text name="t1" value="$text" /></View>`;
 
@@ -765,6 +766,117 @@ describe("AppStore", () => {
       store.updateAnnotation({ extra: "data" });
       await new Promise((r) => setTimeout(r, 300));
       expect(mockInvoke).toHaveBeenCalledWith("updateAnnotation", store, entity, { extra: "data" });
+    });
+  });
+
+  describe("draft and submission failure safety", () => {
+    const editable = () => {
+      const store = createStore();
+      store.initializeStore({ annotations: [{ result: [] }] });
+      const entity = store.annotationStore.selected;
+      entity.beforeSend = jest.fn();
+      entity.sendUserGenerate = jest.fn();
+      entity.dropDraft = jest.fn();
+      entity.validate = jest.fn(() => true);
+      mockHasEvent.mockReturnValue(true);
+      mockInvokeFirst.mockResolvedValue({ id: 1, updated_at: "2026-08-26T00:00:00Z" });
+      return { store, entity };
+    };
+
+    it("validation failure restores save/submit state and permits the next draft save", async () => {
+      const { store, entity } = editable();
+      entity.validate.mockReturnValue(false);
+      await store.submitAnnotation();
+      expect(store.isSubmitting).toBe(false);
+      expect(entity.submissionStarted).toBe(0);
+      expect(entity.dropDraft).not.toHaveBeenCalled();
+      await entity.saveDraftImmediatelyWithResults();
+      expect(mockInvokeFirst).toHaveBeenCalledWith("submitDraft", store, entity, {});
+      expect(entity.isDraftSaving).toBe(false);
+    });
+
+    it("draft network failure rejects, clears saving state, and supports retry", async () => {
+      const { entity } = editable();
+      mockInvokeFirst.mockRejectedValueOnce(new Error("network failed"));
+      await expect(entity.saveDraftImmediatelyWithResults()).rejects.toThrow("network failed");
+      expect(entity.isDraftSaving).toBe(false);
+      expect(entity.draftSaveError).toBe("network failed");
+      expect(entity.savedResultFingerprint).toBeNull();
+      await entity.saveDraftImmediatelyWithResults();
+      expect(entity.draftSaveError).toBeNull();
+      expect(entity.draftRevision).toBe("2026-08-26T00:00:00Z");
+    });
+
+    it("retains the draft until a successful formal response and restores state on failure", async () => {
+      const { store, entity } = editable();
+      let rejectSubmit;
+      mockInvoke.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectSubmit = reject;
+        }),
+      );
+      const submitting = store.submitAnnotation();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(entity.dropDraft).not.toHaveBeenCalled();
+      rejectSubmit(new Error("submit offline"));
+      await submitting;
+      expect(entity.dropDraft).not.toHaveBeenCalled();
+      expect(entity.submissionStarted).toBe(0);
+      expect(store.isSubmitting).toBe(false);
+      mockInvoke.mockResolvedValue([{ id: 10 }]);
+      await store.submitAnnotation();
+      expect(entity.dropDraft).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits for an in-flight draft before submitting and does not submit if that save fails", async () => {
+      const { store, entity } = editable();
+      let rejectSave;
+      mockInvokeFirst.mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+      );
+      const saving = entity.saveDraftImmediatelyWithResults();
+      const submit = store.submitAnnotation();
+      await Promise.resolve();
+      expect(mockInvoke).not.toHaveBeenCalledWith("submitAnnotation", store, entity);
+      rejectSave(new Error("draft conflict"));
+      await expect(saving).rejects.toThrow("draft conflict");
+      await submit;
+      expect(entity.dropDraft).not.toHaveBeenCalled();
+      expect(entity.isDraftSaving).toBe(false);
+      expect(entity.submissionStarted).toBe(0);
+    });
+
+    it("custom-script cancellation leaves drafts and saving available", async () => {
+      const { store, entity } = editable();
+      window.APP_SETTINGS = { feature_flags: { [FF_CUSTOM_SCRIPT]: true } };
+      mockInvoke.mockResolvedValue([false]);
+      await store.submitAnnotation();
+      expect(entity.dropDraft).not.toHaveBeenCalled();
+      expect(entity.submissionStarted).toBe(0);
+      expect(store.isSubmitting).toBe(false);
+      await expect(entity.saveDraftImmediatelyWithResults()).resolves.toMatchObject({ id: 1 });
+    });
+
+    it("serializes concurrent draft requests and uses the saved revision for the next request", async () => {
+      const { entity } = editable();
+      let finish;
+      mockInvokeFirst.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const first = entity.saveDraftImmediatelyWithResults();
+      const second = entity.saveDraftImmediatelyWithResults();
+      await Promise.resolve();
+      expect(mockInvokeFirst).toHaveBeenCalledTimes(1);
+      finish({ id: 1, updated_at: "2026-08-26T00:00:01Z" });
+      await Promise.all([first, second]);
+      expect(mockInvokeFirst).toHaveBeenCalledTimes(2);
+      expect(entity.isDraftSaving).toBe(false);
+      expect(entity.draftSavingPromise).toBeNull();
     });
   });
 });
