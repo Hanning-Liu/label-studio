@@ -14,7 +14,7 @@ import { Modal } from "../components/Common/Modal/Modal";
 import { CommentsSdk } from "./comments-sdk";
 // import { LSFHistory } from "./lsf-history";
 import { annotationToServer, taskToLSFormat } from "./lsf-utils";
-import { when, runInAction } from "mobx";
+import { runInAction } from "mobx";
 import { isAlive } from "mobx-state-tree";
 import { imageCache } from "@humansignal/core";
 import { invalidateAnnotationCache, invalidateDistributionCache } from "@humansignal/core/lib/utils/annotation-cache";
@@ -608,7 +608,8 @@ export class LSFWrapper {
         cs.selectAnnotation(c.id);
         c.deserializeResults(draft.result);
         c.setDraftId(draft.id);
-        c.setDraftSaved(draft.created_at);
+        c.setDraftSaved(draft.updated_at || draft.created_at);
+        c.markDraftLoaded(draft.updated_at);
         c.history.safeUnfreeze();
         c.history.reinit();
       }
@@ -828,7 +829,7 @@ export class LSFWrapper {
     // Prevent submission if overlap is reached (only when feature flag is enabled)
     if (isFF(FF_FIT_1304_STRICT_OVERLAP) && this.overlapReached) {
       this.showOverlapReachedMessage();
-      return;
+      throw new Error(this.overlapReachedMessage || "当前任务不允许提交，草稿已保留");
     }
 
     const exitStream = this.shouldExitStream();
@@ -850,6 +851,7 @@ export class LSFWrapper {
     const status = result?.$meta?.status;
 
     this.showOperationToast(status, "Annotation saved successfully", "Annotation is not saved", result);
+    if (!result || status >= 400) throw new Error(result?.response?.detail || "标注未提交，草稿已保留");
 
     // FIT-720: Invalidate caches after successful submit
     if (status < 400) {
@@ -861,7 +863,8 @@ export class LSFWrapper {
       invalidateDistributionCache(this.task?.id);
     }
 
-    if (exitStream) return this.exitStream();
+    if (exitStream) await this.exitStream();
+    return result;
   };
 
   /** @private */
@@ -900,10 +903,14 @@ export class LSFWrapper {
       invalidateDistributionCache(task.id);
     }
 
-    if (exitStream) return this.exitStream();
-
     if (status >= 400) {
-      return;
+      throw new Error(result?.response?.detail || "标注更新失败，草稿已保留");
+    }
+
+    if (!result) throw new Error("标注更新失败，未收到服务器确认");
+    if (exitStream) {
+      await this.exitStream();
+      return result;
     }
 
     const isRejectedQueue = isDefined(task.default_selected_annotation);
@@ -914,6 +921,7 @@ export class LSFWrapper {
     } else {
       await this.loadTask(this.task.id, annotation.pk, true);
     }
+    return result;
   };
 
   deleteDraft = async (id) => {
@@ -963,6 +971,9 @@ export class LSFWrapper {
   };
 
   needsDraftSave = (annotation) => {
+    if (annotation.savedResultFingerprint !== null && annotation.savedResultFingerprint !== undefined) {
+      return annotation.draftResultFingerprint !== annotation.savedResultFingerprint;
+    }
     if (annotation.history?.hasChanges && !annotation.draftSaved) return true;
     if (
       annotation.history?.hasChanges &&
@@ -977,7 +988,8 @@ export class LSFWrapper {
     const hasChanges = selected ? this.needsDraftSave(selected) : false;
 
     if (selected?.isDraftSaving) {
-      await when(() => !selected.isDraftSaving);
+      await selected.draftSavingPromise;
+      if (this.needsDraftSave(selected)) await selected.saveDraftImmediatelyWithResults();
       this.draftToast(200);
     } else if (hasChanges && selected) {
       const res = await selected?.saveDraftImmediatelyWithResults();
@@ -992,20 +1004,22 @@ export class LSFWrapper {
     const annotationDoesntExist = !annotation.pk;
     const data = { body: this.prepareData(annotation, { isNewDraft: true }) }; // serializedAnnotation
     const hasChanges = this.needsDraftSave(annotation);
-    const showToast = params?.useToast && hasChanges;
     // console.log('onSubmitDraft', params?.useToast, hasChanges);
 
-    if (params?.useToast) delete params.useToast;
-
-    Object.assign(data.body, params);
+    const { useToast, ...saveParams } = params;
+    const showToast = useToast && hasChanges;
+    Object.assign(data.body, saveParams);
 
     await this.saveUserLabels();
 
     if (annotation.draftId > 0) {
+      if (annotation.draftRevision) data.body.expected_updated_at = annotation.draftRevision;
       // draft has been already created
       const res = await this.datamanager.apiCall("updateDraft", { draftID: annotation.draftId }, data);
 
       showToast && this.draftToast(res.$meta?.status, res);
+      this.assertDraftSaved(res);
+      annotation.setDraftRevision(res.updated_at);
       this.datamanager.invoke("submitDraft", this, annotation, res);
       return res;
     }
@@ -1021,10 +1035,25 @@ export class LSFWrapper {
       );
     }
     response?.id && annotation.setDraftId(response?.id);
-    showToast && this.draftToast(response.$meta?.status, response);
+    showToast && this.draftToast(response?.$meta?.status, response);
+    this.assertDraftSaved(response);
+    annotation.setDraftRevision(response.updated_at);
     this.datamanager.invoke("submitDraft", this, annotation, response);
 
     return response;
+  };
+
+  assertDraftSaved = (response) => {
+    const status = response?.$meta?.status;
+    if (!response?.id || (status !== undefined && (status < 200 || status >= 300))) {
+      const error = new Error(
+        status === 409
+          ? "草稿版本冲突：其他窗口已更新。当前修改仍在本窗口，请导出备份后处理冲突，不要直接刷新。"
+          : response?.response?.detail || response?.detail || "草稿未保存，当前修改仍保留在窗口中，请重试。",
+      );
+      error.status = status;
+      throw error;
+    }
   };
 
   onSkipTask = async (_, { comment } = {}) => {
@@ -1321,6 +1350,8 @@ export class LSFWrapper {
       return result;
     });
 
+    if (!result) throw new Error("服务器未确认提交，草稿已保留");
+
     if (result && result.id !== undefined) {
       const annotationId = result.id.toString();
 
@@ -1430,15 +1461,12 @@ export class LSFWrapper {
   }
 
   async withinLoadingState(callback) {
-    let result;
-
     this.setLoading(true);
-    if (callback) {
-      result = await callback.call(this);
+    try {
+      return callback ? await callback.call(this) : undefined;
+    } finally {
+      this.setLoading(false);
     }
-    this.setLoading(false);
-
-    return result;
   }
 
   destroy() {

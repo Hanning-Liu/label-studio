@@ -23,6 +23,7 @@ import { fixRectToFit, mapKonvaBrightness } from "../../utils/image";
 import { FF_DEV_1442, FF_LSDV_4930, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
 import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
+import { WholeRoomInheritanceControls } from "./WholeRoomInheritanceControls";
 
 Konva.showWarnings = false;
 
@@ -512,21 +513,27 @@ const RoomFocusSelector = observer(({ item }) => {
   const selectedId = item.focusedRoom?.cleanId || "";
 
   return (
-    <div className={styles.roomFocus} data-testid="room-focus-selector">
-      <label htmlFor={`room-focus-${item.name}`}>Focus room</label>
-      <select
-        id={`room-focus-${item.name}`}
-        value={selectedId}
-        onChange={(event) => item.setFocusedRoom(event.target.value)}
-      >
-        <option value="">Select a room…</option>
-        {item.focusRoomOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {item.roomConstraintNotice ? <span role="alert">{item.roomConstraintNotice}</span> : null}
+    <div
+      className={`${styles.roomFocus} ${item.wholeRoomInheritanceEnabled ? styles.roomFocusDocked : ""}`}
+      data-testid="room-focus-selector"
+    >
+      <div className={styles.roomFocusRow}>
+        <label htmlFor={`room-focus-${item.name}`}>Focus room</label>
+        <select
+          id={`room-focus-${item.name}`}
+          value={selectedId}
+          onChange={(event) => item.setFocusedRoom(event.target.value)}
+        >
+          <option value="">Select a room…</option>
+          {item.focusRoomOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {item.roomConstraintNotice ? <span role="alert">{item.roomConstraintNotice}</span> : null}
+      </div>
+      <WholeRoomInheritanceControls item={item} />
     </div>
   );
 });
@@ -1037,7 +1044,7 @@ export default observer(
 
       return (
         <>
-          <RoomFocusSelector item={item} />
+          {!item.wholeRoomInheritanceEnabled && <RoomFocusSelector item={item} />}
           <Toolbar tools={tools} />
         </>
       );
@@ -1086,122 +1093,125 @@ export default observer(
       const isViewingAll = store.annotationStore.viewingAll;
 
       return (
-        <ObjectTag item={item} className={wrapperClasses.join(" ")}>
-          {paginationEnabled ? (
-            <div
-              className={styles.pagination}
-              title={isViewingAll ? "Pagination is not supported in View All Annotations" : undefined}
-            >
-              <Pagination
-                size="small"
-                outline={false}
-                align="left"
-                noPadding
-                hotkey={{
-                  prev: "image:prev",
-                  next: "image:next",
-                }}
-                currentPage={item.currentImage + 1}
-                totalPages={item.parsedValueList.length}
-                onChange={(n) => item.setCurrentImage(n - 1)}
-                pageSizeSelectable={false}
-                disabled={isViewingAll}
-              />
-            </div>
-          ) : null}
+        <>
+          {item.wholeRoomInheritanceEnabled && !isViewingAll && <RoomFocusSelector item={item} />}
+          <ObjectTag item={item} className={wrapperClasses.join(" ")}>
+            {paginationEnabled ? (
+              <div
+                className={styles.pagination}
+                title={isViewingAll ? "Pagination is not supported in View All Annotations" : undefined}
+              >
+                <Pagination
+                  size="small"
+                  outline={false}
+                  align="left"
+                  noPadding
+                  hotkey={{
+                    prev: "image:prev",
+                    next: "image:next",
+                  }}
+                  currentPage={item.currentImage + 1}
+                  totalPages={item.parsedValueList.length}
+                  onChange={(n) => item.setCurrentImage(n - 1)}
+                  pageSizeSelectable={false}
+                  disabled={isViewingAll}
+                />
+              </div>
+            ) : null}
 
-          <div
-            ref={(node) => {
-              item.setContainerRef(node);
-              this.attachObserver(node);
-            }}
-            className={containerClassName}
-            style={containerStyle}
-          >
             <div
               ref={(node) => {
-                this.filler = node;
+                item.setContainerRef(node);
+                this.attachObserver(node);
               }}
-              className={styles.filler}
-              style={{ width: "100%", marginTop: item.fillerHeight }}
-            />
-
-            <Image
-              ref={(ref) => {
-                item.setImageRef(ref);
-                this.imageRef.current = ref;
-              }}
-              usedValue={item.usedValue}
-              imageEntity={item.currentImageEntity}
-              imageTransform={item.imageTransform}
-              updateImageSize={item.updateImageSize}
-              size={item.canvasSize}
-              overlay={<CanvasOverlay item={item} />}
-            />
-            {/* @todo this is dirty hack; rewrite to proper async waiting for data to load */}
-            {stageLoading || !toolsReady ? (
-              <div className={styles.loading}>
-                <LoadingOutlined />
-              </div>
-            ) : imageIsLoaded ? (
-              <EntireStage
-                item={item}
-                crosshairRef={this.crosshairRef}
-                onClick={this.handleOnClick}
-                imagePositionClassnames={imagePositionClassnames}
-                state={this.state}
-                onMouseEnter={() => {
-                  if (this.crosshairRef.current) {
-                    this.crosshairRef.current.updateVisibility(true);
-                  }
+              className={containerClassName}
+              style={containerStyle}
+            >
+              <div
+                ref={(node) => {
+                  this.filler = node;
                 }}
-                onMouseLeave={(e) => {
-                  if (this.crosshairRef.current) {
-                    this.crosshairRef.current.updateVisibility(false);
-                  }
-                  const { width: stageWidth, height: stageHeight } = item.canvasSize;
-                  const { offsetX: mouseposX, offsetY: mouseposY } = e.evt;
-                  const newEvent = { ...e };
-
-                  if (mouseposX <= 0) {
-                    e.offsetX = 0;
-                  } else if (mouseposX >= stageWidth) {
-                    e.offsetX = stageWidth;
-                  }
-
-                  if (mouseposY <= 0) {
-                    e.offsetY = 0;
-                  } else if (mouseposY >= stageHeight) {
-                    e.offsetY = stageHeight;
-                  }
-                  this.handleMouseMove(newEvent);
-                }}
-                onDragMove={this.updateCrosshair}
-                onMouseDown={this.handleMouseDown}
-                onMouseMove={this.handleMouseMove}
-                onMouseUp={this.handleMouseUp}
-                onWheel={item.zoom ? this.handleZoom : () => {}}
+                className={styles.filler}
+                style={{ width: "100%", marginTop: item.fillerHeight }}
               />
-            ) : null}
-          </div>
 
-          {toolsReady && imageIsLoaded && this.renderTools()}
-          {item.images.length > 1 && (
-            <div className={styles.gallery}>
-              {item.images.map((src, i) => (
-                <img
-                  {...imgDefaultProps}
-                  alt=""
-                  key={src}
-                  src={src}
-                  className={i === item.currentImage && styles.active}
-                  height="60"
-                  onClick={() => item.setCurrentImage(i)}
+              <Image
+                ref={(ref) => {
+                  item.setImageRef(ref);
+                  this.imageRef.current = ref;
+                }}
+                usedValue={item.usedValue}
+                imageEntity={item.currentImageEntity}
+                imageTransform={item.imageTransform}
+                updateImageSize={item.updateImageSize}
+                size={item.canvasSize}
+                overlay={<CanvasOverlay item={item} />}
+              />
+              {/* @todo this is dirty hack; rewrite to proper async waiting for data to load */}
+              {stageLoading || !toolsReady ? (
+                <div className={styles.loading}>
+                  <LoadingOutlined />
+                </div>
+              ) : imageIsLoaded ? (
+                <EntireStage
+                  item={item}
+                  crosshairRef={this.crosshairRef}
+                  onClick={this.handleOnClick}
+                  imagePositionClassnames={imagePositionClassnames}
+                  state={this.state}
+                  onMouseEnter={() => {
+                    if (this.crosshairRef.current) {
+                      this.crosshairRef.current.updateVisibility(true);
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (this.crosshairRef.current) {
+                      this.crosshairRef.current.updateVisibility(false);
+                    }
+                    const { width: stageWidth, height: stageHeight } = item.canvasSize;
+                    const { offsetX: mouseposX, offsetY: mouseposY } = e.evt;
+                    const newEvent = { ...e };
+
+                    if (mouseposX <= 0) {
+                      e.offsetX = 0;
+                    } else if (mouseposX >= stageWidth) {
+                      e.offsetX = stageWidth;
+                    }
+
+                    if (mouseposY <= 0) {
+                      e.offsetY = 0;
+                    } else if (mouseposY >= stageHeight) {
+                      e.offsetY = stageHeight;
+                    }
+                    this.handleMouseMove(newEvent);
+                  }}
+                  onDragMove={this.updateCrosshair}
+                  onMouseDown={this.handleMouseDown}
+                  onMouseMove={this.handleMouseMove}
+                  onMouseUp={this.handleMouseUp}
+                  onWheel={item.zoom ? this.handleZoom : () => {}}
                 />
-              ))}
+              ) : null}
             </div>
-          )}
-        </ObjectTag>
+
+            {toolsReady && imageIsLoaded && this.renderTools()}
+            {item.images.length > 1 && (
+              <div className={styles.gallery}>
+                {item.images.map((src, i) => (
+                  <img
+                    {...imgDefaultProps}
+                    alt=""
+                    key={src}
+                    src={src}
+                    className={i === item.currentImage && styles.active}
+                    height="60"
+                    onClick={() => item.setCurrentImage(i)}
+                  />
+                ))}
+              </div>
+            )}
+          </ObjectTag>
+        </>
       );
     }
   },

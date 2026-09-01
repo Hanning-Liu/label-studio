@@ -1,6 +1,6 @@
 /* global LSF_VERSION */
 
-import { destroy, detach, flow, getEnv, getParent, getSnapshot, isRoot, types, walk } from "mobx-state-tree";
+import { destroy, detach, flow, getEnv, getParent, getSnapshot, isAlive, isRoot, types, walk } from "mobx-state-tree";
 
 import { uniqBy } from "@humansignal/core/lib/utils/lodash-replacements";
 import InfoModal from "../components/Infomodal/Infomodal";
@@ -576,28 +576,15 @@ export default types
     /* eslint-enable no-unused-vars */
 
     function submitDraft(c, params = {}) {
-      return new Promise((resolve) => {
+      return Promise.resolve().then(() => {
         const events = getEnv(self).events;
-
-        if (!events.hasEvent("submitDraft")) return resolve();
-        const res = events.invokeFirst("submitDraft", self, c, params);
-
-        if (res && res.then) res.then(resolve);
-        else resolve(res);
+        if (!events.hasEvent("submitDraft")) return undefined;
+        return events.invokeFirst("submitDraft", self, c, params);
       });
     }
 
     function waitForDraftSubmission() {
-      return new Promise((resolve) => {
-        if (!self.annotationStore.selected.isDraftSaving) resolve();
-
-        const checkInterval = setInterval(() => {
-          if (!self.annotationStore.selected.isDraftSaving) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 100);
-      });
+      return self.annotationStore.selected?.draftSavingPromise || Promise.resolve();
     }
 
     // Set `isSubmitting` flag to block [Submit] and related buttons during request
@@ -624,65 +611,54 @@ export default types
       self.queuePosition = clamp(self.queuePosition + number, 1, self.queueTotal);
     }
 
-    function submitAnnotation() {
+    async function persistAnnotation(event, extraData) {
       if (self.isSubmitting) return;
-
       const entity = self.annotationStore.selected;
-      const event = entity.exists ? "updateAnnotation" : "submitAnnotation";
-
-      entity.beforeSend();
-
-      if (!entity.validate()) return;
-
-      if (!isFF(FF_CUSTOM_SCRIPT)) {
-        entity.sendUserGenerate();
-      }
-      handleSubmittingFlag(async () => {
+      if (!entity) return;
+      self.setFlags({ isSubmitting: true });
+      entity.submissionInProgress();
+      let completed = false;
+      try {
+        await self.waitForDraftSubmission();
+        if (entity.draftSaveError) throw new Error(`请先处理草稿保存问题：${entity.draftSaveError}`);
+        entity.beforeSend();
+        if (!entity.validate()) return;
         if (isFF(FF_CUSTOM_SCRIPT)) {
-          await self.waitForDraftSubmission();
-          const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, { event });
-          if (allowedToSave && allowedToSave.some((x) => x === false)) return;
-
-          entity.sendUserGenerate();
+          const allowed = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, { event });
+          if (allowed?.some((value) => value === false)) return;
         }
-        await getEnv(self).events.invoke(event, self, entity);
+        if (!entity.sentUserGenerate) entity.sendUserGenerate();
+        const responses = await getEnv(self).events.invoke(
+          event,
+          self,
+          entity,
+          ...(extraData === undefined ? [] : [extraData]),
+        );
+        const failed = (Array.isArray(responses) ? responses : [responses]).find(
+          (response) => response?.$meta?.status >= 400,
+        );
+        if (failed) throw new Error(failed?.detail || failed?.response?.detail || "标注提交失败，草稿已保留");
+        completed = true;
+        if (isAlive(entity)) entity.dropDraft();
         self.incrementQueuePosition();
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          entity.dropDraft();
+        self.commentStore.setAddedCommentThisSession(false);
+      } catch (error) {
+        showModal(error?.message || "提交失败，当前修改已保留", "error");
+      } finally {
+        if (isAlive(entity)) {
+          entity.submissionFinished();
+          if (!completed) entity.autosave?.();
         }
-      });
-      if (!isFF(FF_CUSTOM_SCRIPT)) {
-        entity.dropDraft();
+        self.setFlags({ isSubmitting: false });
       }
     }
 
+    function submitAnnotation() {
+      return persistAnnotation(self.annotationStore.selected?.exists ? "updateAnnotation" : "submitAnnotation");
+    }
+
     function updateAnnotation(extraData) {
-      if (self.isSubmitting) return;
-
-      const entity = self.annotationStore.selected;
-
-      entity.beforeSend();
-
-      if (!entity.validate()) return;
-
-      handleSubmittingFlag(async () => {
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, {
-            event: "updateAnnotation",
-          });
-          if (allowedToSave && allowedToSave.some((x) => x === false)) return;
-        }
-        await getEnv(self).events.invoke("updateAnnotation", self, entity, extraData);
-        self.incrementQueuePosition();
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          entity.dropDraft();
-          !entity.sentUserGenerate && entity.sendUserGenerate();
-        }
-      });
-      if (!isFF(FF_CUSTOM_SCRIPT)) {
-        entity.dropDraft();
-        !entity.sentUserGenerate && entity.sendUserGenerate();
-      }
+      return persistAnnotation("updateAnnotation", extraData);
     }
 
     function skipTask(extraData) {

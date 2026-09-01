@@ -378,6 +378,30 @@ const Result = types
         // `meta` is used for lead_time which is stored in one result, while area's `meta` is used for meta text,
         // and this text is duplicated in every connected result, so we should prefer area's `meta` for actual value.
         data.meta = { ...meta, ...self.area.meta };
+        if (type === "labels" && from_name === "function_zone" && self.to_name.wholeRoomInheritanceEnabled) {
+          // Do not add geometry-owned metadata to existing paired category
+          // results merely by opening/saving a whole-room enabled project.
+          const shared = { ...self.area.meta };
+          for (const key of [
+            "partition_context",
+            "zone_inheritance",
+            "room_graph_node",
+            "room_graph_edge",
+            "geometry_review",
+          ])
+            delete shared[key];
+          data.meta = { ...meta, ...shared };
+        }
+        // Inheritance belongs to the geometry result, not the shared area's
+        // initial metadata snapshot or its paired Labels result. Otherwise a
+        // later confirmation is overwritten by the imported pending state.
+        if (meta?.zone_inheritance && (type === "rectangle" || type === "polygon")) {
+          data.meta.zone_inheritance = meta.zone_inheritance;
+          if (meta.partition_context) data.meta.partition_context = meta.partition_context;
+        } else if (data.meta.zone_inheritance) {
+          delete data.meta.zone_inheritance;
+        }
+        if (!Object.keys(data.meta).length && !meta) delete data.meta;
       }
 
       if (self.area.parentID) {

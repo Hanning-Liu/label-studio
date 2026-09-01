@@ -1,0 +1,21 @@
+.controls { width: 100%; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.controls button, .dialog button {
+  padding: 4px 8px;
+  border: 1px solid #b7c4d0;
+  border-radius: 4px;
+  background: var(--color-neutral-background, white);
+  color: inherit;
+  cursor: pointer;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+.status { color: #48615b; line-height: 1.5; }
+.error { color: #b42318; white-space: normal; overflow-wrap: anywhere; }
+.tableScroll { max-height: 52vh; overflow: auto; margin: 12px 0; }
+.dialog {
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: middle; }
+  th { position: sticky; top: 0; background: var(--color-neutral-background, white); }
+  small { display: block; font-size: 11px; }
+  select { max-width: 250px; padding: 5px; border: 1px solid #b7c4d0; border-radius: 4px; }
+}

@@ -7,6 +7,7 @@ import InfoModal from "../../../components/Infomodal/Infomodal";
 import { customTypes } from "../../../core/CustomTypes";
 import Registry from "../../../core/Registry";
 import { AnnotationMixin } from "../../../mixins/AnnotationMixin";
+import { WholeRoomInheritance } from "../../../mixins/WholeRoomInheritance";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
@@ -1321,10 +1322,15 @@ const Model = types
       self.refreshRoomV3Metadata();
       self.regs.forEach((region) => region.refreshPartitionContext?.(false));
       self.refreshGeometryReviewMetadata();
+      self.refreshWholeRoomReviews();
     },
 
     validate() {
-      const errors = [...self.refreshRoomV3Metadata(), ...self.validateFunctionZoneV3()];
+      const errors = [
+        ...self.refreshRoomV3Metadata(),
+        ...self.validateFunctionZoneV3(),
+        ...self.validateWholeRoomInheritance(),
+      ];
       if (!errors.length) return true;
       InfoModal.warning(`v3 几何校验未通过：\n${errors.map((error) => `• ${error}`).join("\n")}`);
       return false;
@@ -1961,6 +1967,7 @@ const CoordsCalculations = types
 
 const ImageModel = types.compose(
   "ImageModel",
+  WholeRoomInheritance,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),
