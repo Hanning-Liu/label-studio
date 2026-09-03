@@ -68,6 +68,8 @@ class ReferenceSyncReviewAPI(ReferenceSyncStatusAPI):
             raise SyncConflict('此任务未启用同步','binding_missing',400)
         if binding.mapping.sync_type == 'function_zone_to_occupancy':
             raise SyncConflict('L3 请使用父分区复核，不能调用 Room 复核接口', 'wrong_sync_profile', 400)
+        if binding.mapping.sync_type == 'occupancy_to_furniture_instances':
+            raise SyncConflict('L4 请使用家具实例复核，不能调用 Room 复核接口', 'wrong_sync_profile', 400)
         draft=get_object_or_404(AnnotationDraft,pk=request.data.get('draft_id'),task=task,user=request.user)
         refs=current_reference(binding)
         if request.data.get('reference_version')!=binding.applied_hash or request.data.get('expected_updated_at')!=draft.updated_at.isoformat().replace('+00:00','Z'):
@@ -174,11 +176,19 @@ class OccupancyReferenceApplyAPI(ReferenceSyncStatusAPI):
 
     @sync_atomic
     def post(self, request, *args, **kwargs):
-        from tasks.occupancy.reference import apply_reference
         task = self.task()
-        binding = ReferenceSyncBinding.objects.select_for_update().select_related('mapping__target_project').filter(target_task=task, mapping__enabled=True, mapping__sync_type='function_zone_to_occupancy', mapping__apply_policy='manual').first()
+        binding = ReferenceSyncBinding.objects.select_for_update().select_related('mapping__target_project').filter(
+            target_task=task,
+            mapping__enabled=True,
+            mapping__sync_type__in=('function_zone_to_occupancy', 'occupancy_to_furniture_instances'),
+            mapping__apply_policy='manual',
+        ).first()
         if not binding:
-            raise SyncConflict('未启用 L2 到 L3 手动参考更新', 'binding_missing', 400)
+            raise SyncConflict('未启用支持的手动参考更新', 'binding_missing', 400)
+        if binding.mapping.sync_type == 'function_zone_to_occupancy':
+            from tasks.occupancy.reference import apply_reference
+        else:
+            from tasks.furniture_instances.reference import apply_reference
         draft = get_object_or_404(AnnotationDraft.objects.select_for_update(), pk=request.data.get('draft_id'), task=task, user=request.user)
         try:
             draft = apply_reference(binding, draft, request.data, request.user)

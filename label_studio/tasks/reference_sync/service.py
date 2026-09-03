@@ -1,6 +1,7 @@
 import copy
 import logging
 import time
+import xml.etree.ElementTree as ET
 from datetime import timedelta
 from functools import wraps
 
@@ -20,6 +21,31 @@ logger = logging.getLogger(__name__)
 
 def is_occupancy(mapping):
     return mapping.sync_type == 'function_zone_to_occupancy'
+
+
+def is_furniture_instances(mapping):
+    return mapping.sync_type == 'occupancy_to_furniture_instances'
+
+
+def task_uses_furniture_instances(task):
+    """Detect the explicit L4 editor contract without relying on a binding.
+
+    A copied L4 project can temporarily have no enabled reference binding. Its
+    label config must still fail closed on formal submission instead of falling
+    through the generic annotation path without validation or provenance.
+    """
+    config = getattr(getattr(task, 'project', None), 'label_config', '')
+    if not isinstance(config, str) or not config:
+        return False
+    try:
+        root = ET.fromstring(config)
+    except ET.ParseError:
+        return False
+    return any(
+        element.tag.rsplit('}', 1)[-1].lower() == 'image'
+        and element.get('furnitureInstancesV1', '').lower() == 'true'
+        for element in root.iter()
+    )
 
 
 def source_room_mappings(task):
@@ -55,6 +81,9 @@ def profile_hash(results, mapping):
     if is_occupancy(mapping):
         from tasks.occupancy.reference import reference_hash as occupancy_hash
         return occupancy_hash(results)
+    if is_furniture_instances(mapping):
+        from tasks.furniture_instances.reference import reference_hash as furniture_instances_hash
+        return furniture_instances_hash(results)
     return reference_hash(results)
 
 
@@ -185,7 +214,11 @@ def process_binding(binding_id):
     binding = ReferenceSyncBinding.objects.select_for_update().select_related('mapping__target_project').get(pk=binding_id)
     if not binding.mapping.enabled:
         return False
-    if is_occupancy(binding.mapping) or binding.mapping.apply_policy == 'manual':
+    if (
+        is_occupancy(binding.mapping)
+        or is_furniture_instances(binding.mapping)
+        or binding.mapping.apply_policy == 'manual'
+    ):
         # This strategy is initialized explicitly and applied only by its owner.
         return False
     source, annotation = source_for(binding)
@@ -315,12 +348,33 @@ def current_reference(binding):
 def prepare_write(task, payload, instance=None, *, submission=False):
     """Called only inside sync_atomic, before saving or deleting any drafts."""
     binding = target_binding(task)
+    l4_config = task_uses_furniture_instances(task)
     if not binding:
+        if submission and l4_config:
+            raise SyncConflict(
+                'L4 家具实例项目缺少已启用的权威 L3 参考绑定；正式提交已停止，草稿不会被覆盖',
+                'furniture_instance_binding_required',
+            )
         return payload.get('result'), None
     binding = ReferenceSyncBinding.objects.select_for_update().select_related('mapping').get(pk=binding.id)
+    if l4_config and not is_furniture_instances(binding.mapping):
+        if submission:
+            raise SyncConflict(
+                'L4 家具实例项目绑定了错误的参考同步类型；正式提交已停止',
+                'furniture_instance_binding_mismatch',
+            )
+        return payload.get('result'), None
     if is_occupancy(binding.mapping):
         from tasks.occupancy.reference import prepare_write as occupancy_write
         return occupancy_write(task, payload, instance, binding, submission)
+    if is_furniture_instances(binding.mapping):
+        if not l4_config:
+            raise SyncConflict(
+                'L4 家具实例参考绑定的目标配置未启用 furnitureInstancesV1',
+                'furniture_instance_config_mismatch',
+            )
+        from tasks.furniture_instances.reference import prepare_write as furniture_instances_write
+        return furniture_instances_write(task, payload, instance, binding, submission)
     lock_target(task)
     refs = current_reference(binding)
     revision = payload.get('reference_version')
@@ -357,8 +411,47 @@ def response_tokens(instance):
     if is_occupancy(binding.mapping):
         from tasks.occupancy.reference import reference_hash as rh, manual_hash as mh
         return {'reference_version': rh(instance.result or []), 'base_manual_hash': mh(instance.result or [])}
+    if is_furniture_instances(binding.mapping):
+        from tasks.furniture_instances.reference import manual_hash as mh
+        from tasks.furniture_instances.reference import reference_hash as rh
+        return {'reference_version': rh(instance.result or []), 'base_manual_hash': mh(instance.result or [])}
     refs = reference_results(instance.result or [])
     return {'reference_version':reference_hash(refs),'base_manual_hash':manual_hash(instance.result or [])}
+
+
+def finalize_saved_result(instance):
+    """Stamp server-owned metadata that cannot exist before the first save.
+
+    A newly-created Annotation has no primary key during submission validation.
+    L4 provenance is therefore added immediately after ``serializer.save()`` in
+    the same outer sync transaction. Other sync profiles are byte-for-byte
+    unchanged.
+    """
+    binding = target_binding(instance.task)
+    l4_config = task_uses_furniture_instances(instance.task)
+    if l4_config and (not binding or not is_furniture_instances(binding.mapping)):
+        raise SyncConflict(
+            'L4 家具实例正式结果缺少正确的参考绑定，无法写入服务端 provenance',
+            'furniture_instance_binding_required',
+        )
+    if not binding or not is_furniture_instances(binding.mapping):
+        return instance
+    if not l4_config:
+        raise SyncConflict(
+            'L4 家具实例参考绑定的目标配置未启用 furnitureInstancesV1',
+            'furniture_instance_config_mismatch',
+        )
+    from tasks.furniture_instances.reference import stamp_provenance
+    result = stamp_provenance(
+        instance.result or [],
+        project_id=instance.project_id,
+        task_id=instance.task_id,
+        annotation_id=instance.id,
+    )
+    if result != (instance.result or []):
+        type(instance).objects.filter(pk=instance.pk).update(result=result)
+        instance.result = result
+    return instance
 
 
 def latest_reference_difference(binding):
@@ -396,8 +489,13 @@ def latest_reference_difference(binding):
 
 def binding_status(binding,user):
     from tasks.models import AnnotationDraft
-    if is_occupancy(binding.mapping):
-        from tasks.occupancy.reference import reference_hash as rh, manual_hash as mh, pending_reviews as pending
+    if is_occupancy(binding.mapping) or is_furniture_instances(binding.mapping):
+        if is_occupancy(binding.mapping):
+            from tasks.occupancy.reference import reference_hash as rh, manual_hash as mh, pending_reviews as pending
+        else:
+            from tasks.furniture_instances.reference import manual_hash as mh
+            from tasks.furniture_instances.reference import pending_reviews as pending
+            from tasks.furniture_instances.reference import reference_hash as rh
         desired, error = binding.desired_hash, ''
         try:
             _, source = source_for(binding)
