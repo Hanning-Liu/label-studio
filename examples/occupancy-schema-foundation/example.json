@@ -391,6 +391,8 @@
         "zone_id": "zone:study-work",
         "group_id": "group:desk"
       },
+      "source_version": "3333333333333333333333333333333333333333333333333333333333333333",
+      "parent_fingerprint": "abababababababababababababababababababababababababababababababab",
       "geometry": {
         "type": "Polygon",
         "coordinates": [
@@ -406,12 +408,52 @@
       "orientation": {
         "status": "unknown"
       },
+      "review_status": "reviewed",
+      "review_fingerprint": "02741713eeacaab47c97346cbdbc1b738f034b85eccbb2613c3ae2aa2e57e9ce",
       "provenance": {
         "project_id": 14,
         "task_id": 24,
         "annotation_id": 104,
-        "result_id": "ls:l4:desk-1"
-      }
+        "result_id": "ls:l4:desk-1:geometry"
+      },
+      "source_results": [
+        {
+          "role": "geometry",
+          "provenance": {
+            "project_id": 14,
+            "task_id": 24,
+            "annotation_id": 104,
+            "result_id": "ls:l4:desk-1:geometry"
+          },
+          "raw": {
+            "id": "ls:l4:desk-1:geometry",
+            "from_name": "furniture_instance_polygon",
+            "to_name": "image",
+            "type": "polygon",
+            "value": {
+              "points": [[64, 32], [72, 32], [72, 38], [64, 38]]
+            }
+          }
+        },
+        {
+          "role": "category",
+          "provenance": {
+            "project_id": 14,
+            "task_id": 24,
+            "annotation_id": 104,
+            "result_id": "ls:l4:desk-1:geometry"
+          },
+          "raw": {
+            "id": "ls:l4:desk-1:geometry",
+            "from_name": "furniture_instance_type",
+            "to_name": "image",
+            "type": "choices",
+            "value": {
+              "choices": ["desk"]
+            }
+          }
+        }
+      ]
     }
   ],
   "window_projections": [
