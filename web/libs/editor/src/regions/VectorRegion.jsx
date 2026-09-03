@@ -432,10 +432,12 @@ const Model = types
         self.vertices.replace(points);
         self.invalidateGeometryReview?.();
         if (!self.isDrawing) self.parent?.refreshOccupancyBarrier?.(self, { snap: true, threshold: 10, refreshReview: true });
+        if (!self.isDrawing) self.parent?.refreshWindowRegion?.(self);
       },
 
       onPathClosedChange(isClosed) {
         self.closed = isClosed;
+        if (!self.isDrawing) self.parent?.refreshWindowRegion?.(self);
       },
 
       setKonvaVectorRef(ref) {
@@ -635,7 +637,9 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const invalidBarrier = item.results.some(
     (result) => result.from_name?.name === "occupancy_barrier_vector" && result.meta?.occupancy_barrier_context?.match_error,
   );
-  const vectorStroke = invalidBarrier ? "#dc2626" : regionStyles.strokeColor;
+  const invalidWindow =
+    item.parent?.windowEnabled && item.results.some((result) => result.meta?.window_context?.derivation_error);
+  const vectorStroke = invalidBarrier || invalidWindow ? "#dc2626" : regionStyles.strokeColor;
 
   // Wait for stage to be properly initialized
   if (!item.parent?.stageWidth || !item.parent?.stageHeight) {

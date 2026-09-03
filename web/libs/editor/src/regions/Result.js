@@ -410,6 +410,20 @@ const Result = types
         } else if (data.meta.occupancy_context) {
           delete data.meta.occupancy_context;
         }
+        // Downstream window relations are server-owned geometry metadata. An
+        // area's shared snapshot must never copy them onto paired Labels.
+        for (const key of ["window_projections", "window_projection_state"]) {
+          if (meta?.[key] && (type === "rectangle" || type === "polygon")) data.meta[key] = meta[key];
+          else if (data.meta[key]) delete data.meta[key];
+        }
+        // Window ownership and pairing evidence belong to the VectorLabels
+        // result. An area's imported metadata is only an initial snapshot and
+        // must not overwrite a refreshed/stale context after vertex editing.
+        if (self.to_name.windowEnabled && meta?.window_context && type === "vectorlabels") {
+          data.meta.window_context = meta.window_context;
+        } else if (self.to_name.windowEnabled && data.meta.window_context) {
+          delete data.meta.window_context;
+        }
         if (!Object.keys(data.meta).length && !meta) delete data.meta;
       }
 

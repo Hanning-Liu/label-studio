@@ -359,6 +359,7 @@ const _Tool = types
         // For incomplete vector regions, don't trigger selectAfterCreate behavior
         if (!currentArea.incomplete) {
           self.obj.finalizeOccupancyRegion?.(currentArea);
+          self.obj.finalizeWindowRegion?.(currentArea);
           self.annotation.afterCreateResult(currentArea, control);
         }
       },
