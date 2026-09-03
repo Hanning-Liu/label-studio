@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import Modal from "antd/lib/modal";
 import { FurnitureInstanceControls } from "../FurnitureInstanceControls";
+import { effectiveFurnitureInstanceReviewStatus } from "../FurnitureInstanceOutliner";
 
 jest.mock("antd/lib/modal", () => ({ __esModule: true, default: { confirm: jest.fn() } }));
 
@@ -96,4 +97,21 @@ test("delete modal rejects after an unsaved local mutation and retry only saves 
   expect(controller.checkFurnitureInstancesReference).toHaveBeenCalledTimes(1);
   expect(annotation.saveDraftImmediatelyWithResults).toHaveBeenCalledTimes(3);
   expect(screen.getByRole("status")).toHaveTextContent("实例 instance-i 已从当前草稿删除");
+});
+
+test("parent fingerprint failures are shown as stale without rewriting saved context", () => {
+  const instance = {
+    id: "instance-i",
+    context: { review_status: "reviewed" },
+  };
+  expect(
+    effectiveFurnitureInstanceReviewStatus(instance, [
+      { code: "parent_stale", instanceId: "instance-i" },
+      { code: "review", instanceId: "instance-other" },
+    ]),
+  ).toBe("stale");
+  expect(effectiveFurnitureInstanceReviewStatus(instance, [{ code: "review", instanceId: "instance-i" }])).toBe(
+    "reviewed",
+  );
+  expect(instance.context.review_status).toBe("reviewed");
 });
