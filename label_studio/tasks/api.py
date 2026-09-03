@@ -25,7 +25,14 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task
-from tasks.reference_sync.service import prepare_write, sync_atomic, target_binding, snapshot, SyncConflict
+from tasks.reference_sync.service import (
+    SyncConflict,
+    prepare_source_annotation_result,
+    prepare_write,
+    snapshot,
+    sync_atomic,
+    target_binding,
+)
 from tasks.reference_sync.models import ReferenceSyncAudit
 from tasks.openapi_schema import (
     annotation_request_schema,
@@ -648,6 +655,10 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         annotation = serializer.instance
+        incoming_result = serializer.validated_data.get('result')
+        if incoming_result is not None:
+            normalized, _ = prepare_source_annotation_result(annotation.task, incoming_result)
+            serializer.validated_data['result'] = normalized
         base = annotation
         draft_id = self.request.data.get('draft_id')
         if draft_id and target_binding(annotation.task):
@@ -822,6 +833,9 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
 
         # updates history
         result = ser.validated_data.get('result')
+        if result is not None:
+            result, _ = prepare_source_annotation_result(task, result)
+            ser.validated_data['result'] = result
         extra_args = {'task_id': self.kwargs['pk'], 'project_id': task.project_id}
 
         # save stats about how well annotator annotations coincide with current prediction

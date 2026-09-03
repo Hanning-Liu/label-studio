@@ -104,3 +104,91 @@ test("reference-only server rebase advances manual baseline but not loaded refer
   controller.seed(current, { reference_version: "new", base_manual_hash: "b" }, { loaded: false });
   expect(current.setReferenceBaseline).toHaveBeenCalledWith({ reference_version: "new", base_manual_hash: "b" }, false);
 });
+
+test("bulk reference review saves first, removes duplicate ids and replaces from one response", async () => {
+  const { controller, current } = setup();
+  controller.state.status = { ...status, reference_version: "old" };
+  current.draftRevision = "2026-08-31T08:00:00Z";
+  controller.replace = jest.fn();
+  controller.request.mockResolvedValue({
+    id: 7,
+    updated_at: "2026-08-31T08:01:00Z",
+    reference_version: "old",
+    result: [],
+  });
+
+  await controller.review(["zone-a", "zone-a", "vector-b"]);
+
+  expect(current.saveDraftImmediatelyWithResults).toHaveBeenCalledTimes(1);
+  expect(controller.request).toHaveBeenCalledWith("/api/tasks/20/reference-sync/review/", {
+    draft_id: 7,
+    expected_updated_at: "2026-08-31T08:00:00Z",
+    reference_version: "old",
+    region_ids: ["zone-a", "vector-b"],
+  });
+  expect(controller.replace).toHaveBeenCalledTimes(1);
+});
+
+test("reference review refuses an empty eligible selection before saving", async () => {
+  const { controller, current } = setup();
+  await expect(controller.review([])).rejects.toThrow("没有可确认");
+  expect(current.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
+});
+
+test("source metadata repair uses the loaded annotation version and preserves local results", async () => {
+  const { controller, current } = setup();
+  controller.state.status = {
+    enabled: true,
+    mode: "source",
+    bindings: [{
+      source_metadata_repair_available: true,
+      source_annotation_updated_at: "2026-08-31T08:00:00Z",
+    }],
+  };
+  controller.request
+    .mockResolvedValueOnce({ repaired_portal_ids: ["portal"], repaired_room_ids: [] })
+    .mockResolvedValueOnce(controller.state.status);
+  await controller.repairSourceMetadata();
+  expect(controller.request).toHaveBeenNthCalledWith(1, "/api/tasks/20/reference-sync/repair-source/", {
+    expected_annotation_updated_at: "2026-08-31T08:00:00Z",
+  });
+  expect(current.draftResultFingerprint).toBe("saved");
+});
+
+test("source metadata repair refuses a dirty browser window", async () => {
+  const { controller, current } = setup();
+  controller.state.status = {
+    enabled: true,
+    mode: "source",
+    bindings: [{
+      source_metadata_repair_available: true,
+      source_annotation_updated_at: "2026-08-31T08:00:00Z",
+    }],
+  };
+  current.draftResultFingerprint = "dirty";
+  await expect(controller.repairSourceMetadata()).rejects.toThrow("未保存修改");
+  expect(controller.request).not.toHaveBeenCalled();
+});
+
+test("source metadata repair allows an unchanged legacy annotation without a saved fingerprint", async () => {
+  const { controller, current } = setup();
+  controller.state.status = {
+    enabled: true,
+    mode: "source",
+    bindings: [{
+      source_metadata_repair_available: true,
+      source_annotation_updated_at: "2026-08-31T08:00:00Z",
+    }],
+  };
+  current.savedResultFingerprint = null;
+  current.history = { hasChanges: false };
+  controller.request
+    .mockResolvedValueOnce({ repaired_portal_ids: ["portal"], repaired_room_ids: [] })
+    .mockResolvedValueOnce(controller.state.status);
+
+  await controller.repairSourceMetadata();
+
+  expect(controller.request).toHaveBeenNthCalledWith(1, "/api/tasks/20/reference-sync/repair-source/", {
+    expected_annotation_updated_at: "2026-08-31T08:00:00Z",
+  });
+});

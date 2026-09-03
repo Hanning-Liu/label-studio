@@ -16,7 +16,9 @@ from tasks.models import Annotation,AnnotationDraft,Prediction,Task
 from users.models import User
 from .models import ReferenceSyncAudit,ReferenceSyncBinding,ReferenceSyncMapping
 from .results import manual_hash,reference_hash,merge_results,pending_reviews,inside,validate_source,openings
-from .service import process_pending,reconcile,response_tokens,snapshot,process_binding,sync_atomic,prepare_write,SyncConflict
+from .service import (SyncConflict, enqueue_source, prepare_write, process_binding, process_pending,
+                      reconcile, response_tokens, snapshot, sync_atomic)
+from .room_metadata import geometry_digest, refresh_room_v3_metadata
 
 
 CONFIG='''<View><Image name="image" value="$image" roomV3Validate="true" functionZoneV3Validate="true"/>
@@ -179,6 +181,75 @@ class ReferenceSyncTests(TransactionTestCase):
         response=self.client.post(f'/api/tasks/{self.target.id}/annotations/',self.payload(draft),format='json')
         self.assertEqual(response.status_code,201,response.data)
         self.assertFalse(AnnotationDraft.objects.filter(pk=draft.id).exists())
+
+    def test_reference_review_records_precise_portal_change_context(self):
+        draft=self.draft()
+        self.change()
+        draft.refresh_from_db()
+        pending=pending_reviews(draft.result)
+        self.assertTrue(pending)
+        for item in pending:
+            self.assertEqual(item['changed_reference_ids'],['passage'])
+            self.assertEqual(item['changed_reference_types'],['portal'])
+            self.assertEqual(len(item['affected_room_ids']),1)
+
+    def test_review_survives_browser_reference_roundtrip_and_accumulates(self):
+        draft=self.draft()
+        self.change()
+        draft.refresh_from_db()
+        pending_ids=[item['id'] for item in pending_reviews(draft.result)]
+        self.assertGreater(len(pending_ids),1)
+
+        payload=self.payload(draft)
+        payload.pop('result')
+        payload['region_ids']=[pending_ids[0]]
+        reviewed=self.client.post(f'/api/tasks/{self.target.id}/reference-sync/review/',payload,format='json')
+        self.assertEqual(reviewed.status_code,200,reviewed.data)
+
+        draft.refresh_from_db()
+        browser_roundtrip=self.payload(draft)
+        room_result=next(r for r in browser_roundtrip['result'] if r.get('from_name')=='room_rectangle')
+        room_result['value']['x']+=0.125
+        saved=self.client.patch(f'/api/drafts/{draft.id}/',browser_roundtrip,format='json')
+        self.assertEqual(saved.status_code,200,saved.data)
+        draft.refresh_from_db()
+        self.assertNotIn(pending_ids[0],[item['id'] for item in pending_reviews(draft.result)])
+
+        remaining=[item['id'] for item in pending_reviews(draft.result)]
+        payload=self.payload(draft)
+        payload.pop('result')
+        payload['region_ids']=remaining
+        reviewed=self.client.post(f'/api/tasks/{self.target.id}/reference-sync/review/',payload,format='json')
+        self.assertEqual(reviewed.status_code,200,reviewed.data)
+        draft.refresh_from_db()
+        self.assertFalse(pending_reviews(draft.result))
+
+        browser_roundtrip=self.payload(draft)
+        next(r for r in browser_roundtrip['result'] if r.get('from_name')=='room_rectangle')['value']['x']+=0.25
+        saved=self.client.patch(f'/api/drafts/{draft.id}/',browser_roundtrip,format='json')
+        self.assertEqual(saved.status_code,200,saved.data)
+        draft.refresh_from_db()
+        self.assertFalse(pending_reviews(draft.result))
+        self.assertEqual(ReferenceSyncAudit.objects.filter(operation='user_review').count(),2)
+
+    def test_status_recovers_precise_context_for_legacy_pending_review(self):
+        draft=self.draft()
+        self.change()
+        draft.refresh_from_db()
+        for result in draft.result:
+            review=result.get('meta',{}).get('reference_review')
+            if review:
+                for key in ('changed_reference_ids','changed_reference_types','affected_room_ids'):
+                    review.pop(key,None)
+        draft.save(update_fields=['result','updated_at'])
+
+        response=self.client.get(f'/api/tasks/{self.target.id}/reference-sync/')
+        self.assertEqual(response.status_code,200,response.data)
+        summary=next(item for item in response.data['drafts'] if item['id']==draft.id)
+        self.assertTrue(summary['pending'])
+        for item in summary['pending']:
+            self.assertEqual(item['changed_reference_ids'],['passage'])
+            self.assertEqual(item['changed_reference_types'],['portal'])
 
     def test_missing_parent_retained_and_cannot_be_reviewed(self):
         draft=self.draft()
@@ -374,6 +445,75 @@ class ReferenceSyncTests(TransactionTestCase):
             validate_source(self.source.result+[invalid],CONFIG)
         with self.assertRaises(ValueError):
             validate_source(self.source.result,CONFIG.replace('<Label value="Hallway"/>',''))
+
+    def test_source_update_recomputes_portal_metadata_before_save(self):
+        stale = portal()
+        stale['value']['vertices'] = [{'x':50,'y':40},{'x':50,'y':50}]
+        submitted = copy.deepcopy(self.source.result) + [stale]
+        geometry_before = geometry_digest(submitted)
+        response = self.client.patch(
+            f'/api/annotations/{self.source.id}/',
+            {'result': submitted},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.source.refresh_from_db()
+        self.assertEqual(geometry_digest(self.source.result), geometry_before)
+        saved = next(result for result in self.source.result if result.get('id') == 'passage')
+        edge = saved['meta']['room_graph_edge']
+        self.assertEqual(edge['centerline'], [{'x':50.0,'y':40.0},{'x':50.0,'y':50.0}])
+        self.assertEqual(edge['boundary_segments']['hall'][0], edge['centerline'])
+        self.assertEqual(edge['boundary_segments']['bath'][0], edge['centerline'])
+        self.assertEqual(edge['clear_width_px'], 100.0)
+        self.assertEqual(process_pending(), 1)
+
+    def test_source_error_banner_repair_is_versioned_geometry_safe_and_resyncs(self):
+        stale = portal()
+        stale['value']['vertices'] = [{'x':50,'y':40},{'x':50,'y':50}]
+        dirty_result = copy.deepcopy(self.source.result) + [stale]
+        Annotation.objects.filter(pk=self.source.id).update(result=dirty_result)
+        self.source.refresh_from_db()
+        geometry_before = geometry_digest(self.source.result)
+        enqueue_source(self.task.id, self.source_project.id)
+        self.assertEqual(process_pending(), 0)
+        self.binding.refresh_from_db()
+        self.assertEqual(self.binding.status, 'blocked')
+
+        status = self.client.get(f'/api/tasks/{self.task.id}/reference-sync/')
+        self.assertEqual(status.status_code, 200, status.data)
+        current = status.data['bindings'][0]
+        self.assertTrue(current['source_metadata_repair_available'])
+        self.assertEqual(current['source_metadata_repair_portal_ids'], ['passage'])
+        expected = current['source_annotation_updated_at']
+        repaired = self.client.post(
+            f'/api/tasks/{self.task.id}/reference-sync/repair-source/',
+            {'expected_annotation_updated_at': expected},
+            format='json',
+        )
+        self.assertEqual(repaired.status_code, 200, repaired.data)
+        self.assertEqual(repaired.data['repaired_portal_ids'], ['passage'])
+        self.source.refresh_from_db()
+        self.assertEqual(geometry_digest(self.source.result), geometry_before)
+        self.assertTrue(ReferenceSyncAudit.objects.filter(operation='repair_source_metadata').exists())
+        self.assertEqual(process_pending(), 1)
+        self.binding.refresh_from_db()
+        self.assertEqual(self.binding.status, 'synced')
+
+        stale_request = self.client.post(
+            f'/api/tasks/{self.task.id}/reference-sync/repair-source/',
+            {'expected_annotation_updated_at': expected},
+            format='json',
+        )
+        self.assertEqual(stale_request.status_code, 409, stale_request.data)
+
+    def test_metadata_refresh_reports_stale_fields_without_mutating_input(self):
+        stale = portal()
+        stale['value']['vertices'] = [{'x':50,'y':40},{'x':50,'y':50}]
+        original = copy.deepcopy(self.source.result) + [stale]
+        refreshed, changes = refresh_room_v3_metadata(original)
+        self.assertEqual(changes['portal_ids'], ['passage'])
+        self.assertEqual(original[-1]['meta']['room_graph_edge']['boundary_segments']['hall'][0][0]['y'], 20)
+        self.assertEqual(refreshed[-1]['meta']['room_graph_edge']['boundary_segments']['hall'][0][0]['y'], 40.0)
 
     def test_linked_review_draft_updates_only_after_explicit_update(self):
         draft=self.draft()

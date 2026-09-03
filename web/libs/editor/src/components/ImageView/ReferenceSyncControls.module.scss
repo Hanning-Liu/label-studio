@@ -6,12 +6,117 @@
   background: #f5f9fd;
   font-size: 13px;
 
-  p { margin: 6px 0 0; }
-  [role="alert"] { color: #a02020; }
-  button { padding: 4px 8px; border: 1px solid #bac8d5; border-radius: 4px; background: white; cursor: pointer; }
-  button:disabled { opacity: 0.5; cursor: default; }
+  p {
+    margin: 6px 0 0;
+  }
+
+  [role="alert"] {
+    color: #a02020;
+  }
+
+  button {
+    padding: 4px 8px;
+    border: 1px solid #bac8d5;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 }
 
-.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.compact { padding: 0 0 4px; margin: 0 0 4px; border: 0; border-bottom: 1px solid #e0e7ef; border-radius: 0; background: transparent; }
-.review { margin-top: 8px; max-height: 220px; overflow: auto; }
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compact {
+  padding: 0 0 4px;
+  margin: 0 0 4px;
+  border: 0;
+  border-bottom: 1px solid #e0e7ef;
+  border-radius: 0;
+  background: transparent;
+}
+
+.review {
+  margin-top: 8px;
+  max-height: 440px;
+  overflow: auto;
+}
+
+.reviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 6px;
+}
+
+.reviewRow {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-top: 1px solid #dce5ee;
+  background: #fff;
+}
+
+.reviewRow:last-child {
+  border-bottom: 1px solid #dce5ee;
+}
+
+.swatch {
+  width: 10px;
+  height: 34px;
+  border-radius: 3px;
+}
+
+.reviewIdentity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reviewTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.reviewTitle code {
+  color: #687887;
+  font-size: 12px;
+}
+
+.reviewIdentity small {
+  color: #687887;
+  overflow-wrap: anywhere;
+}
+
+.targetBadge {
+  padding: 1px 6px;
+  border-radius: 10px;
+  color: #31516c;
+  background: #e8f1f8;
+  font-size: 12px;
+}
+
+.rowActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.confirmation p {
+  margin: 8px 0;
+}

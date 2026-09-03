@@ -790,6 +790,7 @@ export class LSFWrapper {
       const displayReason = result?.response?.display_context?.reason;
       const isPausedError = displayReason === "PAUSED";
       const isOverlapError = isFF(FF_FIT_1304_STRICT_OVERLAP) && displayReason === "OVERLAP_REACHED";
+      const isOccupancyValidation = displayReason === "OCCUPANCY_VALIDATION";
       if (isPausedError || isOverlapError) {
         // Also update local state for overlap reached (only when feature flag is enabled)
         if (isOverlapError) {
@@ -803,6 +804,13 @@ export class LSFWrapper {
             overlapReachedMessage: this.overlapReachedMessage,
           });
         }
+        return;
+      }
+      if (isOccupancyValidation) {
+        this.datamanager.invoke("toast", {
+          message: "L3 正式提交未通过，草稿已保留；请按错误窗口中的具体条目处理后重试。",
+          type: "error",
+        });
         return;
       }
 

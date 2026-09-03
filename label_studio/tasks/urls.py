@@ -4,7 +4,12 @@ from django.urls import include, path
 from rest_framework import routers
 
 from . import api
-from .reference_sync.api import ReferenceSyncStatusAPI, ReferenceSyncReviewAPI, OccupancyReferenceApplyAPI
+from .reference_sync.api import (
+    OccupancyReferenceApplyAPI,
+    ReferenceSyncRepairSourceAPI,
+    ReferenceSyncReviewAPI,
+    ReferenceSyncStatusAPI,
+)
 
 app_name = 'tasks'
 
@@ -17,6 +22,7 @@ _api_urlpatterns = [
     path('<int:pk>/', api.TaskAPI.as_view(), name='task-detail'),
     path('<int:pk>/annotations/', api.AnnotationsListAPI.as_view(), name='task-annotations'),
     path('<int:pk>/reference-sync/', ReferenceSyncStatusAPI.as_view(), name='task-reference-sync'),
+    path('<int:pk>/reference-sync/repair-source/', ReferenceSyncRepairSourceAPI.as_view(), name='task-reference-sync-repair-source'),
     path('<int:pk>/reference-sync/review/', ReferenceSyncReviewAPI.as_view(), name='task-reference-sync-review'),
     path('<int:pk>/reference-sync/apply/', OccupancyReferenceApplyAPI.as_view(), name='task-reference-sync-apply'),
     path('<int:pk>/drafts', api.AnnotationDraftListAPI.as_view(), name='task-drafts'),

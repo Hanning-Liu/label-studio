@@ -2,15 +2,8 @@ import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal } from "antd";
 import { exportWholeRoomRecovery } from "./WholeRoomInheritanceControls";
+import { buildReferenceReviewRows, referenceReviewSummary } from "./referenceReview";
 import styles from "./ReferenceSyncControls.module.scss";
-
-const reasons = {
-  source_missing: "来源房间已删除：保留分区，请人工处理归属",
-  outside_parent_room: "分区超出更新后的父房间：请人工调整",
-  room_or_portal_changed: "房间或开口变化：请核对分区及连通信息",
-  geometry_or_label_changed: "几何或类别变化：请重新核对",
-  geometry_corrected_needs_review: "几何问题已修正，请确认",
-};
 
 export const ReferenceSyncControls = observer(({ item, compact = false }) => {
   const controller = item.annotation.store.referenceSyncController;
@@ -27,8 +20,16 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
   const source = status?.mode === "source";
   const current = source ? status.bindings[0] : status;
   const historical = annotation.type !== "prediction" && !!annotation.pk && !annotation.draftSelected;
+  const hasLocalEdits =
+    annotation.savedResultFingerprint !== null && annotation.savedResultFingerprint !== undefined
+      ? annotation.savedResultFingerprint !== annotation.draftResultFingerprint
+      : !!annotation.history?.hasChanges &&
+        (!annotation.draftSaved || new Date(annotation.history.lastAdditionTime) > new Date(annotation.draftSaved));
   const changed = !source && current?.reference_version && annotation.referenceVersion !== current.reference_version;
-  const pending = annotation.results.filter((result) => result.meta?.reference_review?.status === "pending");
+  const repairable = source && current?.source_metadata_repair_available;
+  const draftStatus = current?.drafts?.find((draft) => Number(draft.id) === Number(annotation.draftId));
+  const pending = buildReferenceReviewRows(annotation.results, draftStatus?.pending || []);
+  const eligible = pending.filter((row) => row.eligible);
   const disabled =
     item.vectorReviewBusy ||
     state.busy ||
@@ -51,11 +52,32 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
       .then(operation)
       .catch(() => {});
   };
-  const locate = (result) => {
+  const locate = (row) => {
+    const result = row.result;
     const parent = result.meta?.partition_context?.parent_room_id;
     if (parent && item.roomReferenceRegions.some((room) => room.cleanId === parent)) item.setFocusedRoom(parent);
     annotation.unselectAreas();
     if (result.area) annotation.selectAreas([result.area]);
+  };
+  const reviewAll = () => {
+    const summary = referenceReviewSummary(eligible);
+    const excluded = pending.length - eligible.length;
+    Modal.confirm({
+      title: `确认全部可复核对象（${eligible.length}）`,
+      content: (
+        <div className={styles.confirmation}>
+          <p>
+            功能分区 {summary.zones} 个，交通连通 Vector {summary.connections} 个，视觉连通 Vector {summary.visuals}{" "}
+            个。
+          </p>
+          {excluded > 0 && <p>{excluded} 个父房间缺失或越界对象不会被批量确认，仍需人工修正。</p>}
+          <p>该操作表示你已逐项检查这些参考变化；不会确认 Vector 几何复核、整室分区类别，也不会提交任务。</p>
+        </div>
+      ),
+      okText: "已检查，确认全部",
+      cancelText: "取消",
+      onOk: () => controller.review(eligible.map((row) => row.id)),
+    });
   };
   const details = (
     <>
@@ -76,25 +98,39 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
       {expanded && !source && !historical && (
         <div className={styles.review}>
           <p>逐项检查后确认。此操作仅记录参考变更复核，不替代整室分区类别确认或标注提交。</p>
+          <div className={styles.reviewHeader}>
+            <strong>待复核对象 {pending.length} 个</strong>
+            <button type="button" disabled={disabled || changed || !eligible.length} onClick={reviewAll}>
+              全部确认参考复核（{eligible.length}）
+            </button>
+          </div>
           {!pending.length && <p>当前草稿没有待处理的参考变更。</p>}
-          {pending.map((result) => (
-            <div key={`${result.area?.id}:${result.from_name.name}`} className={styles.actions}>
-              <code>{result.area?.cleanId}</code>
-              <span>{reasons[result.meta.reference_review.reason] || "参考变化待复核"}</span>
-              <button type="button" onClick={() => locate(result)}>
-                定位
-              </button>
-              <button
-                type="button"
-                disabled={
-                  disabled ||
-                  changed ||
-                  ["source_missing", "outside_parent_room"].includes(result.meta.reference_review.reason)
-                }
-                onClick={() => run(() => controller.review([result.area.cleanId]))}
-              >
-                已检查，确认复核
-              </button>
+          {pending.map((row) => (
+            <div key={row.id} className={styles.reviewRow}>
+              <span className={styles.swatch} style={{ backgroundColor: row.color }} aria-hidden="true" />
+              <div className={styles.reviewIdentity}>
+                <div className={styles.reviewTitle}>
+                  <strong>{row.targetLabel}</strong>
+                  <span className={styles.targetBadge}>{row.targetType}</span>
+                  <code>{row.id}</code>
+                </div>
+                <span>触发原因：{row.triggerLabel}</span>
+                {!!row.review.changed_reference_ids?.length && (
+                  <small>变化的参考 ID：{row.review.changed_reference_ids.join("、")}</small>
+                )}
+              </div>
+              <div className={styles.rowActions}>
+                <button type="button" onClick={() => locate(row)}>
+                  定位
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled || changed || !row.eligible}
+                  onClick={() => run(() => controller.review([row.id]))}
+                >
+                  已检查，确认复核
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -119,6 +155,16 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
             打开 L2 任务 {current.target_task_id}
           </a>
         )}
+        {repairable && failed && (
+          <button
+            type="button"
+            disabled={disabled || hasLocalEdits}
+            onClick={() => run(() => controller.repairSourceMetadata())}
+            title={hasLocalEdits ? "请先保存或撤销当前窗口修改" : "只重算派生元数据，不改变房间或 Portal 几何"}
+          >
+            修复 Portal 元数据并重新同步
+          </button>
+        )}
         {!source && changed && !historical && (
           <button type="button" disabled={disabled} onClick={() => run(() => controller.apply())}>
             保存人工修改并安全应用新参考
@@ -134,7 +180,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
             参考变更待复核（{pending.length}）
           </button>
         )}
-        {(failed || workerDown) && (
+        {((failed && !repairable) || workerDown) && (
           <button type="button" disabled={disabled} onClick={() => run(() => controller.retry())}>
             重试同步
           </button>

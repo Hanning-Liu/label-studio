@@ -200,26 +200,81 @@ def diff_refs(old, new):
     b = {r['id']:r for r in normalized_refs(new)}
     changed = {key for key in a.keys() | b.keys() if a.get(key) != b.get(key)}
     affected = set()
+    references = []
     for key in changed:
+        reference_types = set()
+        affected_for_reference = set()
         for r in (a.get(key), b.get(key)):
             if not r:
                 continue
             if r['from_name'] in ROOMS:
+                reference_types.add('room')
                 affected.add(key)
+                affected_for_reference.add(key)
             else:
+                reference_types.add('portal')
                 edge = r.get('meta', {}).get('room_graph_edge', {})
-                affected.update(edge.get('connected_room_ids') or edge.get('room_ids') or [])
+                room_ids = edge.get('connected_room_ids') or edge.get('room_ids') or []
+                affected.update(room_ids)
+                affected_for_reference.update(room_ids)
+        references.append({
+            'id': key,
+            'types': sorted(reference_types),
+            'affected_room_ids': sorted(affected_for_reference),
+        })
     return {'added': sorted(b.keys()-a.keys()), 'deleted': sorted(a.keys()-b.keys()),
-            'changed': sorted(changed & a.keys() & b.keys()), 'affected_rooms': sorted(affected)}
+            'changed': sorted(changed & a.keys() & b.keys()), 'affected_rooms': sorted(affected),
+            'references': sorted(references, key=lambda item: item['id'])}
+
+
+def _segment_touches_polygon(segment, polygon):
+    return segment and polygon and (
+        any(point_in_polygon(point, polygon) for point in segment)
+        or any(intersection_t(*segment, *edge) is not None for edge in edges(polygon))
+    )
+
+
+def reference_review_context(result, difference, room_results):
+    """Return the exact upstream reference kinds relevant to one review row."""
+    affected = set(difference.get('affected_rooms', []))
+    control = result.get('from_name')
+    if control in ZONES:
+        parent = result.get('meta', {}).get('partition_context', {}).get('parent_room_id')
+        touched = {parent} if parent in affected else set()
+    elif control in VECTORS:
+        segment = result_segment(result)
+        touched = {
+            room_id for room_id in affected
+            if any(
+                room.get('id') == room_id and _segment_touches_polygon(segment, result_polygon(room))
+                for room in room_results
+            )
+        }
+    else:
+        touched = set()
+    relevant = [
+        change for change in difference.get('references', [])
+        if touched.intersection(change.get('affected_room_ids', []))
+    ]
+    return {
+        'changed_reference_ids': sorted({change['id'] for change in relevant}),
+        'changed_reference_types': sorted({kind for change in relevant for kind in change.get('types', [])}),
+        'affected_room_ids': sorted(touched),
+    }
 
 
 def merge_results(results, refs, revision, *, prior=None):
     """Never replace user geometry, IDs, labels, assignments, or Relations."""
-    difference = diff_refs(results, refs)
+    # A regular draft/annotation save must compare the server-owned previous
+    # references with the authoritative references. Browser serialization can
+    # legitimately normalize readonly objects and must not re-issue reviews.
+    # The synchronization worker has no ``prior`` and still compares the old
+    # copied references in ``results`` with the new authoritative set.
+    prior = results if prior is None else prior
+    difference = diff_refs(prior, refs)
     affected = set(difference['affected_rooms'])
     rooms = {r['id']:result_polygon(r) for r in refs if r['from_name'] in ROOMS}
-    all_rooms = {r['id']:result_polygon(r) for r in reference_results(results)+refs if r['from_name'] in ROOMS}
-    prior = results if prior is None else prior
+    all_room_results = [r for r in reference_results(prior)+refs if r['from_name'] in ROOMS]
     previous = {(r.get('id'),r.get('from_name')):r for r in prior}
     manual = copy.deepcopy([r for r in results if r.get('from_name') not in REFERENCES])
     for r in manual:
@@ -248,17 +303,21 @@ def merge_results(results, refs, revision, *, prior=None):
                 meta['zone_inheritance']['review_status'] = 'pending'
         else:
             seg = result_segment(r)
-            if seg and any(poly and (any(point_in_polygon(p,poly) for p in seg) or any(intersection_t(*seg,*e) is not None for e in edges(poly)))
-                           for key,poly in all_rooms.items() if key in affected):
+            if seg and any(room.get('id') in affected and _segment_touches_polygon(seg, result_polygon(room))
+                           for room in all_room_results):
                 reason = 'room_or_portal_changed'
         content_hash = region_hash(manual, r.get('id'))
         if reason:
             review = {'status':'pending','revision':revision,'reason':reason,'content_hash':content_hash}
+            if reason == 'room_or_portal_changed':
+                review.update(reference_review_context(r, difference, all_room_results))
         elif review:
             if review.get('revision') != revision:
                 review['revision'] = revision
             if review.get('content_hash') != content_hash:
                 review.update(status='pending',content_hash=content_hash,reason='geometry_or_label_changed')
+                for key in ('changed_reference_ids','changed_reference_types','affected_room_ids'):
+                    review.pop(key,None)
             if review.get('reason') in {'source_missing','outside_parent_room'} and control in ZONES:
                 review['reason'] = 'geometry_corrected_needs_review'
         if review:
@@ -268,9 +327,24 @@ def merge_results(results, refs, revision, *, prior=None):
     return copy.deepcopy(refs)+manual
 
 
-def pending_reviews(results):
-    return [{'id':r.get('id'),'from_name':r.get('from_name'),'reason':r['meta']['reference_review'].get('reason')}
-            for r in results if r.get('meta',{}).get('reference_review',{}).get('status') == 'pending']
+def pending_reviews(results, difference=None, room_results=None):
+    output, seen = [], set()
+    room_results = room_results or [r for r in reference_results(results) if r.get('from_name') in ROOMS]
+    for r in results:
+        review = r.get('meta',{}).get('reference_review',{})
+        region_id = r.get('id')
+        if review.get('status') != 'pending' or not region_id or region_id in seen:
+            continue
+        seen.add(region_id)
+        item = {'id':region_id,'from_name':r.get('from_name'),'reason':review.get('reason')}
+        context = {key: copy.deepcopy(review.get(key)) for key in (
+            'changed_reference_ids', 'changed_reference_types', 'affected_room_ids'
+        ) if review.get(key) is not None}
+        if difference and not context.get('changed_reference_types'):
+            context = reference_review_context(r, difference, room_results)
+        item.update(context)
+        output.append(item)
+    return output
 
 
 def validate_submission(results):

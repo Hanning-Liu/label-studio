@@ -6,7 +6,16 @@ export function isReferenceBusy(annotation, pointerDown = false) {
 }
 
 export function hasReferenceEdits(annotation) {
-  return annotation.savedResultFingerprint !== annotation.draftResultFingerprint;
+  if (!annotation) return false;
+  if (annotation.savedResultFingerprint !== null && annotation.savedResultFingerprint !== undefined) {
+    return annotation.savedResultFingerprint !== annotation.draftResultFingerprint;
+  }
+  if (annotation.history?.hasChanges && !annotation.draftSaved) return true;
+  if (
+    annotation.history?.hasChanges &&
+    new Date(annotation.history.lastAdditionTime) > new Date(annotation.draftSaved)
+  ) return true;
+  return false;
 }
 
 const derivedState = (results) => JSON.stringify((results || []).filter((result) => result.meta?.reference_review || result.meta?.partition_context)
@@ -135,6 +144,31 @@ export class ReferenceSyncController {
       await this.poll();
     } catch (error) { this.emit({ error: error.message }); }
   }
+  async repairSourceMetadata() {
+    const annotation = this.annotation;
+    const status = this.state.status;
+    const current = status?.mode === "source" ? status.bindings?.[0] : null;
+    if (!current?.source_metadata_repair_available) throw new Error("当前没有可安全修复的 Room v3 派生元数据");
+    if (this.busy(annotation, true) || hasReferenceEdits(annotation))
+      throw new Error("当前窗口还有未保存修改，请先完成或撤销修改，再修复已提交标注");
+    if (!current.source_annotation_updated_at) throw new Error("缺少来源标注版本，请重新加载同步状态");
+    this.applying = true;
+    this.emit({ busy: true, error: "" });
+    try {
+      const repaired = await this.request(`/api/tasks/${this.taskId}/reference-sync/repair-source/`, {
+        expected_annotation_updated_at: current.source_annotation_updated_at,
+      });
+      const count = (repaired.repaired_portal_ids?.length || 0) + (repaired.repaired_room_ids?.length || 0);
+      this.emit({ notice: `已修复 ${count} 个 Room/Portal 的派生元数据，正在重新同步；几何和类别未改变` });
+    } catch (error) {
+      this.emit({ error: error.message });
+      throw error;
+    } finally {
+      this.applying = false;
+      this.emit({ busy: false });
+    }
+    await this.poll();
+  }
   async apply(explicit = true, enterReview = false) {
     if (this.state.status?.apply_policy === "manual") {
       if (!explicit) return;
@@ -216,6 +250,8 @@ export class ReferenceSyncController {
   }
   async review(regionIds) {
     const annotation = this.annotation;
+    const uniqueRegionIds = [...new Set((regionIds || []).filter((id) => typeof id === "string" && id))];
+    if (!uniqueRegionIds.length) throw new Error("当前没有可确认的参考复核对象");
     if (this.busy(annotation, true)) throw new Error("请先完成绘制或等待保存完成");
     if (annotation.referenceVersion !== this.state.status?.reference_version)
       throw new Error("请先安全应用最新参考，再确认复核");
@@ -226,12 +262,12 @@ export class ReferenceSyncController {
       const fingerprint = annotation.draftResultFingerprint;
       const raw = await this.request(`/api/tasks/${this.taskId}/reference-sync/review/`, {
         draft_id: annotation.draftId, expected_updated_at: annotation.draftRevision,
-        reference_version: annotation.referenceVersion, region_ids: regionIds,
+        reference_version: annotation.referenceVersion, region_ids: uniqueRegionIds,
       });
       if (this.stopped || annotation !== this.annotation || fingerprint !== annotation.draftResultFingerprint ||
           isReferenceBusy(annotation, this.pointerDown)) throw new Error("复核期间画面发生修改，已保留本地内容，请重新核对");
       this.replace(annotation, raw, true);
-      this.emit({ notice: "已保存参考变更复核；尚未提交功能分区标注" });
+      this.emit({ notice: `已保存 ${uniqueRegionIds.length} 个对象的参考变更复核；尚未提交功能分区标注` });
     } catch (error) { this.emit({ error: error.message }); throw error; }
     finally { this.applying = false; this.emit({ busy: false }); }
     await this.poll();

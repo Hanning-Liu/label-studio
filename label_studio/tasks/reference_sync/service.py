@@ -13,12 +13,42 @@ from rest_framework.exceptions import APIException
 from .models import ReferenceSyncAudit, ReferenceSyncBinding, ReferenceSyncMapping
 from .results import (REFERENCES, ROOMS, digest, manual_hash, merge_results, pending_reviews,
                       reference_hash, reference_results, validate_source, validate_submission, diff_refs)
+from .room_metadata import RoomV3MetadataError, refresh_room_v3_metadata
 
 logger = logging.getLogger(__name__)
 
 
 def is_occupancy(mapping):
     return mapping.sync_type == 'function_zone_to_occupancy'
+
+
+def source_room_mappings(task):
+    return list(ReferenceSyncMapping.objects.filter(
+        enabled=True,
+        source_project_id=task.project_id,
+        sync_type='room_to_function_zone',
+    ).select_related('target_project'))
+
+
+def prepare_source_annotation_result(task, results):
+    """Normalize server-owned Room v3 metadata before a formal save.
+
+    Drafts stay permissive.  A submitted source annotation, however, must not
+    persist geometry together with stale derived metadata, because downstream
+    reference synchronization treats the formal annotation as authoritative.
+    """
+    mappings = source_room_mappings(task)
+    if not mappings:
+        return results, {'room_ids': [], 'portal_ids': []}
+    try:
+        refreshed, changes = refresh_room_v3_metadata(results)
+        for mapping in mappings:
+            validate_source(refreshed, mapping.target_project.label_config)
+        return refreshed, changes
+    except RoomV3MetadataError as exc:
+        raise SyncConflict(str(exc), 'invalid_room_v3_geometry', 400) from exc
+    except (ValueError, TypeError, KeyError) as exc:
+        raise SyncConflict(str(exc), 'invalid_room_v3_source', 400) from exc
 
 
 def profile_hash(results, mapping):
@@ -32,8 +62,10 @@ class SyncConflict(APIException):
     status_code = 409
     default_code = 'reference_sync_conflict'
 
-    def __init__(self, message, code='reference_sync_conflict', status=409):
+    def __init__(self, message, code='reference_sync_conflict', status=409, display_context=None):
         self.status_code = status
+        if display_context is not None:
+            self.display_context = display_context
         super().__init__({'detail':message, 'code':code})
 
 
@@ -69,6 +101,29 @@ def source_for(binding):
     if binding.source_data_hash and binding.source_data_hash != digest(task.data):
         raise ValueError('来源图片数据已变化，不自动替换已有 L2 图片')
     return task, annotation
+
+
+def source_metadata_repair_status(binding):
+    """Describe whether a blocked source can be repaired without geometry edits."""
+    try:
+        _, annotation = source_for(binding)
+        refreshed, changes = refresh_room_v3_metadata(annotation.result)
+        validate_source(refreshed, binding.mapping.target_project.label_config)
+        changed = bool(changes['room_ids'] or changes['portal_ids'])
+        return {
+            'source_metadata_repair_available': changed,
+            'source_metadata_repair_room_ids': changes['room_ids'],
+            'source_metadata_repair_portal_ids': changes['portal_ids'],
+            'source_annotation_updated_at': annotation.updated_at,
+            'source_metadata_repair_error': '',
+        }
+    except (RoomV3MetadataError, ValueError, TypeError, KeyError) as exc:
+        return {
+            'source_metadata_repair_available': False,
+            'source_metadata_repair_room_ids': [],
+            'source_metadata_repair_portal_ids': [],
+            'source_metadata_repair_error': str(exc),
+        }
 
 
 def enqueue_source(source_task_id, source_project_id):
@@ -306,6 +361,39 @@ def response_tokens(instance):
     return {'reference_version':reference_hash(refs),'base_manual_hash':manual_hash(instance.result or [])}
 
 
+def latest_reference_difference(binding):
+    """Recover precise change provenance for legacy pending reviews.
+
+    New reviews persist this context on their geometry result. Older drafts only
+    stored the generic reason, but the immutable synchronization audit still
+    contains both reference snapshots, so the status endpoint can describe the
+    exact source without mutating the draft.
+    """
+    audit = ReferenceSyncAudit.objects.filter(
+        binding=binding,
+        source_hash=binding.applied_hash,
+        operation__in=('create', 'sync'),
+    ).order_by('-id').first()
+    if not audit:
+        return None, []
+    if audit.summary.get('references') is not None:
+        difference = audit.summary
+    else:
+        def prediction_result(snapshot):
+            candidates = snapshot.get('predictions', []) if isinstance(snapshot, dict) else []
+            selected = next((p for p in candidates if p.get('id') == binding.prediction_id), None)
+            return selected.get('result', []) if selected else []
+        difference = diff_refs(prediction_result(audit.before), prediction_result(audit.after))
+    room_results = [
+        r for snapshot in (audit.before, audit.after)
+        for prediction in (snapshot.get('predictions', []) if isinstance(snapshot, dict) else [])
+        if prediction.get('id') == binding.prediction_id
+        for r in reference_results(prediction.get('result', []))
+        if r.get('from_name') in ROOMS
+    ]
+    return difference, room_results
+
+
 def binding_status(binding,user):
     from tasks.models import AnnotationDraft
     if is_occupancy(binding.mapping):
@@ -327,11 +415,14 @@ def binding_status(binding,user):
     heartbeat = binding.mapping.worker_heartbeat
     alive = heartbeat is not None and (timezone.now()-heartbeat).total_seconds()<15
     drafts = list(AnnotationDraft.objects.filter(task_id=binding.target_task_id,user=user)) if binding.target_task_id else []
+    difference, audit_rooms = latest_reference_difference(binding)
     summaries = [{'id':d.id,'annotation_id':d.annotation_id,'updated_at':d.updated_at,
-                  'base_manual_hash':manual_hash(d.result),'pending':pending_reviews(d.result)} for d in drafts]
+                  'base_manual_hash':manual_hash(d.result),
+                  'pending':pending_reviews(d.result,difference,audit_rooms)} for d in drafts]
+    repair = source_metadata_repair_status(binding)
     return {'enabled':binding.mapping.enabled,'source_task_id':binding.source_task_id,
         'source_project_id':binding.mapping.source_project_id,'source_annotation_id':binding.source_annotation_id,
         'target_task_id':binding.target_task_id,'target_project_id':binding.mapping.target_project_id,
         'status':binding.status,'source_version':binding.desired_hash,'reference_version':binding.applied_hash,
         'last_synced_at':binding.last_synced_at,'worker_alive':alive,'error':binding.error,
-        'drafts':summaries,'needs_review':any(d['pending'] for d in summaries)}
+        'drafts':summaries,'needs_review':any(d['pending'] for d in summaries), **repair}
