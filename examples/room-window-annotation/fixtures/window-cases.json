@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "coordinate_system": "image_percent",
+  "image": {
+    "width": 1000,
+    "height": 800
+  },
+  "matching_policy": {
+    "pairing_rule": "mutual_outward_projection",
+    "boundary_match_tolerance_px": 2,
+    "pair_search_limit_px": 40,
+    "minimum_projected_overlap_px": 8,
+    "maximum_tangent_delta_deg": 10,
+    "flattening_tolerance_px": 0.5,
+    "lower_level_inward_projection_limit_px": 60
+  },
+  "parent_assignment_cases": [
+    {
+      "name": "line-unique-room",
+      "rooms": [
+        {
+          "id": "room:left",
+          "ring": [[0, 0], [50, 0], [50, 100], [0, 100]]
+        },
+        {
+          "id": "room:right",
+          "ring": [[52, 0], [100, 0], [100, 100], [52, 100]]
+        }
+      ],
+      "window": {
+        "id": "window:line-left",
+        "from_name": "window_vector",
+        "to_name": "image",
+        "type": "vectorlabels",
+        "path_kind": "line",
+        "value": {
+          "closed": false,
+          "vectorlabels": ["Window"],
+          "vertices": [
+            {"id": "line-left-1", "x": 50, "y": 20, "isBezier": false},
+            {"id": "line-left-2", "x": 50, "y": 40, "isBezier": false, "prevPointId": "line-left-1"}
+          ]
+        }
+      },
+      "expected": {
+        "status": "unique",
+        "parent_room_id": "room:left",
+        "matched_room_ids": ["room:left"]
+      }
+    },
+    {
+      "name": "polyline-missing-room",
+      "rooms": [
+        {
+          "id": "room:left",
+          "ring": [[0, 0], [50, 0], [50, 100], [0, 100]]
+        },
+        {
+          "id": "room:right",
+          "ring": [[52, 0], [100, 0], [100, 100], [52, 100]]
+        }
+      ],
+      "window": {
+        "id": "window:polyline-gap",
+        "from_name": "window_vector",
+        "to_name": "image",
+        "type": "vectorlabels",
+        "path_kind": "polyline",
+        "value": {
+          "closed": false,
+          "vectorlabels": ["Window"],
+          "vertices": [
+            {"id": "poly-gap-1", "x": 51, "y": 20, "isBezier": false},
+            {"id": "poly-gap-2", "x": 51, "y": 30, "isBezier": false, "prevPointId": "poly-gap-1"},
+            {"id": "poly-gap-3", "x": 51, "y": 40, "isBezier": false, "prevPointId": "poly-gap-2"}
+          ]
+        }
+      },
+      "expected": {
+        "status": "missing",
+        "parent_room_id": null,
+        "matched_room_ids": []
+      }
+    },
+    {
+      "name": "bezier-ambiguous-shared-boundary",
+      "rooms": [
+        {
+          "id": "room:left",
+          "ring": [[0, 0], [50, 0], [50, 100], [0, 100]]
+        },
+        {
+          "id": "room:right",
+          "ring": [[50, 0], [100, 0], [100, 100], [50, 100]]
+        }
+      ],
+      "window": {
+        "id": "window:bezier-ambiguous",
+        "from_name": "window_vector",
+        "to_name": "image",
+        "type": "vectorlabels",
+        "path_kind": "bezier",
+        "value": {
+          "closed": false,
+          "vectorlabels": ["Window"],
+          "vertices": [
+            {
+              "id": "bezier-ambiguous-1",
+              "x": 50,
+              "y": 55,
+              "isBezier": true,
+              "controlPoint1": {"x": 50, "y": 55},
+              "controlPoint2": {"x": 50, "y": 60}
+            },
+            {
+              "id": "bezier-ambiguous-2",
+              "x": 50,
+              "y": 70,
+              "isBezier": true,
+              "prevPointId": "bezier-ambiguous-1",
+              "controlPoint1": {"x": 50, "y": 65},
+              "controlPoint2": {"x": 50, "y": 70}
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "ambiguous",
+        "parent_room_id": null,
+        "matched_room_ids": ["room:left", "room:right"]
+      }
+    }
+  ],
+  "pairing_cases": [
+    {
+      "name": "mutual-best-internal-window",
+      "traces": [
+        {
+          "id": "window:left-side",
+          "parent_room_id": "room:left",
+          "outward_normal": [1, 0],
+          "path_kind": "line",
+          "vertices": [[50, 20], [50, 40]],
+          "fingerprint": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "id": "window:right-side",
+          "parent_room_id": "room:right",
+          "outward_normal": [-1, 0],
+          "path_kind": "line",
+          "vertices": [[52, 20], [52, 40]],
+          "fingerprint": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ],
+      "search_completed": true,
+      "expected_kind": "internal",
+      "expected": {
+        "trace_ids": ["window:left-side", "window:right-side"],
+        "connected_room_ids": ["room:left", "room:right"],
+        "distance_px": 20,
+        "projected_overlap_px": 160,
+        "mutual_best": true
+      }
+    },
+    {
+      "name": "completed-zero-candidate-exterior-window",
+      "traces": [
+        {
+          "id": "window:left-exterior",
+          "parent_room_id": "room:left",
+          "outward_normal": [-1, 0],
+          "path_kind": "polyline",
+          "vertices": [[0, 60], [0, 68], [0, 75]],
+          "fingerprint": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ],
+      "search_completed": true,
+      "expected_kind": "exterior",
+      "expected": {
+        "trace_ids": ["window:left-exterior"],
+        "connected_room_ids": ["room:left"],
+        "connects_to_exterior": true,
+        "candidate_count": 0,
+        "search_limit_px": 40,
+        "algorithm_version": "window-pairing/1",
+        "review_status": "derived",
+        "source_trace_fingerprint": "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    }
+  ]
+}

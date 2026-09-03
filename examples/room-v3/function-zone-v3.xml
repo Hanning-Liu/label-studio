@@ -51,6 +51,11 @@
     <Label value="Pipe" background="#9E9E9E" />
   </PolygonLabels>
 
+  <VectorLabels name="window_vector" toName="image" choice="single" closable="false" curves="true"
+    minPoints="2" snap="pixel" strokeWidth="5" pointSize="medium" showInline="true">
+    <Label value="Window" background="#1677FF" />
+  </VectorLabels>
+
   </View>
   <Header value="1. Room v3 Portal 参考（只读）" size="5" />
   <RectangleLabels name="portal_rectangle" toName="image" snap="pixel" canRotate="true">
