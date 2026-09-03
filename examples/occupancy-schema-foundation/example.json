@@ -1,0 +1,517 @@
+{
+  "schema": "floorplan-unified/4",
+  "created_at": "2026-09-03T12:00:00Z",
+  "floorplan": {
+    "id": "floorplan:example",
+    "image_id": "example-floorplan.png",
+    "width": 1000,
+    "height": 800
+  },
+  "sources": {
+    "format": "label-studio",
+    "room": {
+      "project_id": 10,
+      "task_id": 20,
+      "annotation_id": 100,
+      "input_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "zone": {
+      "project_id": 11,
+      "task_id": 21,
+      "annotation_id": 101,
+      "input_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "occupancy": {
+      "project_id": 12,
+      "task_id": 22,
+      "annotation_id": 102,
+      "input_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "window": {
+      "project_id": 13,
+      "task_id": 23,
+      "annotation_id": 103,
+      "input_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "furniture_instance": {
+      "project_id": 14,
+      "task_id": 24,
+      "annotation_id": 104,
+      "input_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    }
+  },
+  "raw_inputs": {},
+  "nodes": [
+    {
+      "id": "room:living",
+      "kind": "room",
+      "label": "Living room",
+      "code": "R01",
+      "color": "#2E8B57"
+    },
+    {
+      "id": "room:study",
+      "kind": "room",
+      "label": "Study room",
+      "code": "R02",
+      "color": "#6A5ACD"
+    },
+    {
+      "id": "zone:living-social",
+      "kind": "zone",
+      "label": "Living/social",
+      "code": "Z01",
+      "color": "#3CB371",
+      "parent_room_id": "room:living"
+    },
+    {
+      "id": "zone:study-work",
+      "kind": "zone",
+      "label": "Study/work",
+      "code": "Z02",
+      "color": "#9370DB",
+      "parent_room_id": "room:study"
+    },
+    {
+      "id": "group:desk",
+      "kind": "furniture_group",
+      "label": "Study/work",
+      "code": "F01",
+      "color": "#C47A2C",
+      "parent_room_id": "room:study",
+      "parent_zone_id": "zone:study-work",
+      "occupancy_region_id": "occupancy:desk"
+    },
+    {
+      "id": "walkable:study",
+      "kind": "walkable",
+      "label": "Walkable",
+      "code": "W01",
+      "color": "#179C7D",
+      "parent_room_id": "room:study",
+      "parent_zone_id": "zone:study-work",
+      "occupancy_region_id": "occupancy:walkable-study"
+    }
+  ],
+  "connections": [
+    {
+      "id": "portal:living-study",
+      "kind": "portal",
+      "label": "Door",
+      "source": "room:living",
+      "target": "room:study",
+      "room_endpoints": ["room:living", "room:study"]
+    }
+  ],
+  "analysis_relations": [],
+  "occupancy_relations": [
+    {
+      "id": "occupancy-relation:walkable-desk",
+      "kind": "walkable_furniture_adjacency",
+      "source": "walkable:study",
+      "target": "group:desk",
+      "evidence": "shared_boundary",
+      "parent_room_id": "room:study",
+      "parent_zone_id": "zone:study-work",
+      "shared_boundary_length_px": 36
+    }
+  ],
+  "occupancy_regions": [
+    {
+      "id": "occupancy:desk",
+      "logical_id": "group:desk",
+      "category": "furniture_group",
+      "group_id": "group:desk",
+      "group_type": "study_work",
+      "group_note": "",
+      "parent_zone_id": "zone:study-work",
+      "parent_room_id": "room:study",
+      "generation": "manual",
+      "review_status": "confirmed",
+      "parts": [
+        {
+          "result_id": "ls:l3:desk",
+          "geometry": {
+            "points": [[620, 240], [760, 240], [760, 360], [620, 360]],
+            "type": "rectanglelabels",
+            "area_px2": 16800,
+            "perimeter_px": 520,
+            "centroid_px": [690, 300],
+            "label_point": [690, 300]
+          },
+          "raw": {
+            "id": "ls:l3:desk",
+            "from_name": "occupancy_rectangle",
+            "to_name": "image",
+            "type": "rectanglelabels",
+            "value": {
+              "x": 62,
+              "y": 30,
+              "width": 14,
+              "height": 15,
+              "rectanglelabels": ["study_work"]
+            }
+          },
+          "label_result": {
+            "id": "ls:l3:desk:label",
+            "from_name": "occupancy_group_type",
+            "to_name": "image",
+            "type": "choices",
+            "value": {
+              "choices": ["study_work"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "occupancy:walkable-study",
+      "logical_id": "walkable:study",
+      "category": "walkable",
+      "group_id": null,
+      "group_type": null,
+      "group_note": "",
+      "parent_zone_id": "zone:study-work",
+      "parent_room_id": "room:study",
+      "generation": "remainder",
+      "review_status": "confirmed",
+      "parts": [
+        {
+          "result_id": "ls:l3:walkable-study",
+          "geometry": {
+            "points": [[600, 200], [800, 200], [800, 400], [600, 400]],
+            "type": "polygonlabels",
+            "area_px2": 23200,
+            "perimeter_px": 920,
+            "centroid_px": [700, 300],
+            "label_point": [700, 380]
+          },
+          "raw": {
+            "id": "ls:l3:walkable-study",
+            "from_name": "occupancy_polygon",
+            "to_name": "image",
+            "type": "polygonlabels",
+            "value": {
+              "points": [[60, 25], [80, 25], [80, 50], [60, 50]],
+              "polygonlabels": ["walkable"]
+            }
+          },
+          "label_result": {
+            "id": "ls:l3:walkable-study:label",
+            "from_name": "occupancy_category",
+            "to_name": "image",
+            "type": "choices",
+            "value": {
+              "choices": ["walkable"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "occupancy_barriers": [],
+  "window_matching_policy": {
+    "pairing_rule": "mutual_outward_projection",
+    "boundary_match_tolerance_px": 2,
+    "pair_search_limit_px": 40,
+    "minimum_projected_overlap_px": 8,
+    "maximum_tangent_delta_deg": 10,
+    "flattening_tolerance_px": 0.5,
+    "lower_level_inward_projection_limit_px": 60
+  },
+  "window_traces": [
+    {
+      "kind": "window_trace",
+      "id": "window-trace:living-side",
+      "label": "window",
+      "path": {
+        "path_kind": "line",
+        "closed": false,
+        "vertices": [
+          {"id": "wl:1", "x": 48, "y": 25, "isBezier": false},
+          {"id": "wl:2", "x": 48, "y": 40, "isBezier": false}
+        ]
+      },
+      "parent_room_id": "room:living",
+      "boundary_attachment": {
+        "match_rule": "full_positive_length_room_boundary_overlap",
+        "path_length_px": 120,
+        "overlap_length_px": 120,
+        "room_boundary_segment_ids": ["room-segment:living-east"]
+      },
+      "parent_derivation": {
+        "algorithm_version": "window-parent-room/1",
+        "source_window_trace_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "room_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "boundary_match_tolerance_px": 2,
+        "flattening_tolerance_px": 0.5
+      },
+      "provenance": {
+        "project_id": 13,
+        "task_id": 23,
+        "annotation_id": 103,
+        "result_id": "ls:window:living-side"
+      }
+    },
+    {
+      "kind": "window_trace",
+      "id": "window-trace:study-side",
+      "label": "window",
+      "path": {
+        "path_kind": "line",
+        "closed": false,
+        "vertices": [
+          {"id": "ws:1", "x": 52, "y": 25, "isBezier": false},
+          {"id": "ws:2", "x": 52, "y": 40, "isBezier": false}
+        ]
+      },
+      "parent_room_id": "room:study",
+      "boundary_attachment": {
+        "match_rule": "full_positive_length_room_boundary_overlap",
+        "path_length_px": 120,
+        "overlap_length_px": 120,
+        "room_boundary_segment_ids": ["room-segment:study-west"]
+      },
+      "parent_derivation": {
+        "algorithm_version": "window-parent-room/1",
+        "source_window_trace_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "room_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "boundary_match_tolerance_px": 2,
+        "flattening_tolerance_px": 0.5
+      },
+      "provenance": {
+        "project_id": 13,
+        "task_id": 23,
+        "annotation_id": 103,
+        "result_id": "ls:window:study-side"
+      }
+    },
+    {
+      "kind": "window_trace",
+      "id": "window-trace:study-exterior",
+      "label": "window",
+      "path": {
+        "path_kind": "bezier",
+        "closed": false,
+        "vertices": [
+          {
+            "id": "we:1",
+            "x": 65,
+            "y": 10,
+            "isBezier": true,
+            "controlPoint1": {"x": 65, "y": 10},
+            "controlPoint2": {"x": 72, "y": 8}
+          },
+          {
+            "id": "we:2",
+            "x": 80,
+            "y": 10,
+            "isBezier": true,
+            "prevPointId": "we:1",
+            "controlPoint1": {"x": 73, "y": 12},
+            "controlPoint2": {"x": 80, "y": 10}
+          }
+        ]
+      },
+      "parent_room_id": "room:study",
+      "boundary_attachment": {
+        "match_rule": "full_positive_length_room_boundary_overlap",
+        "path_length_px": 152,
+        "overlap_length_px": 152,
+        "room_boundary_segment_ids": ["room-segment:study-north"]
+      },
+      "parent_derivation": {
+        "algorithm_version": "window-parent-room/1",
+        "source_window_trace_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "room_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "boundary_match_tolerance_px": 2,
+        "flattening_tolerance_px": 0.5
+      },
+      "provenance": {
+        "project_id": 13,
+        "task_id": 23,
+        "annotation_id": 103,
+        "result_id": "ls:window:study-exterior"
+      }
+    }
+  ],
+  "window_connections": [
+    {
+      "kind": "window_connection",
+      "id": "window-connection:living-study",
+      "connection_kind": "room_to_room",
+      "trace_ids": ["window-trace:living-side", "window-trace:study-side"],
+      "connected_room_ids": ["room:living", "room:study"],
+      "connects_to_exterior": false,
+      "review_status": "candidate",
+      "evidence": {
+        "match_rule": "mutual_outward_projection",
+        "pair_search_limit_px": 40,
+        "projected_overlap_length_px": 118,
+        "mean_separation_px": 40,
+        "maximum_separation_px": 40,
+        "maximum_tangent_delta_deg": 1,
+        "mutual_nearest": true,
+        "trace_fingerprints": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        ],
+        "algorithm_version": "window-pairing/1"
+      },
+      "read_only": true
+    },
+    {
+      "kind": "window_connection",
+      "id": "window-connection:study-exterior",
+      "connection_kind": "room_to_exterior",
+      "trace_ids": ["window-trace:study-exterior"],
+      "connected_room_ids": ["room:study"],
+      "connects_to_exterior": true,
+      "review_status": "derived",
+      "evidence": {
+        "match_rule": "no_opposite_window_trace_within_search_limit",
+        "pair_search_limit_px": 40,
+        "candidate_count": 0,
+        "automatically_classified": true,
+        "trace_fingerprints": [
+          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        ],
+        "algorithm_version": "window-pairing/1"
+      },
+      "read_only": true
+    }
+  ],
+  "furniture_instances": [
+    {
+      "kind": "furniture_instance",
+      "id": "furniture-instance:desk-1",
+      "instance_type": "desk",
+      "parent": {
+        "room_id": "room:study",
+        "zone_id": "zone:study-work",
+        "group_id": "group:desk"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            {"x": 64, "y": 32},
+            {"x": 72, "y": 32},
+            {"x": 72, "y": 38},
+            {"x": 64, "y": 38},
+            {"x": 64, "y": 32}
+          ]
+        ]
+      },
+      "orientation": {
+        "status": "unknown"
+      },
+      "provenance": {
+        "project_id": 14,
+        "task_id": 24,
+        "annotation_id": 104,
+        "result_id": "ls:l4:desk-1"
+      }
+    }
+  ],
+  "window_projections": [
+    {
+      "kind": "window_projection",
+      "id": "window-projection:study-exterior:l2",
+      "source_window_connection_id": "window-connection:study-exterior",
+      "source_window_trace_id": "window-trace:study-exterior",
+      "target": {
+        "level": "L2",
+        "entity_id": "zone:study-work",
+        "room_id": "room:study"
+      },
+      "path_intervals": [
+        {"path_parameter_start": 0, "path_parameter_end": 1}
+      ],
+      "relation": {
+        "kind": "bounds_zone",
+        "evidence": "positive_length_boundary_overlap",
+        "overlap_length_px": 152
+      },
+      "derivation": {
+        "algorithm_version": "window-projection/1",
+        "source_window_trace_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "target_fingerprint": "6666666666666666666666666666666666666666666666666666666666666666",
+        "flattening_tolerance_px": 0.5
+      },
+      "read_only": true
+    },
+    {
+      "kind": "window_projection",
+      "id": "window-projection:study-exterior:l3",
+      "source_window_connection_id": "window-connection:study-exterior",
+      "source_window_trace_id": "window-trace:study-exterior",
+      "target": {
+        "level": "L3",
+        "entity_id": "group:desk",
+        "room_id": "room:study"
+      },
+      "path_intervals": [
+        {"path_parameter_start": 0.1, "path_parameter_end": 0.65}
+      ],
+      "relation": {
+        "kind": "adjacent_to_window",
+        "evidence": "positive_area_inward_projection_intersection",
+        "overlap_area_px2": 840,
+        "inward_projection_limit_px": 60
+      },
+      "derivation": {
+        "algorithm_version": "window-projection/1",
+        "source_window_trace_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "target_fingerprint": "7777777777777777777777777777777777777777777777777777777777777777",
+        "flattening_tolerance_px": 0.5
+      },
+      "read_only": true
+    },
+    {
+      "kind": "window_projection",
+      "id": "window-projection:study-exterior:l4",
+      "source_window_connection_id": "window-connection:study-exterior",
+      "source_window_trace_id": "window-trace:study-exterior",
+      "target": {
+        "level": "L4",
+        "entity_id": "furniture-instance:desk-1",
+        "room_id": "room:study"
+      },
+      "path_intervals": [
+        {"path_parameter_start": 0.2, "path_parameter_end": 0.55}
+      ],
+      "relation": {
+        "kind": "adjacent_to_window",
+        "evidence": "positive_area_inward_projection_intersection",
+        "overlap_area_px2": 320,
+        "inward_projection_limit_px": 60
+      },
+      "derivation": {
+        "algorithm_version": "window-projection/1",
+        "source_window_trace_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "target_fingerprint": "8888888888888888888888888888888888888888888888888888888888888888",
+        "flattening_tolerance_px": 0.5
+      },
+      "read_only": true
+    }
+  ],
+  "identity_corrections": [],
+  "algorithm": {
+    "version": "floorplan-pipeline/9",
+    "parameters": {
+      "boundary_match_tolerance_px": 2,
+      "window_pair_search_limit_px": 40,
+      "window_flattening_tolerance_px": 0.5
+    },
+    "geometry_basis": "original-pixels",
+    "normalization": "parent-room-and-modality"
+  },
+  "capabilities": {
+    "spatial": true,
+    "zone_projection": true,
+    "strength": "complete"
+  },
+  "warnings": [],
+  "fingerprint": "9999999999999999999999999999999999999999999999999999999999999999"
+}

@@ -1,0 +1,2112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Hanning-Liu/label-studio/schemas/floorplan-unified-v4.json",
+  "title": "Complete L1-L4 floorplan annotation contract",
+  "description": "Backward-compatible contract for L1 rooms and portals, L2 function zones and relations, L3 occupancy regions, walkable areas and barriers, room-outline windows, and L4 furniture instances.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "created_at",
+    "floorplan",
+    "sources",
+    "raw_inputs",
+    "nodes",
+    "connections",
+    "analysis_relations",
+    "identity_corrections",
+    "algorithm",
+    "capabilities",
+    "warnings",
+    "fingerprint"
+  ],
+  "properties": {
+    "schema": {
+      "enum": [
+        "floorplan-unified/1",
+        "floorplan-unified/2",
+        "floorplan-unified/3",
+        "floorplan-unified/4"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "floorplan": {
+      "$ref": "#/$defs/floorplan"
+    },
+    "sources": {
+      "$ref": "#/$defs/sources"
+    },
+    "raw_inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/rawInput"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/connection"
+      }
+    },
+    "analysis_relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/analysisRelation"
+      }
+    },
+    "occupancy_relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/occupancyRelation"
+      }
+    },
+    "occupancy_regions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/occupancyRegion"
+      }
+    },
+    "occupancy_barriers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/occupancyBarrier"
+      }
+    },
+    "window_matching_policy": {
+      "$ref": "#/$defs/windowMatchingPolicy"
+    },
+    "window_traces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/windowTrace"
+      }
+    },
+    "window_connections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/windowConnection"
+      }
+    },
+    "furniture_instances": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/furnitureInstance"
+      }
+    },
+    "window_projections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/windowProjection"
+      }
+    },
+    "identity_corrections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/identityCorrection"
+      }
+    },
+    "algorithm": {
+      "$ref": "#/$defs/algorithm"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/capabilities"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/warning"
+      }
+    },
+    "fingerprint": {
+      "$ref": "#/$defs/sha256"
+    },
+    "legacy_id_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": ["floorplan-unified/3", "floorplan-unified/4"]
+          }
+        },
+        "required": ["schema"]
+      },
+      "then": {
+        "properties": {
+          "occupancy_relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/occupancyRelation"
+            }
+          },
+          "occupancy_regions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/occupancyRegion"
+            }
+          }
+        },
+        "required": ["occupancy_relations", "occupancy_regions"]
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "const": "floorplan-unified/4"
+          }
+        },
+        "required": ["schema"]
+      },
+      "then": {
+        "properties": {
+          "floorplan": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "$ref": "#/$defs/positiveNumber"
+              },
+              "height": {
+                "$ref": "#/$defs/positiveNumber"
+              }
+            },
+            "required": ["width", "height"]
+          },
+          "occupancy_barriers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/occupancyBarrier"
+            }
+          },
+          "window_matching_policy": {
+            "$ref": "#/$defs/windowMatchingPolicy"
+          },
+          "window_traces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/windowTrace"
+            }
+          },
+          "window_connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/windowConnection"
+            }
+          },
+          "furniture_instances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/furnitureInstance"
+            }
+          },
+          "window_projections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/windowProjection"
+            }
+          }
+        },
+        "required": [
+          "occupancy_barriers",
+          "window_matching_policy",
+          "window_traces",
+          "window_connections",
+          "furniture_instances",
+          "window_projections"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "finiteNumber": {
+      "type": "number"
+    },
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
+    "positiveNumber": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "nullableNumber": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "pointPx": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false
+    },
+    "pointPercent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/percentage"
+        },
+        "y": {
+          "$ref": "#/$defs/percentage"
+        }
+      }
+    },
+    "floorplan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "image_id"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "image_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "height": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "sourceDescriptor": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "project_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "annotation_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "input_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "required": ["format"],
+      "properties": {
+        "format": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/sourceDescriptor"
+      }
+    },
+    "rawInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "name", "sha256", "text"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "rawResult": {
+      "type": "object",
+      "required": ["id", "from_name", "to_name", "type", "value"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "from_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "original_width": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "original_height": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "image_rotation": {
+          "type": "number"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "origin": {
+          "type": "string"
+        },
+        "readonly": {
+          "type": "boolean"
+        },
+        "from_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "to_id": {
+          "$ref": "#/$defs/stableId"
+        }
+      },
+      "additionalProperties": true
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "points",
+        "type",
+        "area_px2",
+        "perimeter_px",
+        "centroid_px",
+        "label_point"
+      ],
+      "properties": {
+        "points": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "$ref": "#/$defs/pointPx"
+          }
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value_percent": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "area_px2": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "perimeter_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "centroid_px": {
+          "$ref": "#/$defs/pointPx"
+        },
+        "label_point": {
+          "$ref": "#/$defs/pointPx"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "code", "color"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": ["room", "zone", "furniture_group", "walkable", "exterior"]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "result_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "occupancy_region_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        },
+        "label_result": {
+          "$ref": "#/$defs/rawResult"
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "legacy_attributes": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "source_anchor": {
+          "$ref": "#/$defs/pointPx"
+        },
+        "component_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_part_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "area_px2": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "perimeter_px": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "occupancyPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result_id", "geometry", "raw", "label_result"],
+      "properties": {
+        "result_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        },
+        "label_result": {
+          "$ref": "#/$defs/rawResult"
+        }
+      }
+    },
+    "occupancyRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "logical_id",
+        "category",
+        "group_note",
+        "parent_zone_id",
+        "parent_room_id",
+        "generation",
+        "review_status",
+        "parts"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "logical_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "category": {
+          "enum": ["furniture_group", "walkable", "restricted_free"]
+        },
+        "group_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/stableId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "group_type": {
+          "oneOf": [
+            {
+              "enum": [
+                "sleeping",
+                "study_work",
+                "dining",
+                "living_social",
+                "leisure_recreation",
+                "storage",
+                "dressing_grooming",
+                "cooking_preparation",
+                "washbasin",
+                "toilet",
+                "shower_fixtures",
+                "bathtub",
+                "laundry_drying",
+                "plant_decor",
+                "bay_window",
+                "equipment_service",
+                "other"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "group_note": {
+          "type": "string"
+        },
+        "parent_zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "generation": {
+          "enum": ["manual", "remainder"]
+        },
+        "review_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "review_fingerprint": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remainder_input_fingerprint": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/occupancyPart"
+          }
+        }
+      }
+    },
+    "occupancyBarrierPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_group_id",
+        "target_group_id",
+        "shared_boundary_length_px",
+        "barrier_overlap_length_px"
+      ],
+      "properties": {
+        "source_group_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target_group_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "shared_boundary_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "barrier_overlap_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "occupancyBarrier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "result_id",
+        "kind",
+        "label",
+        "parent_zone_id",
+        "parent_room_id",
+        "points",
+        "matched_pairs",
+        "raw",
+        "context"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "result_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "const": "wall_barrier"
+        },
+        "label": {
+          "const": "wall_barrier"
+        },
+        "parent_zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/pointPx"
+          }
+        },
+        "matched_pairs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/occupancyBarrierPair"
+          }
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "result_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": ["portal", "movement", "visual"]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/pointPx"
+          }
+        },
+        "room_endpoints": {
+          "$ref": "#/$defs/endpointPair"
+        },
+        "zone_endpoints": {
+          "$ref": "#/$defs/endpointPair"
+        },
+        "original_room_endpoints": {
+          "$ref": "#/$defs/endpointPair"
+        },
+        "original_zone_endpoints": {
+          "$ref": "#/$defs/endpointPair"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        },
+        "review_result": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/rawResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewed": {
+          "type": "boolean"
+        },
+        "strength_status": {
+          "type": "string"
+        },
+        "support_ratios": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/nonNegativeNumber"
+          }
+        },
+        "source_kind": {
+          "const": "legacy_aggregated"
+        },
+        "legacy_attributes": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "endpointPair": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/stableId"
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": ["available", "missing", "not_applicable"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "length_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "r": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "w": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "q": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "room_max_r": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "junction_openness": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "candidate_paths": {}
+      }
+    },
+    "analysisRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "source",
+        "target",
+        "parent_room_id",
+        "movement_vector_ids",
+        "visual_only_vector_ids",
+        "movement",
+        "visual"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": ["direct_boundary", "visual_boundary", "derived_junction"]
+        },
+        "source": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "movement_vector_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "visual_only_vector_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "source_perimeter_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "target_perimeter_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "shared_boundary_length_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "movement": {
+          "$ref": "#/$defs/metric"
+        },
+        "visual": {
+          "$ref": "#/$defs/metric"
+        },
+        "legacy_attributes": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "occupancyRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "source", "target", "evidence"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "kind": {
+          "enum": [
+            "walkable_furniture_adjacency",
+            "walkable_transition",
+            "occupancy_transition",
+            "furniture_spatial_relation",
+            "furniture_boundary_adjacency",
+            "furniture_barrier_relation"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target": {
+          "$ref": "#/$defs/stableId"
+        },
+        "evidence": {
+          "enum": [
+            "shared_boundary",
+            "nearest_accessible_occupancy",
+            "boundary_segment_overlap",
+            "original_geometry_measurement",
+            "manual_wall_barrier"
+          ]
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "source_zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target_zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "source_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "source_occupancy_region_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target_occupancy_region_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "shared_boundary_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "via_connection_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "via_result_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "via_kind": {
+          "enum": ["portal", "movement"]
+        },
+        "label": {
+          "type": "string"
+        },
+        "source_distance_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "target_distance_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "source_min_occupancy_distance_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "target_min_occupancy_distance_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "source_boundary_overlap_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "target_boundary_overlap_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "source_evidence": {
+          "enum": ["nearest_accessible_occupancy", "boundary_segment_overlap", "exterior"]
+        },
+        "target_evidence": {
+          "enum": ["nearest_accessible_occupancy", "boundary_segment_overlap", "exterior"]
+        },
+        "centroid_distance_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "boundary_distance_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "zone_diagonal_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "centroid_distance_ratio": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "boundary_distance_ratio": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "bearing_deg": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "relative_direction": {
+          "enum": [
+            "left",
+            "right",
+            "up",
+            "down",
+            "left_up",
+            "left_down",
+            "right_up",
+            "right_down",
+            "overlap"
+          ]
+        },
+        "axis_alignment_deg": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "source_axis_deg": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "target_axis_deg": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "source_centroid_px": {
+          "$ref": "#/$defs/pointPx"
+        },
+        "target_centroid_px": {
+          "$ref": "#/$defs/pointPx"
+        },
+        "source_nearest_point_px": {
+          "$ref": "#/$defs/pointPx"
+        },
+        "target_nearest_point_px": {
+          "$ref": "#/$defs/pointPx"
+        },
+        "source_part_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target_part_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "coincident_centroids": {
+          "type": "boolean"
+        },
+        "facing_status": {
+          "const": "unknown"
+        },
+        "boundary_match_mode": {
+          "enum": ["exact", "precision_grid"]
+        },
+        "boundary_match_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "original_boundary_gap_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "barrier_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "barrier_result_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "barrier_overlap_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "barrier_points_px": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/pointPx"
+          }
+        }
+      }
+    },
+    "identityCorrectionChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connection_id",
+        "before_room",
+        "before_zone",
+        "after_room",
+        "after_zone"
+      ],
+      "properties": {
+        "connection_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "before_room": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "before_zone": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "after_room": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "after_zone": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        }
+      }
+    },
+    "identityCorrection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "original_id", "room_id", "zone_id", "reason", "changes"],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "original_id": {
+          "const": "exterior"
+        },
+        "room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identityCorrectionChange"
+          }
+        }
+      }
+    },
+    "algorithm": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "geometry_basis": {
+          "type": "string"
+        },
+        "normalization": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spatial", "zone_projection", "strength"],
+      "properties": {
+        "spatial": {
+          "type": "boolean"
+        },
+        "zone_projection": {
+          "type": "boolean"
+        },
+        "strength": {
+          "enum": ["complete", "available", "missing"]
+        },
+        "spatial_reason": {
+          "type": "string"
+        },
+        "strength_reason": {
+          "type": "string"
+        }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relation_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "parent_zone_id": {
+          "$ref": "#/$defs/stableId"
+        }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "task_id", "annotation_id", "result_id"],
+      "properties": {
+        "project_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "annotation_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "result_id": {
+          "$ref": "#/$defs/stableId"
+        }
+      }
+    },
+    "vectorVertex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "x", "y", "isBezier"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "x": {
+          "$ref": "#/$defs/percentage"
+        },
+        "y": {
+          "$ref": "#/$defs/percentage"
+        },
+        "isBezier": {
+          "type": "boolean"
+        },
+        "prevPointId": {
+          "$ref": "#/$defs/stableId"
+        },
+        "controlPoint1": {
+          "$ref": "#/$defs/pointPercent"
+        },
+        "controlPoint2": {
+          "$ref": "#/$defs/pointPercent"
+        },
+        "disconnected": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "isBezier": {
+                "const": true
+              }
+            },
+            "required": ["isBezier"]
+          },
+          "then": {
+            "properties": {
+              "controlPoint1": {
+                "$ref": "#/$defs/pointPercent"
+              },
+              "controlPoint2": {
+                "$ref": "#/$defs/pointPercent"
+              }
+            },
+            "required": ["controlPoint1", "controlPoint2"]
+          }
+        }
+      ]
+    },
+    "openVectorPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_kind", "closed", "vertices"],
+      "properties": {
+        "path_kind": {
+          "enum": ["line", "polyline", "bezier"]
+        },
+        "closed": {
+          "const": false
+        },
+        "vertices": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/vectorVertex"
+          }
+        }
+      }
+    },
+    "windowMatchingPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pairing_rule",
+        "boundary_match_tolerance_px",
+        "pair_search_limit_px",
+        "minimum_projected_overlap_px",
+        "maximum_tangent_delta_deg",
+        "flattening_tolerance_px",
+        "lower_level_inward_projection_limit_px"
+      ],
+      "properties": {
+        "pairing_rule": {
+          "const": "mutual_outward_projection"
+        },
+        "boundary_match_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "pair_search_limit_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "minimum_projected_overlap_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "maximum_tangent_delta_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "flattening_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "lower_level_inward_projection_limit_px": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/positiveNumber"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "boundaryAttachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "match_rule",
+        "path_length_px",
+        "overlap_length_px",
+        "room_boundary_segment_ids"
+      ],
+      "properties": {
+        "match_rule": {
+          "const": "full_positive_length_room_boundary_overlap"
+        },
+        "path_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "overlap_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "room_boundary_segment_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        }
+      }
+    },
+    "parentRoomDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm_version",
+        "source_window_trace_fingerprint",
+        "room_fingerprint",
+        "boundary_match_tolerance_px",
+        "flattening_tolerance_px"
+      ],
+      "properties": {
+        "algorithm_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_window_trace_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "room_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "boundary_match_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "flattening_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "windowTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "label",
+        "path",
+        "parent_room_id",
+        "boundary_attachment",
+        "parent_derivation",
+        "provenance"
+      ],
+      "properties": {
+        "kind": {
+          "const": "window_trace"
+        },
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "label": {
+          "const": "window"
+        },
+        "path": {
+          "$ref": "#/$defs/openVectorPath"
+        },
+        "parent_room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "boundary_attachment": {
+          "$ref": "#/$defs/boundaryAttachment"
+        },
+        "parent_derivation": {
+          "$ref": "#/$defs/parentRoomDerivation"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        }
+      }
+    },
+    "outwardPairEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "match_rule",
+        "pair_search_limit_px",
+        "projected_overlap_length_px",
+        "mean_separation_px",
+        "maximum_separation_px",
+        "maximum_tangent_delta_deg",
+        "mutual_nearest",
+        "trace_fingerprints",
+        "algorithm_version"
+      ],
+      "properties": {
+        "match_rule": {
+          "const": "mutual_outward_projection"
+        },
+        "pair_search_limit_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "projected_overlap_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "mean_separation_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "maximum_separation_px": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "maximum_tangent_delta_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "mutual_nearest": {
+          "const": true
+        },
+        "trace_fingerprints": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "algorithm_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "exteriorEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Evidence for automatic exterior-window classification after a complete opposite-trace search finds no valid candidate.",
+      "required": [
+        "match_rule",
+        "pair_search_limit_px",
+        "candidate_count",
+        "automatically_classified",
+        "trace_fingerprints",
+        "algorithm_version"
+      ],
+      "properties": {
+        "match_rule": {
+          "const": "no_opposite_window_trace_within_search_limit"
+        },
+        "pair_search_limit_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "candidate_count": {
+          "const": 0
+        },
+        "automatically_classified": {
+          "const": true
+        },
+        "trace_fingerprints": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "algorithm_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "windowConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "connection_kind",
+        "trace_ids",
+        "connected_room_ids",
+        "connects_to_exterior",
+        "review_status",
+        "evidence",
+        "read_only"
+      ],
+      "properties": {
+        "kind": {
+          "const": "window_connection"
+        },
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "connection_kind": {
+          "enum": ["room_to_room", "room_to_exterior"]
+        },
+        "trace_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "connected_room_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/stableId"
+          }
+        },
+        "connects_to_exterior": {
+          "type": "boolean"
+        },
+        "review_status": {
+          "enum": ["candidate", "confirmed", "derived"]
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/outwardPairEvidence"
+            },
+            {
+              "$ref": "#/$defs/exteriorEvidence"
+            }
+          ]
+        },
+        "read_only": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "connection_kind": {
+                "const": "room_to_room"
+              }
+            },
+            "required": ["connection_kind"]
+          },
+          "then": {
+            "properties": {
+              "trace_ids": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "connected_room_ids": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "connects_to_exterior": {
+                "const": false
+              },
+              "evidence": {
+                "$ref": "#/$defs/outwardPairEvidence"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "connection_kind": {
+                "const": "room_to_exterior"
+              }
+            },
+            "required": ["connection_kind"]
+          },
+          "then": {
+            "properties": {
+              "trace_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1
+              },
+              "connected_room_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1
+              },
+              "connects_to_exterior": {
+                "const": true
+              },
+              "review_status": {
+                "const": "derived"
+              },
+              "evidence": {
+                "$ref": "#/$defs/exteriorEvidence"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ring": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "$ref": "#/$defs/pointPercent"
+      }
+    },
+    "polygonCoordinates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/ring"
+      }
+    },
+    "polygonGeometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {
+          "const": "Polygon"
+        },
+        "coordinates": {
+          "$ref": "#/$defs/polygonCoordinates"
+        }
+      }
+    },
+    "multiPolygonGeometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {
+          "const": "MultiPolygon"
+        },
+        "coordinates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/polygonCoordinates"
+          }
+        }
+      }
+    },
+    "orientationUnknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "const": "unknown"
+        }
+      }
+    },
+    "directionVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dx", "dy"],
+      "properties": {
+        "dx": {
+          "type": "number"
+        },
+        "dy": {
+          "type": "number"
+        }
+      }
+    },
+    "frontDirection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "origin", "direction_vector"],
+      "properties": {
+        "status": {
+          "const": "front_direction"
+        },
+        "origin": {
+          "$ref": "#/$defs/pointPercent"
+        },
+        "direction_vector": {
+          "$ref": "#/$defs/directionVector"
+        }
+      }
+    },
+    "frontEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "start", "end", "outward_normal"],
+      "properties": {
+        "status": {
+          "const": "front_edge"
+        },
+        "start": {
+          "$ref": "#/$defs/pointPercent"
+        },
+        "end": {
+          "$ref": "#/$defs/pointPercent"
+        },
+        "outward_normal": {
+          "$ref": "#/$defs/directionVector"
+        }
+      }
+    },
+    "parentChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["room_id", "zone_id", "group_id"],
+      "properties": {
+        "room_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "zone_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "group_id": {
+          "$ref": "#/$defs/stableId"
+        }
+      }
+    },
+    "furnitureInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "instance_type",
+        "parent",
+        "geometry",
+        "orientation",
+        "provenance"
+      ],
+      "properties": {
+        "kind": {
+          "const": "furniture_instance"
+        },
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "instance_type": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "note": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/parentChain"
+        },
+        "geometry": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/polygonGeometry"
+            },
+            {
+              "$ref": "#/$defs/multiPolygonGeometry"
+            }
+          ]
+        },
+        "orientation": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/orientationUnknown"
+            },
+            {
+              "$ref": "#/$defs/frontDirection"
+            },
+            {
+              "$ref": "#/$defs/frontEdge"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        }
+      }
+    },
+    "pathInterval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_parameter_start", "path_parameter_end"],
+      "properties": {
+        "path_parameter_start": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "path_parameter_end": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "projectionTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "entity_id", "room_id"],
+      "properties": {
+        "level": {
+          "enum": ["L2", "L3", "L4"]
+        },
+        "entity_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "room_id": {
+          "$ref": "#/$defs/stableId"
+        }
+      }
+    },
+    "l2ProjectionRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "evidence", "overlap_length_px"],
+      "properties": {
+        "kind": {
+          "const": "bounds_zone"
+        },
+        "evidence": {
+          "const": "positive_length_boundary_overlap"
+        },
+        "overlap_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "lowerLevelProjectionRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "evidence",
+        "overlap_area_px2",
+        "inward_projection_limit_px"
+      ],
+      "properties": {
+        "kind": {
+          "const": "adjacent_to_window"
+        },
+        "evidence": {
+          "const": "positive_area_inward_projection_intersection"
+        },
+        "overlap_area_px2": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "inward_projection_limit_px": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "projectionDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm_version",
+        "source_window_trace_fingerprint",
+        "target_fingerprint",
+        "flattening_tolerance_px"
+      ],
+      "properties": {
+        "algorithm_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_window_trace_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "target_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "flattening_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
+        }
+      }
+    },
+    "windowProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "source_window_connection_id",
+        "source_window_trace_id",
+        "target",
+        "path_intervals",
+        "relation",
+        "derivation",
+        "read_only"
+      ],
+      "properties": {
+        "kind": {
+          "const": "window_projection"
+        },
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "source_window_connection_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "source_window_trace_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "target": {
+          "$ref": "#/$defs/projectionTarget"
+        },
+        "path_intervals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/pathInterval"
+          }
+        },
+        "relation": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/l2ProjectionRelation"
+            },
+            {
+              "$ref": "#/$defs/lowerLevelProjectionRelation"
+            }
+          ]
+        },
+        "derivation": {
+          "$ref": "#/$defs/projectionDerivation"
+        },
+        "read_only": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "const": "L2"
+                  }
+                },
+                "required": ["level"]
+              }
+            },
+            "required": ["target"]
+          },
+          "then": {
+            "properties": {
+              "relation": {
+                "$ref": "#/$defs/l2ProjectionRelation"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "enum": ["L3", "L4"]
+                  }
+                },
+                "required": ["level"]
+              }
+            },
+            "required": ["target"]
+          },
+          "then": {
+            "properties": {
+              "relation": {
+                "$ref": "#/$defs/lowerLevelProjectionRelation"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
