@@ -131,8 +131,8 @@
     "description": "Exit relation mode, unselect region"
   },
   "region:delete": {
-    "key": "backspace",
-    "description": "Delete selected region"
+    "key": "backspace,delete",
+    "description": "Delete selected region or selected polygon point"
   },
   "region:cycle": {
     "key": "alt+.",

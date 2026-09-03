@@ -424,6 +424,39 @@ describe("ToolsManager", () => {
     });
   });
 
+  describe("releaseRegionReferences", () => {
+    it("resets only tools whose currentArea will be replaced", () => {
+      const m = ToolsManager.getInstance({ name: "release-regions" });
+      const replaced = { id: "replaced" };
+      const retained = { id: "retained" };
+      const resetReplaced = jest.fn();
+      const resetRetained = jest.fn();
+      m.tools["k#replaced"] = {
+        currentArea: replaced,
+        resetBeforeAnnotationSwitch: resetReplaced,
+      };
+      m.tools["k#retained"] = {
+        currentArea: retained,
+        resetBeforeAnnotationSwitch: resetRetained,
+      };
+      m.tools["k#empty"] = { currentArea: null, resetBeforeAnnotationSwitch: jest.fn() };
+
+      m.releaseRegionReferences([replaced]);
+
+      expect(resetReplaced).toHaveBeenCalledTimes(1);
+      expect(resetRetained).not.toHaveBeenCalled();
+    });
+
+    it("is a no-op for empty inputs", () => {
+      const m = ToolsManager.getInstance({ name: "release-empty" });
+      const reset = jest.fn();
+      m.tools["k#tool"] = { currentArea: {}, resetBeforeAnnotationSwitch: reset };
+
+      expect(() => m.releaseRegionReferences([])).not.toThrow();
+      expect(reset).not.toHaveBeenCalled();
+    });
+  });
+
   describe("event", () => {
     it("dispatches to selected tool when one is selected", () => {
       const m = ToolsManager.getInstance({ name: "ev" });

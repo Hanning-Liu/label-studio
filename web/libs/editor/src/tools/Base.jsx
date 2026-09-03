@@ -2,14 +2,19 @@ import { getEnv, getSnapshot, getType, types } from "mobx-state-tree";
 import { observer } from "mobx-react";
 import { Tool } from "../components/Toolbar/Tool";
 import { kebabCase } from "@humansignal/core/lib/utils/string";
+import { occupancyToolBlockReason } from "../occupancy/editing";
 
 const ToolView = observer(({ item }) => {
+  const occupancyBlockReason = occupancyToolBlockReason(item);
+  const label = occupancyBlockReason ? `${item.viewTooltip || "绘制工具"}：${occupancyBlockReason}` : item.viewTooltip;
+
   return (
     <Tool
       ariaLabel={kebabCase(getType(item).name)}
       active={item.selected}
+      disabled={item.disabled || !!occupancyBlockReason}
       icon={item.iconClass}
-      label={item.viewTooltip}
+      label={label}
       shortcut={item.shortcut}
       extraShortcuts={item.extraShortcuts}
       tool={item}

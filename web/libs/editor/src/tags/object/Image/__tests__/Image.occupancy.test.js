@@ -29,6 +29,7 @@ import {
   classifyLogical,
   confirmParents,
   context,
+  deleteLogicalRegion,
   generateRemainder,
   invalidateReviews,
   logicalRegions,
@@ -41,6 +42,18 @@ const CONFIG = readFileSync(
   "utf8",
 );
 const source = [
+  {
+    id: "room",
+    from_name: "room_rectangle",
+    to_name: "image",
+    type: "rectanglelabels",
+    readonly: true,
+    original_width: 100,
+    original_height: 100,
+    image_rotation: 0,
+    value: { x: 0, y: 0, width: 100, height: 100, rotation: 0, rectanglelabels: ["Bathroom"] },
+    meta: { room_graph_node: { room_type: "Bathroom" } },
+  },
   {
     id: "parent",
     from_name: "zone_rectangle",
@@ -114,12 +127,29 @@ test("feature flag, readonly L2 and Focus independence", () => {
   const { image } = setup();
   expect(image.occupancyEnabled).toBe(true);
   expect(image.occupancyParents).toHaveLength(1);
+  expect(image.occupancyParents[0]).toMatchObject({
+    roomLabel: "Bathroom",
+    functionLabel: "Sanitary/general",
+    roomColor: "#FFC069",
+  });
   expect(image.regs[0].isReadOnly()).toBe(true);
   image.setOccupancyFocus("parent");
   expect(image.focusedRoomId).toBeNull();
   image.createOccupancyGroup("storage", "");
   expect(image.occupancyDrawBlockReason()).toBe("");
   expect(setup(false).image.occupancyEnabled).toBe(false);
+});
+test("L1 room visibility is a temporary L3 view preference and keeps room provenance loaded", () => {
+  const { image } = setup();
+  const before = getSnapshot(image);
+  expect(image.occupancyShowRoomReferences).toBe(false);
+  expect(image.occupancyParents[0]).toMatchObject({ roomId: "room", roomLabel: "Bathroom", roomColor: "#FFC069" });
+
+  image.setOccupancyRoomReferencesVisible(true);
+
+  expect(image.occupancyShowRoomReferences).toBe(true);
+  expect(getSnapshot(image)).toEqual(before);
+  expect(image.occupancyParents[0]).toMatchObject({ roomId: "room", roomLabel: "Bathroom", roomColor: "#FFC069" });
 });
 test("append paired remainder with exact IDs, classify/review, serialize/reload and single undo", () => {
   const { image, annotation } = setup();
@@ -153,10 +183,11 @@ test("stale preview and reference mutation fail without touching data", () => {
   expect(() => image.applyOccupancyResults([], image.occupancyOperationFingerprint())).toThrow("参考");
   expect(getSnapshot(annotation.areas)).toEqual(before);
 });
-test("drawing geometry is bound at creation and pending until explicitly applied", () => {
+test("drawing geometry becomes a manual group immediately and consumes the one-shot group", () => {
   const { image, annotation } = setup();
   image.setOccupancyFocus("parent");
   image.createOccupancyGroup("toilet", "");
+  const groupId = image.occupancyGroup.id;
   const region = annotation.createResult(
     { x: 10, y: 10, width: 20, height: 20, rotation: 0, coordstype: "perc" },
     {},
@@ -164,14 +195,126 @@ test("drawing geometry is bound at creation and pending until explicitly applied
     image,
   );
   image.initializeOccupancyRegion(region);
-  expect(image.occupancyPending).toHaveLength(1);
+  expect(image.occupancyLogicals).toHaveLength(1);
+  expect(image.occupancyLogicals[0].context).toMatchObject({
+    logical_id: groupId,
+    group_id: groupId,
+    generation: "manual",
+    group_type: "toilet",
+    review_status: "pending",
+  });
+  image.finalizeOccupancyRegion(region);
+  expect(image.occupancyGroup).toBeNull();
+  expect(image.occupancyDrawBlockReason()).toMatch("创建或选择家具组团");
   image.setOccupancyFocus("");
-  const pending = image.occupancyPending[0];
-  expect(pending.context.parent_zone_id).toBe("parent");
-  const preview = image.previewOccupancyDrawing(pending.id);
-  image.applyOccupancyResults(preview.results, preview.fingerprint);
-  expect(image.occupancyPending).toHaveLength(0);
+  expect(image.occupancyLogicals[0].context.parent_zone_id).toBe("parent");
   expect(image.occupancyLogicals[0].context.group_type).toBe("toilet");
+});
+test("leisure recreation supports rectangle and polygon creation and survives reload", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+
+  image.createOccupancyGroup("leisure_recreation", "");
+  const rectangle = annotation.createResult(
+    { x: 10, y: 10, width: 20, height: 20, rotation: 0, coordstype: "perc" },
+    {},
+    annotation.names.get("occupancy_rectangle"),
+    image,
+  );
+  image.initializeOccupancyRegion(rectangle);
+  image.finalizeOccupancyRegion(rectangle);
+
+  image.createOccupancyGroup("leisure_recreation", "");
+  const polygon = annotation.createResult(
+    {
+      points: [
+        [40, 40],
+        [60, 40],
+        [60, 60],
+        [40, 60],
+      ],
+      closed: true,
+    },
+    {},
+    annotation.names.get("occupancy_polygon"),
+    image,
+  );
+  image.initializeOccupancyRegion(polygon);
+  image.finalizeOccupancyRegion(polygon);
+
+  expect(image.occupancyLogicals).toHaveLength(2);
+  expect(image.occupancyLogicals.map((region) => region.context.group_type)).toEqual([
+    "leisure_recreation",
+    "leisure_recreation",
+  ]);
+  expect(image.occupancyLogicals.map((region) => region.context.group_note)).toEqual(["", ""]);
+
+  const serialized = annotation.serializeAnnotation({ fast: true });
+  annotation.deleteAllRegions({ deleteReadOnly: true });
+  annotation.deserializeResults(serialized);
+  annotation.updateObjects();
+
+  expect(image.occupancyLogicals).toHaveLength(2);
+  expect(image.occupancyLogicals.every((region) => region.context.group_type === "leisure_recreation")).toBe(true);
+});
+test("standard trash and keyboard deletion request a protected logical delete, then apply as one undo step", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("study_work", "");
+  const region = annotation.createResult(
+    { x: 10, y: 10, width: 20, height: 20, rotation: 0, coordstype: "perc" },
+    {},
+    annotation.names.get("occupancy_rectangle"),
+    image,
+  );
+  image.initializeOccupancyRegion(region);
+  image.finalizeOccupancyRegion(region);
+  const logicalId = image.occupancyLogicals[0].id;
+
+  annotation.deleteRegion(region);
+  expect(image.occupancyDeleteRequestId).toBe(logicalId);
+  expect(image.regs.some((candidate) => candidate.cleanId === region.cleanId)).toBe(true);
+
+  image.clearOccupancyDeleteRequest();
+  region.deleteRegion();
+  expect(image.occupancyDeleteRequestId).toBe(logicalId);
+  expect(image.regs.some((candidate) => candidate.cleanId === region.cleanId)).toBe(true);
+
+  annotation.reinitHistory(false);
+  const operation = deleteLogicalRegion(image.occupancyData, logicalId);
+  image.applyOccupancyResults(operation.results, image.occupancyOperationFingerprint());
+  image.clearOccupancyDeleteRequest();
+  expect(image.occupancyLogicals).toHaveLength(0);
+  annotation.history.undo();
+  expect(image.occupancyLogicals).toHaveLength(1);
+  expect(image.occupancyLogicals[0].id).toBe(logicalId);
+});
+test("legacy pending furniture is upgraded without changing its physical result id or geometry", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("sleeping", "");
+  const region = annotation.createResult(
+    { x: 12, y: 14, width: 30, height: 25, rotation: 0, coordstype: "perc" },
+    {},
+    annotation.names.get("occupancy_rectangle"),
+    image,
+  );
+  image.initializeOccupancyRegion(region);
+  const geometry = region.results.find((result) => GEOMETRY.has(result.from_name?.name));
+  const before = region.serialize().value;
+  geometry.setMetaValue("occupancy_context", {
+    ...geometry.meta.occupancy_context,
+    logical_id: "legacy-pending-id",
+    generation: "pending",
+    pending_kind: "furniture_group",
+  });
+  expect(image.upgradeLegacyOccupancy()).toBe(1);
+  const upgraded = image.occupancyLogicals[0];
+  expect(upgraded.id).toBe(upgraded.context.group_id);
+  expect(upgraded.context.generation).toBe("manual");
+  expect(upgraded.context.pending_kind).toBeUndefined();
+  expect(upgraded.parts[0].id).toBe(region.cleanId);
+  expect(region.serialize().value).toEqual(before);
 });
 test("review metadata becomes pending after a manual geometry edit", () => {
   const { image, annotation } = setup();
@@ -194,7 +337,7 @@ test("review metadata becomes pending after a manual geometry edit", () => {
   expect(image.occupancyErrors.some((e) => e.code === "review")).toBe(true);
 });
 
-test("pending rectangle selection exposes native handles and application preserves rectangle", () => {
+test("manual rectangle selection exposes native handles without an application step", () => {
   const { image, annotation } = setup();
   image.setOccupancyFocus("parent");
   image.createOccupancyGroup("storage", "");
@@ -205,12 +348,11 @@ test("pending rectangle selection exposes native handles and application preserv
     image,
   );
   image.initializeOccupancyRegion(region);
-  image.selectOccupancyLogical(image.occupancyPending[0].id);
+  image.finalizeOccupancyRegion(region);
+  image.selectOccupancyLogical(image.occupancyLogicals[0].id);
   expect(image.occupancyActivePartId).toBe(region.cleanId);
   expect(image.getToolsManager().findSelectedTool().fullName).toBe("MoveTool");
   expect(region.useTransformer).toBe(true);
-  const preview = image.previewOccupancyDrawing(image.occupancyPending[0].id);
-  image.applyOccupancyResults(preview.results, preview.fingerprint);
   const logical = image.occupancyLogicals[0];
   expect(logical.parts[0].from_name).toBe("occupancy_rectangle");
   image.selectOccupancyLogical(logical.id);
@@ -228,6 +370,51 @@ test("pending rectangle selection exposes native handles and application preserv
   expect(image.occupancyActivePartId).toBe("");
 });
 
+test("selected manual polygon uses vertex editing and keyboard deletion preserves the region", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("storage", "");
+  const region = annotation.createResult(
+    {
+      points: [
+        [10, 10],
+        [40, 10],
+        [40, 40],
+        [10, 40],
+      ],
+      closed: true,
+    },
+    {},
+    annotation.names.get("occupancy_polygon"),
+    image,
+  );
+  image.initializeOccupancyRegion(region);
+  image.selectOccupancyLogical(image.occupancyLogicals[0].id);
+  expect(image.occupancyActivePartId).toBe(region.cleanId);
+  expect(region.occupancyVertexEditing).toBe(true);
+  expect(
+    image.acceptOccupancyEdit(region, {
+      points: [
+        [10, 10],
+        [40, 40],
+        [10, 40],
+        [40, 10],
+      ],
+    }),
+  ).toBe(false);
+  expect(image.occupancyEditNotice).toMatch("自相交");
+
+  region.setSelectedPoint(region.points[1]);
+  region.deleteRegion();
+  expect(region.points).toHaveLength(3);
+  expect(image.regs.some((candidate) => candidate.cleanId === region.cleanId)).toBe(true);
+
+  region.setSelectedPoint(region.points[1]);
+  region.deleteRegion();
+  expect(region.points).toHaveLength(3);
+  expect(image.occupancyEditNotice).toMatch("至少需要 3 个顶点");
+});
+
 test("multi-part group only edits explicitly selected component; readonly reference has no handles", () => {
   const { image, annotation } = setup();
   image.setOccupancyFocus("parent");
@@ -239,7 +426,7 @@ test("multi-part group only edits explicitly selected component; readonly refere
     image,
   );
   image.initializeOccupancyRegion(region);
-  const c = { ...image.occupancyPending[0].context, generation: "manual" };
+  const c = { ...image.occupancyLogicals[0].context };
   const shape = [
     [
       [
@@ -279,7 +466,7 @@ test("multi-part group only edits explicitly selected component; readonly refere
   expect(image.occupancyActivePartId).toBe("");
 });
 
-test("pending rectangles are constrained to stored parent after Focus changes, with undo and readonly preservation", () => {
+test("manual rectangles are constrained to stored parent after Focus changes, with undo and readonly preservation", () => {
   const { image, annotation } = setup();
   image.setOccupancyFocus("parent");
   image.createOccupancyGroup("storage", "");
@@ -295,14 +482,14 @@ test("pending rectangles are constrained to stored parent after Focus changes, w
   annotation.reinitHistory(false);
   region.setPositionInternal(120, 10, 20, 20, 0);
   expect(region.x).toBeCloseTo(80, 7);
-  expect(image.occupancyPending).toHaveLength(1);
-  expect(image.occupancyPending[0].context.parent_zone_id).toBe("parent");
+  expect(image.occupancyLogicals).toHaveLength(1);
+  expect(image.occupancyLogicals[0].context.parent_zone_id).toBe("parent");
   expect(image.occupancyData.filter((r) => r.readonly)).toEqual(references);
   annotation.history.undo();
-  expect(image.occupancyPending[0].parts[0].value.x).toBe(10);
+  expect(image.occupancyLogicals[0].parts[0].value.x).toBe(10);
 });
 
-test("native rectangle drawing clamps before commit and keeps pending metadata", () => {
+test("native rectangle drawing clamps before commit and immediately creates a manual one-shot group", () => {
   const { image } = setup();
   image.regs.find((r) => r.cleanId === "parent").setPositionInternal(10, 10, 60, 60, 0);
   image.setOccupancyFocus("parent");
@@ -325,8 +512,9 @@ test("native rectangle drawing clamps before commit and keeps pending metadata",
   expect(image.occupancyData.filter((r) => GEOMETRY.has(r.from_name))).toEqual([
     expect.objectContaining({ meta: expect.objectContaining({ occupancy_context: expect.any(Object) }) }),
   ]);
-  expect(image.occupancyPending).toHaveLength(1);
-  expect(image.occupancyPending[0].context.parent_zone_id).toBe("parent");
+  expect(image.occupancyLogicals).toHaveLength(1);
+  expect(image.occupancyLogicals[0].context).toMatchObject({ parent_zone_id: "parent", generation: "manual" });
+  expect(image.occupancyGroup).toBeNull();
   expect(image.occupancyData.filter((r) => r.from_name === "occupancy_type")).toHaveLength(1);
 });
 
@@ -347,4 +535,71 @@ test("native polygon drawing rejects external vertices and edit keeps original p
   region.moveVertex(region.points[1], { x: 140, y: 20 });
   expect(region.points[1].x).toBeCloseTo(100, 7);
   expect(annotation.isDrawing).toBe(true);
+});
+
+test("bulk L3 replacement releases a Polygon tool reference and the next native click starts immediately", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("storage", "");
+  image.startOccupancyTool("occupancy_polygon");
+  const tool = image.getToolsManager().findSelectedTool();
+
+  tool.startDrawing(10, 10);
+  const replacedRegion = tool.getCurrentArea();
+  replacedRegion.addPoint(30, 10);
+  replacedRegion.addPoint(30, 30);
+  replacedRegion.closePoly();
+  const replacedLogicalId = image.occupancyLogicals[0].id;
+  annotation.setIsDrawing(false);
+
+  const operation = deleteLogicalRegion(image.occupancyData, replacedLogicalId);
+  image.applyOccupancyResults(operation.results, image.occupancyOperationFingerprint());
+
+  expect(tool.currentArea).toBeNull();
+  expect(tool.mode).toBe("viewing");
+  expect(image.occupancyFocusId).toBe("parent");
+
+  image.createOccupancyGroup("storage", "");
+  const nextGroupId = image.occupancyGroup.id;
+  image.startOccupancyTool("occupancy_polygon");
+  const event = { button: 0, shiftKey: false, offsetX: 20, offsetY: 20, timeStamp: 100 };
+  tool.event("mousedown", event, [20, 20, 20, 20]);
+  tool.event("mouseup", { ...event, timeStamp: 110 }, [20, 20, 20, 20]);
+  tool.event("click", { ...event, timeStamp: 120 }, [20, 20, 20, 20]);
+
+  const current = tool.getCurrentArea();
+  expect(current).not.toBeNull();
+  expect(current.points).toHaveLength(1);
+  expect(image.occupancyFocusId).toBe("parent");
+  expect(image.occupancyGroup).toMatchObject({ id: nextGroupId, parentId: "parent", type: "storage" });
+  expect(image.occupancyEditNotice).toBe("");
+});
+
+test("an existing L3 region with a missing stored parent never falls back to the current Focus", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("storage", "");
+  const region = annotation.createResult(
+    {
+      points: [
+        [10, 10],
+        [30, 10],
+        [30, 30],
+      ],
+      closed: true,
+    },
+    {},
+    annotation.names.get("occupancy_polygon"),
+    image,
+  );
+  image.initializeOccupancyRegion(region);
+  const geometry = region.results.find((result) => GEOMETRY.has(result.from_name?.name));
+  geometry.setMetaValue("occupancy_context", {
+    ...geometry.meta.occupancy_context,
+    parent_zone_id: "missing-parent",
+  });
+
+  expect(() => image.occupancyConstraintSpace(region)).toThrow(
+    "所属父分区不存在，请先重新绑定；不能用当前 Focus 替代原归属",
+  );
 });

@@ -4,7 +4,7 @@ import { getBoundingBoxAfterChanges } from "../../utils/image";
 import LSTransformer from "./LSTransformer";
 import LSTransformerOld from "./LSTransformerOld";
 import { FF_DEV_2671, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
-import { constrainOccupancyBox } from "../../occupancy/transform";
+import { constrainOccupancyBox, constrainOccupancyDragPosition } from "../../occupancy/transform";
 
 const EPSILON = 0.001;
 
@@ -140,8 +140,11 @@ export default class TransformerComponent extends Component {
     if (newBox.height < MIN_SIZE) newBox.height = MIN_SIZE;
     const image = this.props.item,
       selected = image.selectedRegions;
-    if (selected?.length === 1 && image.occupancyConstrains?.(selected[0]))
-      return constrainOccupancyBox(image, selected[0], oldBox, newBox);
+    if (selected?.length === 1 && image.occupancyConstrains?.(selected[0])) {
+      const activeAnchor = this.transformer?.getActiveAnchor?.();
+
+      return constrainOccupancyBox(image, selected[0], oldBox, newBox, activeAnchor);
+    }
 
     // // it's harder to fix sizes for rotated box, so just block changes out of stage
     if (rotation || isRotated) {
@@ -162,11 +165,17 @@ export default class TransformerComponent extends Component {
   dragBoundFunc = (pos) => {
     const { item } = this.props;
 
+    if (this.occupancyDragState) {
+      const { region, start } = this.occupancyDragState;
+
+      return constrainOccupancyDragPosition(item, region, start, pos);
+    }
+
     return item.fixForZoomWrapper(pos, (pos) => {
       if (!this.transformer || !item) return;
 
       let { x, y } = pos;
-      const { width, height } = this.draggingAreaBBox;
+      const { width, height } = this.draggingAreaBBox || { width: 0, height: 0 };
       const { stageHeight, stageWidth } = item;
 
       if (x < 0) x = 0;
@@ -177,6 +186,43 @@ export default class TransformerComponent extends Component {
 
       return { x, y };
     });
+  };
+
+  startTransformerDrag = (e) => {
+    const {
+      item: { selectedRegions, selectedRegionsBBox },
+    } = this.props;
+
+    this.freeze();
+    this.occupancyDragState = null;
+
+    if (!this.transformer || e.target !== e.currentTarget || !selectedRegionsBBox) return;
+
+    this.draggingAreaBBox = {
+      x: selectedRegionsBBox.left,
+      y: selectedRegionsBBox.top,
+      width: selectedRegionsBBox.right - selectedRegionsBBox.left,
+      height: selectedRegionsBBox.bottom - selectedRegionsBBox.top,
+    };
+
+    const region = selectedRegions?.length === 1 ? selectedRegions[0] : null;
+
+    if (region?.type === "rectangleregion" && this.props.item.occupancyConstrains?.(region)) {
+      const start = e.currentTarget.getAbsolutePosition?.() || {
+        x: e.currentTarget.x(),
+        y: e.currentTarget.y(),
+      };
+
+      this.occupancyDragState = { region, start };
+    }
+  };
+
+  endTransformerDrag = () => {
+    // Call applyTransform for VectorRegion instances
+    this.applyRegionsTransform();
+    this.occupancyDragState = null;
+    this.unfreeze();
+    setTimeout(this.checkNode);
   };
 
   applyRegionsTransform = () => {
@@ -212,29 +258,9 @@ export default class TransformerComponent extends Component {
           anchorSize={8}
           flipEnabled={true}
           zoomedIn={this.props.item.zoomScale > 1}
-          onDragStart={(e) => {
-            const {
-              item: { selectedRegionsBBox },
-            } = this.props;
-
-            this.freeze();
-
-            if (!this.transformer || e.target !== e.currentTarget || !selectedRegionsBBox) return;
-
-            this.draggingAreaBBox = {
-              x: selectedRegionsBBox.left,
-              y: selectedRegionsBBox.top,
-              width: selectedRegionsBBox.right - selectedRegionsBBox.left,
-              height: selectedRegionsBBox.bottom - selectedRegionsBBox.top,
-            };
-          }}
+          onDragStart={this.startTransformerDrag}
           dragBoundFunc={this.dragBoundFunc}
-          onDragEnd={() => {
-            // Call applyTransform for VectorRegion instances
-            this.applyRegionsTransform();
-            this.unfreeze();
-            setTimeout(this.checkNode);
-          }}
+          onDragEnd={this.endTransformerDrag}
           onTransformEnd={() => {
             // Call applyTransform for VectorRegion instances
             this.applyRegionsTransform();
@@ -264,29 +290,9 @@ export default class TransformerComponent extends Component {
           anchorSize={8}
           flipEnabled={true}
           zoomedIn={this.props.item.zoomScale > 1}
-          onDragStart={(e) => {
-            const {
-              item: { selectedRegionsBBox },
-            } = this.props;
-
-            this.freeze();
-
-            if (!this.transformer || e.target !== e.currentTarget || !selectedRegionsBBox) return;
-
-            this.draggingAreaBBox = {
-              x: selectedRegionsBBox.left,
-              y: selectedRegionsBBox.top,
-              width: selectedRegionsBBox.right - selectedRegionsBBox.left,
-              height: selectedRegionsBBox.bottom - selectedRegionsBBox.top,
-            };
-          }}
+          onDragStart={this.startTransformerDrag}
           dragBoundFunc={this.dragBoundFunc}
-          onDragEnd={() => {
-            // Call applyTransform for VectorRegion instances
-            this.applyRegionsTransform();
-            this.unfreeze();
-            setTimeout(this.checkNode);
-          }}
+          onDragEnd={this.endTransformerDrag}
           onTransformEnd={() => {
             // Call applyTransform for VectorRegion instances
             this.applyRegionsTransform();

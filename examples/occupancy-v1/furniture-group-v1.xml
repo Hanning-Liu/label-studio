@@ -91,9 +91,12 @@
       <Label value="restricted_free" background="#5967b6" />
       <Label value="unclassified" background="#c36d94" />
     </Labels>
+    <VectorLabels name="occupancy_barrier_vector" toName="image" choice="single" closable="false" curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="5" pointSize="medium" showInline="true">
+      <Label value="wall_barrier" background="#374151" />
+    </VectorLabels>
   </View>
   <Rectangle name="occupancy_rectangle" toName="image" canRotate="true" />
   <Polygon name="occupancy_polygon" toName="image" strokeWidth="2" />
-  <Header value="L3：选择 Focus 功能分区 → 创建组团并绘制实际障碍占地 → 生成剩余空间 → 人工分类 → 复核。" size="5" />
-  <Header value="新轮廓绘制后请点顶部“绘制预览”。家具间空隙不要填满；地毯通常不贡献障碍占地。未完成可保存草稿。" size="5" />
+  <Header value="L3：选择 Focus 功能分区 → 创建并绘制家具组团或标注隔墙 → 预览组团 → 生成可通行区域 → 复核。" size="5" />
+  <Header value="轮廓闭合后会直接进入草稿，可继续精细调整。家具间空隙不要填满；地毯通常不贡献障碍占地。" size="5" />
 </View>

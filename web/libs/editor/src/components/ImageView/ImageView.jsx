@@ -28,6 +28,11 @@ import { ReferenceSyncControls } from "./ReferenceSyncControls";
 import { OccupancyControls } from "../../occupancy/OccupancyControls";
 import { OccupancyLayer } from "../../occupancy/OccupancyLayer";
 import { occupancyToolbarTools } from "../../occupancy/editing";
+import { partitionOccupancyBarrierRegions } from "../../occupancy/barriers";
+import {
+  partitionOccupancyZoneReferenceRegions,
+  shouldRenderOccupancyReferenceRegion,
+} from "../../occupancy/referenceDisplay";
 
 Konva.showWarnings = false;
 
@@ -66,7 +71,7 @@ const Region = memo(({ region, showSelected = false }) => {
   return useObserver(() => Tree.renderItem(region, region.annotation, true));
 });
 
-const RegionsLayer = memo(({ regions, name, useLayers, showSelected = false, smoothing = true }) => {
+const RegionsLayer = memo(({ regions, name, useLayers, showSelected = false, smoothing = true, listening = true }) => {
   const content = regions.map((el) => {
     return <Region key={`region-${el.id}`} region={el} showSelected={showSelected} />;
   });
@@ -74,24 +79,34 @@ const RegionsLayer = memo(({ regions, name, useLayers, showSelected = false, smo
   return useLayers === false ? (
     content
   ) : (
-    <Layer name={name} imageSmoothingEnabled={smoothing}>
+    <Layer name={name} imageSmoothingEnabled={smoothing} listening={listening}>
       {content}
     </Layer>
   );
 });
 
 const Regions = memo(
-  ({ regions, useLayers = true, chunkSize = 15, suggestion = false, showSelected = false, smoothing = true }) => {
+  ({
+    regions,
+    name,
+    useLayers = true,
+    chunkSize = 15,
+    suggestion = false,
+    showSelected = false,
+    smoothing = true,
+    listening = true,
+  }) => {
     return (
       <ImageViewProvider value={{ suggestion }}>
         {(chunkSize ? chunks(regions, chunkSize) : regions).map((chunk, i) => (
           <RegionsLayer
             key={`chunk-${i}`}
-            name={`chunk-${i}`}
+            name={name ? `${name}-${i}` : `chunk-${i}`}
             regions={chunk}
             useLayers={useLayers}
             showSelected={showSelected}
             smoothing={smoothing}
+            listening={listening}
           />
         ))}
       </ImageViewProvider>
@@ -330,10 +345,18 @@ const SelectionLayer = observer(({ item, selectionArea }) => {
     supportsScale = supportsScale && true;
   });
 
+  const occupancyMultiPartSelection =
+    item.occupancyEnabled &&
+    item.selectedRegions.length > 1 &&
+    item.selectedRegions.some((shape) => ["occupancy_rectangle", "occupancy_polygon"].includes(shape.control?.name));
+  const selectedShapeUsesTransformer =
+    item.selectedShape?.useTransformer && !item.selectedShape?.occupancyVertexEditing;
+
   supportsTransform =
     supportsTransform &&
+    !occupancyMultiPartSelection &&
     (item.selectedRegions.length > 1 ||
-      ((item.useTransformer || item.selectedShape?.preferTransformer) && item.selectedShape?.useTransformer));
+      ((item.useTransformer || item.selectedShape?.preferTransformer) && selectedShapeUsesTransformer));
 
   return (
     <Layer scaleX={scale} scaleY={scale}>
@@ -1102,7 +1125,9 @@ export default observer(
       return (
         <>
           {!isViewingAll &&
-            (item.occupancyEnabled ? <OccupancyControls item={item} /> : item.wholeRoomInheritanceEnabled && item.hasRoomConstraints ? (
+            (item.occupancyEnabled ? (
+              <OccupancyControls item={item} />
+            ) : item.wholeRoomInheritanceEnabled && item.hasRoomConstraints ? (
               <section
                 className={styles.reviewDock}
                 data-testid="function-zone-review-dock"
@@ -1448,7 +1473,17 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
   if (!store.task || !item.currentSrc) return null;
 
   // Keep selected or highlighted region on top
-  const regions = [...item.regs].filter((r) => !item.occupancyEnabled || !r.results.some((x) => x.meta?.occupancy_context) || r.results.some((x) => x.meta?.occupancy_context?.generation === "pending") || r.cleanId === item.occupancyActivePartId).sort((r) => (r.highlighted || r.selected ? 1 : -1));
+  const regions = [...item.regs]
+    .filter((region) => shouldRenderOccupancyReferenceRegion(item, region))
+    .filter(
+      (region) =>
+        !item.occupancyEnabled ||
+        !region.results.some((result) => result.meta?.occupancy_context) ||
+        region.isDrawing ||
+        region.results.some((result) => result.meta?.occupancy_context?.generation === "pending") ||
+        region.cleanId === item.occupancyActivePartId,
+    )
+    .sort((region) => (region.highlighted || region.selected ? 1 : -1));
   const paginationEnabled = !!item.isMultiItem;
   const wrapperClasses = [styles.wrapperComponent, item.images.length > 1 ? styles.withGallery : styles.wrapper];
   const tool = item.getToolsManager().findSelectedTool();
@@ -1456,24 +1491,36 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
   if (paginationEnabled) wrapperClasses.push(styles.withPagination);
 
   const { brushRegions, shapeRegions, bitmaskRegions } = splitRegions(regions);
+  // Logical furniture fills are rendered in OccupancyLayer, after the normal
+  // region layers. Keep barrier Vectors in a dedicated foreground layer so
+  // their segments and endpoint handles remain selectable over those fills.
+  const { foreground: foregroundBarrierRegions, background: backgroundShapeRegions } = item.occupancyEnabled
+    ? partitionOccupancyBarrierRegions(shapeRegions)
+    : { foreground: [], background: shapeRegions };
+  const { references: occupancyZoneReferenceRegions, interactive: interactiveShapeRegions } = item.occupancyEnabled
+    ? partitionOccupancyZoneReferenceRegions(backgroundShapeRegions)
+    : { references: [], interactive: backgroundShapeRegions };
 
   const {
     brushRegions: suggestedBrushRegions,
     shapeRegions: suggestedShapeRegions,
     bitmaskRegions: suggestedBitmaskRegions,
-  } = splitRegions(item.suggestions);
+  } = splitRegions(item.suggestions.filter((region) => shouldRenderOccupancyReferenceRegion(item, region)));
   const suggestedReferenceRegions = suggestedShapeRegions.filter((region) => region.isRoomLayoutReference);
   const otherSuggestedShapeRegions = suggestedShapeRegions.filter((region) => !region.isRoomLayoutReference);
 
-  const renderableRegions = Object.entries({
-    suggestedReference: suggestedReferenceRegions,
-    brush: brushRegions,
-    shape: shapeRegions,
-    bitmask: bitmaskRegions,
-    suggestedBrush: suggestedBrushRegions,
-    suggestedBismask: suggestedBitmaskRegions,
-    suggestedShape: otherSuggestedShapeRegions,
-  });
+  const renderableRegions = [
+    // L2 function zones are read-only references in L3. Render them first and
+    // disable hit testing so they cannot cover or steal clicks from furniture.
+    ["occupancyZoneReference", occupancyZoneReferenceRegions, false],
+    ["suggestedReference", suggestedReferenceRegions, !item.occupancyEnabled],
+    ["brush", brushRegions, true],
+    ["shape", interactiveShapeRegions, true],
+    ["bitmask", bitmaskRegions, true],
+    ["suggestedBrush", suggestedBrushRegions, true],
+    ["suggestedBismask", suggestedBitmaskRegions, true],
+    ["suggestedShape", otherSuggestedShapeRegions, true],
+  ];
 
   return (
     <>
@@ -1482,7 +1529,7 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
 
       {isFF(FF_LSDV_4930) ? <TransformerBack item={item} /> : null}
 
-      {renderableRegions.map(([groupName, list]) => {
+      {renderableRegions.map(([groupName, list, listening]) => {
         const useLayers = groupName.match(/brush/i) === null;
         const isSuggestion = groupName.match("suggested") !== null;
 
@@ -1494,12 +1541,16 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
             useLayers={useLayers}
             suggestion={isSuggestion}
             smoothing={item.smoothingEnabled}
+            listening={listening}
           />
         ) : (
           <Fragment key={groupName} />
         );
       })}
       <OccupancyLayer item={item} />
+      {foregroundBarrierRegions.length > 0 && (
+        <Regions name="occupancy-barriers" regions={foregroundBarrierRegions} smoothing={item.smoothingEnabled} />
+      )}
       {(!item.occupancyEnabled || item.occupancyActivePartId) && <Selection item={item} isPanning={state.isPanning} />}
       <DrawingRegion item={item} />
       {item.smoothingEnabled === false && <PixelGridLayer item={item} />}

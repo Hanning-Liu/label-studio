@@ -1,4 +1,4 @@
-import { types } from "mobx-state-tree";
+import { isAlive, isStateTreeNode, types } from "mobx-state-tree";
 
 import Utils from "../utils";
 import { throttle } from "@humansignal/core/lib/utils/lodash-replacements";
@@ -6,6 +6,29 @@ import { MIN_SIZE } from "../tools/Base";
 import { FF_DEV_3391, isFF } from "../utils/feature-flags";
 import { ff } from "@humansignal/core";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
+
+const OCCUPANCY_DRAWING_CONTROLS = new Set([
+  "occupancy_rectangle",
+  "occupancy_polygon",
+  "occupancy_barrier_vector",
+]);
+const resultControlName = (result) => result?.from_name?.name || result?.from_name || "";
+const stateControlName = (state) =>
+  state?.parent?.name || state?.from_name?.name || state?.from_name || state?.name || "";
+const isOccupancyDrawing = (tool) => tool.obj?.occupancyEnabled && OCCUPANCY_DRAWING_CONTROLS.has(tool.control?.name);
+const occupancyAllowsControl = (name, drawingControl) =>
+  name === drawingControl || (drawingControl !== "occupancy_barrier_vector" && name === "occupancy_type");
+const usableCurrentArea = (area) => !area || !isStateTreeNode(area) || isAlive(area);
+const drawingActiveStates = (tool) => {
+  const activeStates = tool.obj.activeStates();
+
+  if (!isOccupancyDrawing(tool)) return activeStates;
+
+  // L2 references can remain selected after locating a parent zone. Never let
+  // those readonly labels leak into a new L3 region: one readonly result makes
+  // the whole region readonly and hides its resize/vertex handles.
+  return activeStates.filter((state) => occupancyAllowsControl(stateControlName(state), tool.control.name));
+};
 
 const DrawingTool = types
   .model("DrawingTool", {
@@ -41,13 +64,13 @@ const DrawingTool = types
         return self.mode === "drawing";
       },
       get getActiveShape() {
-        return self.currentArea;
+        return self.getCurrentArea();
       },
       getCurrentArea() {
-        return self.currentArea;
+        return usableCurrentArea(self.currentArea) ? self.currentArea : null;
       },
       current() {
-        return self.currentArea;
+        return self.getCurrentArea();
       },
       canStart() {
         return !self.isDrawing && !self.annotation.isReadOnly();
@@ -94,11 +117,12 @@ const DrawingTool = types
       event(name, ev, [x, y, canvasX, canvasY]) {
         // filter right clicks and middle clicks and shift pressed
         if (ev.button > 0 || ev.shiftKey) return;
+        const currentArea = self.releaseStaleCurrentArea();
         if (self.obj?.occupancyEnabled && ["occupancy_rectangle", "occupancy_polygon"].includes(self.control?.name)) {
           const point = self.obj.occupancyDrawingPoint(
             { x, y },
-            self.currentArea,
-            !self.currentArea && ["mousedown", "click", "dblclick"].includes(name),
+            currentArea,
+            !currentArea && ["mousedown", "click", "dblclick"].includes(name),
           );
           if (!point) return;
           [x, y] = [point.x, point.y];
@@ -132,8 +156,8 @@ const DrawingTool = types
         const control = self.control;
         const resultValue = control.getResultValue();
 
-        const drawingOptions = self.obj.occupancyEnabled && control.name === "occupancy_rectangle"
-          ? { ...opts, width: 0, height: 0 } : opts;
+        const drawingOptions =
+          self.obj.occupancyEnabled && control.name === "occupancy_rectangle" ? { ...opts, width: 0, height: 0 } : opts;
         self.currentArea = self.obj.createDrawingRegion(drawingOptions, resultValue, control, false);
         self.currentArea.setDrawing(true);
 
@@ -167,8 +191,23 @@ const DrawingTool = types
           { coordstype: "px", dynamic: self.dynamic, converted: true },
         );
 
-        const [main, ...rest] = currentArea.results;
+        const currentResults = [...currentArea.results];
+        const main = currentResults.find((result) => resultControlName(result) === control.name) || currentResults[0];
+        const rest = currentResults.filter(
+          (result) =>
+            result !== main &&
+            (!isOccupancyDrawing(self) || occupancyAllowsControl(resultControlName(result), control.name)),
+        );
         const newArea = self.annotation.createResult(value, main.value.toJSON(), control, obj);
+
+        if (isOccupancyDrawing(self)) {
+          // createResult can attach currently selected per-region labels. Strip
+          // any non-L3 result as a final guard before the region is committed.
+          newArea.results
+            ?.filter((result) => !occupancyAllowsControl(resultControlName(result), control.name))
+            .slice()
+            .forEach((result) => newArea.removeResult(result));
+        }
 
         //when user is using two different labels tag to draw a region, the other labels will be added to the region
         rest.forEach((r) => {
@@ -183,12 +222,13 @@ const DrawingTool = types
         currentArea.setDrawing(false);
         self.deleteRegion();
         newArea.notifyDrawingFinished();
+        obj.finalizeOccupancyRegion?.(newArea);
         return newArea;
       },
       createRegion(opts, skipAfterCreate = false) {
         const control = self.control;
         const resultValue = control.getResultValue();
-        const activeStates = self.obj.activeStates();
+        const activeStates = drawingActiveStates(self);
         // Remove the main control from additional states to avoid duplication
         const additionalStates = activeStates.filter((state) => state !== control);
 
@@ -214,7 +254,7 @@ const DrawingTool = types
         self.obj.deleteDrawingRegion();
       },
       applyActiveStates(area) {
-        const activeStates = self.obj.activeStates();
+        const activeStates = drawingActiveStates(self);
 
         activeStates.forEach((state) => {
           area.setValue(state);
@@ -228,7 +268,7 @@ const DrawingTool = types
       canStartDrawing() {
         if (
           self.obj?.occupancyEnabled &&
-          (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason())
+          (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason(self.control?.name))
         )
           return false;
         return (
@@ -262,6 +302,21 @@ const DrawingTool = types
         self.annotation.setIsDrawing(false);
         self.annotation.history.unfreeze();
         self.mode = "viewing";
+      },
+      /**
+       * A region can be removed by a bulk annotation replacement while a
+       * drawing tool still points at its MST node. Never inspect that detached
+       * node: release only the transient tool state and let the same event
+       * continue as the first event of a new drawing.
+       */
+      releaseStaleCurrentArea() {
+        if (usableCurrentArea(self.currentArea)) return self.currentArea;
+        self.stopListening?.();
+        self.currentArea = null;
+        self.annotation.setIsDrawing(false);
+        self.annotation.history?.unfreeze?.();
+        self.mode = "viewing";
+        return null;
       },
       /**
        * Release the tool's in-progress drawing state without touching the
@@ -560,7 +615,7 @@ const ThreePointsDrawingTool = DrawingTool.named("ThreePointsDrawingTool")
         if (
           self.obj?.occupancyEnabled &&
           !self.currentArea &&
-          (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason())
+          (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason(self.control?.name))
         )
           return false;
         return !self.isIncorrectControl();

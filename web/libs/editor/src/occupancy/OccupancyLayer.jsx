@@ -2,6 +2,7 @@ import { observer } from "mobx-react";
 import { Layer, Path, Text, Group } from "react-konva";
 import { TYPES, GROUP_TYPES } from "./domain";
 import { resultGeometry, union } from "./geometry";
+import { occupancyLogicalLayerListening } from "./editing";
 export const COLORS = {
   furniture_group: "#b06e28",
   walkable: "#249376",
@@ -12,29 +13,30 @@ export const pathData = (multi, scaleX = 1, scaleY = 1) =>
   multi
     .map((polygon) =>
       polygon
-        .map((ring) => ring.map(([x, y], i) => `${i ? "L" : "M"}${x * scaleX},${y * scaleY}`).join(" ") + " Z")
+        .map((ring) => `${ring.map(([x, y], i) => `${i ? "L" : "M"}${x * scaleX},${y * scaleY}`).join(" ")} Z`)
         .join(" "),
     )
     .join(" ");
 export const OccupancyLayer = observer(({ item }) => {
   if (!item.occupancyEnabled) return null;
-  const drawing = !!item.getToolsManager().findSelectedTool()?.isDrawingTool;
+  const listening = occupancyLogicalLayerListening(item);
+  const drawingIds = new Set(item.regs.filter((region) => region.isDrawing).map((region) => region.cleanId));
   return (
     <Layer name="occupancy-logical-regions">
       {item.occupancyLogicals
-        .filter((r) => r.context.generation !== "pending")
+        .filter((r) => !r.parts.some((part) => drawingIds.has(part.id)))
         .map((r) => {
           const geometry = union(
             ...r.parts.filter((part) => part.id !== item.occupancyActivePartId).map(resultGeometry),
           );
           if (!geometry.length) return null;
-          const color = COLORS[r.type],
-            selected = item.occupancySelectedId === r.id;
+          const color = COLORS[r.type];
+          const selected = item.occupancySelectedId === r.id;
           const [x, y] = geometry[0]?.[0]?.[0] || [0, 0];
           return (
             <Group
               key={r.id}
-              listening={!drawing && !item.occupancyBusy}
+              listening={listening}
               onClick={(event) => {
                 event.cancelBubble = true;
                 item.selectOccupancyLogical(r.id);

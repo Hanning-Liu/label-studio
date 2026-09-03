@@ -13,3 +13,26 @@ export async function applyOccupancyPreview(item, preview, backup) {
     throw new Error(`修改已保留在本地，但未保存：${error.message}。请重试或导出备份。`);
   }
 }
+
+// Immediate L3 operations still use the same save/reference/rollback boundary
+// as previewed bulk edits, but they compute from the latest data and do not
+// create an intermediate "pending application" object.
+export async function applyOccupancyOperation(item, makeResults, backup, { backupName = null } = {}) {
+  const annotation = item.annotation;
+  await annotation.saveDraftImmediatelyWithResults();
+  if (backupName) backup(annotation, backupName);
+  const controller = annotation.store.referenceSyncController;
+  if (controller) await controller.checkOccupancyReference(annotation.referenceVersion);
+  item.refreshOccupancyReviews();
+  const reason = item.occupancyOperationBlockReason();
+  if (reason) throw new Error(reason);
+  const fingerprint = item.occupancyOperationFingerprint();
+  const operation = makeResults(item.occupancyData);
+  item.applyOccupancyResults(operation.results || operation, fingerprint);
+  try {
+    await annotation.saveDraftImmediatelyWithResults();
+  } catch (error) {
+    throw new Error(`修改已保留在本地，但未保存：${error.message}。请重试或导出备份。`);
+  }
+  return operation;
+}

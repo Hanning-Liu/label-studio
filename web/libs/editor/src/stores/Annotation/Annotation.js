@@ -659,7 +659,10 @@ const _Annotation = types
       // L3 deletion must use the logical transaction with save/backup protection.
       // Incomplete drawing cancellation still needs the ordinary tool path.
       if (region.parent?.occupancyEnabled && !self.isDrawing && !self.hasIncompletePolygons &&
-          region.results.some((r) => r.meta?.occupancy_context)) return;
+          region.results.some((r) => r.meta?.occupancy_context)) {
+        region.parent.requestOccupancyDelete?.(region);
+        return;
+      }
 
       const { regions } = self.regionStore;
       // move all children into the parent region of the given one

@@ -11,9 +11,30 @@ import { area, difference, EPS_AREA } from "./geometry";
 const close = (a, b) => Math.abs(a - b) < 1e-8;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const mix = (a, b, t) => a + (b - a) * t;
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+// Quantize the position ALONG a parent edge while keeping the point exactly on
+// that edge. Rounding both coordinates would push points off diagonal edges;
+// quantizing the dominant edge axis gives one-original-pixel steps without
+// weakening the parent-boundary constraint.
+const snapBoundaryCandidateToPixel = ({ point, start, end, kind }) => {
+  if (kind === "corner" || !start || !end) return point;
+  const dx = end.x - start.x,
+    dy = end.y - start.y;
+  if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) > 1e-10) {
+    const t = clamp01((Math.round(point.x) - start.x) / dx);
+    return { x: start.x + dx * t, y: start.y + dy * t };
+  }
+  if (Math.abs(dy) > 1e-10) {
+    const t = clamp01((Math.round(point.y) - start.y) / dy);
+    return { x: start.x + dx * t, y: start.y + dy * t };
+  }
+  return point;
+};
 
 // Work in ORIGINAL image pixels (not percentages or zoomed canvas pixels).
-// Parent coordinates are never rounded. Snapping uses a screen-pixel radius.
+// Parent coordinates are never rounded. Boundary hits are quantized along the
+// parent edge when pixel snapping is enabled. Snapping uses a screen-pixel radius.
 export function constraintSpace(geometry, metrics = {}) {
   const {
     width = 100,
@@ -39,17 +60,26 @@ export function constraintSpace(geometry, metrics = {}) {
     const percent = points.map(fromPixel).map(({ x, y }) => [x, y]);
     return area(difference([[percent]], geometry)) <= EPS_AREA;
   };
-  const boundaryPoints = (point) => {
+  const boundaryCandidates = (point) => {
     if (!boundary) return [];
-    const corners = ring.filter((p) => screenDistance(point, p) <= threshold);
+    const corners = ring
+      .filter((p) => screenDistance(point, p) <= threshold)
+      .map((p) => ({ point: p, kind: "corner" }));
     const edges = ring
-      .map((p, i) => nearestPointOnSegment(point, p, ring[(i + 1) % ring.length]))
-      .filter((p) => screenDistance(point, p) <= threshold);
+      .map((start, i) => {
+        const end = ring[(i + 1) % ring.length];
+        return { point: nearestPointOnSegment(point, start, end), start, end, kind: "edge" };
+      })
+      .filter((candidate) => screenDistance(point, candidate.point) <= threshold);
     return [
-      ...corners.sort((a, b) => screenDistance(point, a) - screenDistance(point, b)),
-      ...edges.sort((a, b) => screenDistance(point, a) - screenDistance(point, b)),
+      ...corners.sort((a, b) => screenDistance(point, a.point) - screenDistance(point, b.point)),
+      ...edges.sort((a, b) => screenDistance(point, a.point) - screenDistance(point, b.point)),
     ];
   };
+  const boundaryPoints = (point) =>
+    boundaryCandidates(point).map((candidate) =>
+      pixel ? snapBoundaryCandidateToPixel(candidate) : candidate.point,
+    );
   const snap = (p) => boundaryPoints(p)[0] || (pixel ? { x: Math.round(p.x), y: Math.round(p.y) } : p);
   return {
     toPixel,

@@ -1,6 +1,6 @@
 import { constraintSpace, constrainRectangle, constrainPolygon, snapOccupancyPoint } from "../constraints";
 import { area, difference, resultGeometry } from "../geometry";
-import { constrainOccupancyBox } from "../transform";
+import { constrainOccupancyBox, constrainOccupancyDragPosition, lockRectangleToActiveAnchor } from "../transform";
 
 const square = [
   [
@@ -54,6 +54,44 @@ test("boundary snap radius is ten SCREEN pixels and has priority over pixel grid
     10,
   );
   expect(snapOccupancyPoint({ x: 10.4, y: 10.6 }, space())).toEqual({ x: 10.23, y: 10.13 });
+});
+test("boundary snapping quantizes the position along axis-aligned edges to original image pixels", () => {
+  const vertical = snapOccupancyPoint({ x: 10.8, y: 40.13 }, space());
+  expect(vertical.x).toBeCloseTo(10.23, 10);
+  expect(vertical.y).toBeCloseTo(40.2, 10);
+  expect((vertical.y * metrics.height) / 100).toBeCloseTo(201, 10);
+
+  const horizontal = snapOccupancyPoint({ x: 33.26, y: 10.8 }, space());
+  expect(horizontal.x).toBeCloseTo(33.3, 10);
+  expect(horizontal.y).toBeCloseTo(10.13, 10);
+  expect((horizontal.x * metrics.width) / 100).toBeCloseTo(333, 10);
+});
+test("rectangle translation stays on the parent edge and moves in original-pixel steps along it", () => {
+  const old = { x: 30.13, y: 30.13, width: 20, height: 20, rotation: 0 };
+  const out = constrainRectangle(old, { ...old, x: 120 }, space());
+
+  expect(out.x + out.width).toBeCloseTo(90.27, 10);
+  expect(out.y).toBeCloseTo(30.2, 10);
+  expect((out.y * metrics.height) / 100).toBeCloseTo(151, 10);
+  inside(out);
+});
+test("diagonal boundary snapping remains on the edge while quantizing its dominant pixel axis", () => {
+  const diagonal = [
+    [
+      [
+        [10, 10],
+        [90, 30],
+        [90, 90],
+        [10, 90],
+        [10, 10],
+      ],
+    ],
+  ];
+  const out = snapOccupancyPoint({ x: 50.07, y: 19.8 }, space({}, diagonal));
+  const pixel = { x: (out.x * metrics.width) / 100, y: (out.y * metrics.height) / 100 };
+
+  expect(pixel.x).toBeCloseTo(Math.round(pixel.x), 10);
+  expect(pixel.y).toBeCloseTo(50 + (pixel.x - 100) * 0.125, 10);
 });
 test("turning off both snaps does not turn off parent containment", () => {
   const out = constrainRectangle(rect, { ...rect, x: 99 }, space({ boundary: false, pixel: false }));
@@ -159,3 +197,151 @@ test.each([0, 90, 180, 270])("live rectangle transformer respects pan, zoom and 
   expect(out.x).toBeCloseTo(x);
   expect(out.y).toBeCloseTo(y);
 });
+
+test("bottom-center resize preserves a right edge already snapped to the parent", () => {
+  const old = { x: 70.27, y: 30, width: 20, height: 20, rotation: 0 };
+  const targetWithRoundTripDrift = {
+    x: old.x + 0.0001,
+    y: old.y,
+    width: old.width + 0.0001,
+    height: 35,
+    rotation: 0,
+  };
+  const anchored = lockRectangleToActiveAnchor(old, targetWithRoundTripDrift, "bottom-center");
+  const out = constrainRectangle(old, anchored, space({ boundary: false, pixel: false }));
+
+  expect(out.x).toBeCloseTo(old.x, 12);
+  expect(out.x + out.width).toBeCloseTo(90.27, 12);
+  expect(out.y).toBeCloseTo(old.y, 12);
+  expect(out.height).toBeCloseTo(35, 12);
+  inside(out);
+});
+
+test("top-right resize preserves left and bottom edges already snapped to the parent", () => {
+  const old = { x: 10.23, y: 70.17, width: 20, height: 20, rotation: 0 };
+  const targetWithRoundTripDrift = {
+    x: old.x - 0.0001,
+    y: 55,
+    width: 35,
+    height: 35.1702,
+    rotation: 0,
+  };
+  const anchored = lockRectangleToActiveAnchor(old, targetWithRoundTripDrift, "top-right");
+  const out = constrainRectangle(old, anchored, space({ boundary: false, pixel: false }));
+
+  expect(out.x).toBeCloseTo(10.23, 12);
+  expect(out.y + out.height).toBeCloseTo(90.17, 12);
+  expect(out.y).toBeCloseTo(55, 12);
+  expect(out.x + out.width).toBeCloseTo(targetWithRoundTripDrift.x + targetWithRoundTripDrift.width, 12);
+  inside(out);
+});
+
+test.each([
+  ["top-left", [true, false, true, false]],
+  ["top-center", [false, false, true, false]],
+  ["top-right", [false, true, true, false]],
+  ["middle-left", [true, false, false, false]],
+  ["middle-right", [false, true, false, false]],
+  ["bottom-left", [true, false, false, true]],
+  ["bottom-center", [false, false, false, true]],
+  ["bottom-right", [false, true, false, true]],
+])("%s changes only the sides controlled by that Transformer anchor", (anchor, moving) => {
+  const old = { x: 30, y: 30, width: 20, height: 20, rotation: 0 };
+  const target = { x: 25, y: 24, width: 32, height: 34, rotation: 0 };
+  const out = lockRectangleToActiveAnchor(old, target, anchor);
+  const before = [old.x, old.x + old.width, old.y, old.y + old.height];
+  const after = [out.x, out.x + out.width, out.y, out.y + out.height];
+  const desired = [target.x, target.x + target.width, target.y, target.y + target.height];
+
+  for (let side = 0; side < before.length; side++) {
+    expect(after[side]).toBeCloseTo(moving[side] ? desired[side] : before[side], 12);
+  }
+});
+
+test.each([0, 90, 180, 270])(
+  "live bottom-center resize preserves a snapped right edge under image rotation %s",
+  (rotation) => {
+    const a = (rotation * Math.PI) / 180;
+    const scale = 3;
+    const snapped = { x: 70.27, y: 30, width: 20, height: 20, rotation: 0 };
+    const image = {
+      occupancyConstrains: () => true,
+      canvasToInternalX: (n) => n / 10,
+      canvasToInternalY: (n) => n / 5,
+      internalToCanvasX: (n) => n * 10,
+      internalToCanvasY: (n) => n * 5,
+      fixZoomedCoords: ([x, y]) => [
+        ((x - 123) * Math.cos(a) + (y - 77) * Math.sin(a)) / scale,
+        (-(x - 123) * Math.sin(a) + (y - 77) * Math.cos(a)) / scale,
+      ],
+      zoomOriginalCoords: ([x, y]) => [
+        123 + scale * (x * Math.cos(a) - y * Math.sin(a)),
+        77 + scale * (x * Math.sin(a) + y * Math.cos(a)),
+      ],
+      constrainOccupancyRectangle: (_r, old, target) =>
+        constrainRectangle(old, target, space({ boundary: false, pixel: false })),
+    };
+    const [x, y] = image.zoomOriginalCoords([image.internalToCanvasX(snapped.x), image.internalToCanvasY(snapped.y)]);
+    const oldBox = {
+      x,
+      y,
+      width: image.internalToCanvasX(snapped.width) * scale,
+      height: image.internalToCanvasY(snapped.height) * scale,
+      rotation: a,
+    };
+    const out = constrainOccupancyBox(
+      image,
+      { ...snapped, type: "rectangleregion" },
+      oldBox,
+      { ...oldBox, width: oldBox.width + 0.03, height: oldBox.height + 150 },
+      "bottom-center",
+    );
+
+    expect(out.x).toBeCloseTo(oldBox.x, 8);
+    expect(out.y).toBeCloseTo(oldBox.y, 8);
+    expect(out.width).toBeCloseTo(oldBox.width, 8);
+    expect(out.height / scale / 5).toBeCloseTo(30, 8);
+  },
+);
+
+test.each([0, 90, 180, 270])(
+  "selected rectangle drag clamps and snaps live under pan, zoom and image rotation %s",
+  (rotation) => {
+    const a = (rotation * Math.PI) / 180;
+    const scale = 3;
+    const image = {
+      occupancyConstrains: () => true,
+      canvasToInternalX: (n) => n / 10,
+      canvasToInternalY: (n) => n / 5,
+      internalToCanvasX: (n) => n * 10,
+      internalToCanvasY: (n) => n * 5,
+      fixZoomedCoords: ([x, y]) => [
+        ((x - 123) * Math.cos(a) + (y - 77) * Math.sin(a)) / scale,
+        (-(x - 123) * Math.sin(a) + (y - 77) * Math.cos(a)) / scale,
+      ],
+      zoomOriginalCoords: ([x, y]) => [
+        123 + scale * (x * Math.cos(a) - y * Math.sin(a)),
+        77 + scale * (x * Math.sin(a) + y * Math.cos(a)),
+      ],
+      constrainOccupancyRectangle: (_r, old, target) => constrainRectangle(old, target, space()),
+    };
+    const toScreen = (x, y) => {
+      const [screenX, screenY] = image.zoomOriginalCoords([image.internalToCanvasX(x), image.internalToCanvasY(y)]);
+
+      return { x: screenX, y: screenY };
+    };
+    const toInternal = (p) => {
+      const [x, y] = image.fixZoomedCoords([p.x, p.y]);
+
+      return { x: image.canvasToInternalX(x), y: image.canvasToInternalY(y) };
+    };
+    const start = toScreen(5, 8);
+    const proposed = toScreen(105, 8);
+    const out = constrainOccupancyDragPosition(image, { ...rect, type: "rectangleregion" }, start, proposed);
+    const startInternal = toInternal(start);
+    const outInternal = toInternal(out);
+
+    expect(outInternal.x - startInternal.x + rect.x + rect.width).toBeCloseTo(90.27, 7);
+    expect(outInternal.y - startInternal.y).toBeCloseTo(0, 7);
+  },
+);

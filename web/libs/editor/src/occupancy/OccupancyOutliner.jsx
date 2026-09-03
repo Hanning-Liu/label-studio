@@ -2,8 +2,9 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { GROUP_TYPES, TYPES } from "./domain";
 import { focusOccupancy } from "./focus";
+import { COLORS } from "./OccupancyLayer";
+import { ParentIdentity, roomStyle, shortId } from "./OccupancyPresentation";
 import styles from "./OccupancyControls.module.scss";
-import { editableParts } from "./editing";
 
 const name = (r) => (r.type === "furniture_group" ? GROUP_TYPES[r.context.group_type] : TYPES[r.type]);
 
@@ -25,8 +26,10 @@ export const OccupancyOutliner = observer(({ item }) => {
       <p>逻辑区域 {rows.length} · 内部存储拆分边不显示</p>
       {error && <p role="alert">{error}</p>}
       {item.occupancyParents.map((p) => (
-        <details key={p.id} open={item.occupancyFocusId === p.id}>
-          <summary>{p.label}</summary>
+        <details key={p.id} open={item.occupancyFocusId === p.id} className={styles.parentGroup} style={roomStyle(p)}>
+          <summary className={styles.parentSummary}>
+            <ParentIdentity parent={p} />
+          </summary>
           {rows
             .filter((r) => r.context.parent_zone_id === p.id)
             .map((r) => (
@@ -37,24 +40,15 @@ export const OccupancyOutliner = observer(({ item }) => {
                   disabled={blocked}
                   onClick={() => locate(r)}
                   aria-pressed={item.occupancySelectedId === r.id}
+                  style={roomStyle(p)}
+                  title={`${p.roomLabel} · ${p.functionLabel} · ${r.id}`}
                 >
-                  {name(r)} · {r.geometry.length} 个分块{r.context.generation === "pending" ? " · 待应用" : ""}
-                  <small>{r.id}</small>
+                  <span className={styles.logicalPrimary}>
+                    <span className={styles.typeSwatch} style={{ backgroundColor: COLORS[r.type] }} aria-hidden="true" />
+                    <strong>{name(r)}</strong>
+                  </span>
+                  <small>区域 ID {shortId(r.id, 12)}</small>
                 </button>
-                {item.occupancySelectedId === r.id && editableParts(r).length > 1 && (
-                  <div>
-                    {editableParts(r).map((part, index) => (
-                      <button
-                        key={part.id}
-                        disabled={blocked}
-                        onClick={() => item.editOccupancyPart(part.id)}
-                        aria-pressed={item.occupancyActivePartId === part.id}
-                      >
-                        编辑分块 {index + 1}（{part.type === "rectangle" ? "矩形" : "多边形"}）
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
         </details>
@@ -101,19 +95,20 @@ export const OccupancyDetails = observer(({ item }) => {
       {rows.map((r) => (
         <section key={r.id}>
           <strong>
-            {name(r)} · {r.geometry.length} 个占地分块
+            {name(r)}
           </strong>
           <p className={styles.small}>{r.id}</p>
-          <p>{item.occupancyParents.find((p) => p.id === r.context.parent_zone_id)?.label || "父分区待重新绑定"}</p>
+          {item.occupancyParents.find((p) => p.id === r.context.parent_zone_id) ? (
+            <p style={roomStyle(item.occupancyParents.find((p) => p.id === r.context.parent_zone_id))}>
+              <ParentIdentity parent={item.occupancyParents.find((p) => p.id === r.context.parent_zone_id)} />
+            </p>
+          ) : (
+            <p>父分区待重新绑定</p>
+          )}
           <p>
             {item.occupancyErrors.some((e) => e.parentId === r.context.parent_zone_id) ? "待处理 / 待复核" : "已复核"}
           </p>
-          <p>分类、继续添加分块、局部修正和安全删除，请使用顶部“组团与空闲区域”。</p>
-          <p>
-            {editableParts(r).length
-              ? "单分块选中即可拖动/调整；多个分块请在 Regions 列表选择“编辑分块”。"
-              : "自动补余或带孔洞区域请使用局部修正，不编辑内部存储分块。"}
-          </p>
+          <p>家具组团可在顶部“预览组团”中重新分类；可编辑轮廓可直接在画布上调整。</p>
         </section>
       ))}
     </div>

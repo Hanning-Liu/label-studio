@@ -248,6 +248,7 @@ describe("PolygonRegion", () => {
       expect(firstPoint.selected).toBe(true);
       region.afterUnselectRegion();
       expect(firstPoint.selected).toBe(false);
+      expect(region.selectedPoint).toBeNull();
     });
 
     it("addPoint does nothing when closed", () => {

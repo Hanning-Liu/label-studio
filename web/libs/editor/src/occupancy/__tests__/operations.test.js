@@ -1,4 +1,4 @@
-import { applyOccupancyPreview } from "../operations";
+import { applyOccupancyOperation, applyOccupancyPreview } from "../operations";
 
 const setup = () => {
   const calls = [];
@@ -9,6 +9,10 @@ const setup = () => {
       referenceVersion: "v1",
       saveDraftImmediatelyWithResults: jest.fn(async () => calls.push("save")),
     },
+    occupancyData: [{ id: "old" }],
+    refreshOccupancyReviews: jest.fn(() => calls.push("refresh")),
+    occupancyOperationBlockReason: jest.fn(() => ""),
+    occupancyOperationFingerprint: jest.fn(() => "current-version"),
     applyOccupancyResults: jest.fn(() => calls.push("write")),
   };
   const backup = jest.fn(() => calls.push("backup"));
@@ -58,4 +62,22 @@ test("post-write save failure leaves the edit in memory and reports unsaved, nev
   item.annotation.saveDraftImmediatelyWithResults.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("offline"));
   await expect(applyOccupancyPreview(item, preview, backup)).rejects.toThrow("修改已保留在本地，但未保存");
   expect(item.applyOccupancyResults).toHaveBeenCalledTimes(1);
+});
+test("immediate operation recomputes after save/reference checks and writes without an application preview", async () => {
+  const { item, backup, calls } = setup();
+  const makeResults = jest.fn(() => ({ results: [{ id: "generated" }], count: 1 }));
+  const operation = await applyOccupancyOperation(item, makeResults, backup, { backupName: "before-generate" });
+  expect(calls).toEqual(["save", "backup", "reference", "refresh", "write", "save"]);
+  expect(makeResults).toHaveBeenCalledWith(item.occupancyData);
+  expect(item.applyOccupancyResults).toHaveBeenCalledWith(operation.results, "current-version");
+  expect(backup).toHaveBeenCalledWith(item.annotation, "before-generate");
+});
+test("immediate reclassification can skip file backup but still preserves pre-save failure safety", async () => {
+  const { item, backup } = setup();
+  await applyOccupancyOperation(item, () => [{ id: "classified" }], backup);
+  expect(backup).not.toHaveBeenCalled();
+  item.annotation.saveDraftImmediatelyWithResults.mockReset().mockRejectedValue(new Error("409 conflict"));
+  item.applyOccupancyResults.mockClear();
+  await expect(applyOccupancyOperation(item, () => [], backup)).rejects.toThrow("409 conflict");
+  expect(item.applyOccupancyResults).not.toHaveBeenCalled();
 });

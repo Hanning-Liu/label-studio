@@ -3,9 +3,16 @@ import hashlib
 import json
 import math
 
-from shapely.geometry import Polygon
+from shapely import union_all
+from shapely.geometry import MultiPolygon, Polygon
 
 EPS_AREA = 1e-8
+VALIDATION_PIXEL_EPS = 1e-5
+# Validation runs independently in Shapely and polygon-clipping. Boolean
+# operations can leave different sub-pixel slivers even after coordinates have
+# been canonicalized. Ignore only differences below one thousandth of a source
+# pixel area; this does not alter stored geometry or remove storage components.
+VALIDATION_EPS_AREA = 1e-3
 
 
 def canonical(value):
@@ -47,3 +54,50 @@ def result_geometry(result):
     if geometry.is_empty or not geometry.is_valid or geometry.area == 0:
         raise ValueError('轮廓自交或面积为零')
     return geometry
+
+
+def _validation_pixel_coordinate(value):
+    integer = round(value)
+    return integer if abs(value - integer) <= VALIDATION_PIXEL_EPS else value
+
+
+def validation_geometry(result):
+    """Return validation-only geometry in original image pixels.
+
+    Percentage coordinates that are within 0.00001px of an integer source
+    pixel are canonicalized to that pixel. The annotation JSON is not mutated.
+    """
+    width, height = result.get('original_width', 0), result.get('original_height', 0)
+    if not (isinstance(width, (int, float)) and isinstance(height, (int, float))
+            and math.isfinite(width) and math.isfinite(height) and width > 0 and height > 0):
+        raise ValueError('缺少原图尺寸，无法进行像素级几何校验')
+    return validation_shape(result_geometry(result), width, height)
+
+
+def _validation_polygon(polygon, width, height):
+    def ring_coordinates(ring, normalize):
+        coordinates = []
+        for x, y in list(ring.coords)[:-1]:
+            x, y = x * width / 100, y * height / 100
+            coordinates.append((_validation_pixel_coordinate(x), _validation_pixel_coordinate(y)) if normalize else (x, y))
+        return coordinates
+
+    scaled = Polygon(ring_coordinates(polygon.exterior, False), [ring_coordinates(ring, False) for ring in polygon.interiors])
+    normalized = Polygon(ring_coordinates(polygon.exterior, True), [ring_coordinates(ring, True) for ring in polygon.interiors])
+    # Never discard a genuine sub-pixel component or hole. Logical storage
+    # pieces are unioned before this function is called, so falling back here
+    # preserves semantic geometry rather than internal triangulation edges.
+    if normalized.is_empty or not normalized.is_valid or normalized.area == 0:
+        return scaled
+    return normalized
+
+
+def validation_shape(geometry, width, height):
+    if not (isinstance(width, (int, float)) and isinstance(height, (int, float))
+            and math.isfinite(width) and math.isfinite(height) and width > 0 and height > 0):
+        raise ValueError('缺少原图尺寸，无法进行像素级几何校验')
+    if isinstance(geometry, Polygon):
+        return _validation_polygon(geometry, width, height)
+    if isinstance(geometry, MultiPolygon):
+        return union_all([_validation_polygon(polygon, width, height) for polygon in geometry.geoms])
+    raise ValueError('不支持的逻辑区域几何')

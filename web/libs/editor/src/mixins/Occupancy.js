@@ -8,10 +8,7 @@ import {
   newId,
   parents,
   REFERENCES,
-  replaceLogicals,
-  resultsForGeometry,
   validateOccupancy,
-  localCorrection,
   sourceFingerprint,
   invalidateReviews,
 } from "../occupancy/domain";
@@ -20,15 +17,21 @@ import {
   clone,
   difference,
   EPS_AREA,
-  equivalent,
   fingerprint,
-  intersection,
   resultGeometry,
-  union,
 } from "../occupancy/geometry";
 import { editableParts } from "../occupancy/editing";
 import { constraintSpace, constrainRectangle, constrainPolygon, snapOccupancyPoint } from "../occupancy/constraints";
 import { pointInPolygon, segmentInsidePolygon } from "../utils/roomConstraintGeometry";
+import {
+  BARRIER_CONTROL,
+  BARRIER_LABEL,
+  barrierContextFor,
+  barrierControlName,
+  barrierResults,
+  matchOccupancyBarrier,
+  occupancyBarrierContext,
+} from "../occupancy/barriers";
 
 export const Occupancy = types
   .model("Occupancy", { occupancyv1: types.optional(types.boolean, false) })
@@ -39,10 +42,15 @@ export const Occupancy = types
     occupancyCorrectionId: "",
     occupancySelectedId: "",
     occupancyEditPartId: "",
+    occupancyDeleteRequestId: "",
     occupancyEditNotice: "",
     occupancyBusy: false,
     occupancyBoundarySnap: true,
     occupancyPixelSnap: true,
+    occupancyDrawingControl: "",
+    // Display-only diagnostic switch. L1 room results stay loaded even when
+    // their redundant canvas geometry is hidden behind complete L2 parents.
+    occupancyShowRoomReferences: false,
   }))
   .views((self) => ({
     get occupancyEnabled() {
@@ -53,7 +61,13 @@ export const Occupancy = types
       return self.annotation.serializeAnnotation({ fast: true });
     },
     get occupancyParents() {
-      return self.occupancyEnabled ? parents(self.occupancyData) : [];
+      if (!self.occupancyEnabled) return [];
+      return parents(self.occupancyData).map((parent) => {
+        const roomRegion = self.regs.find(
+          (region) => region.cleanId === parent.roomId && region.results.some((result) => result.meta?.room_graph_node),
+        );
+        return { ...parent, roomColor: roomRegion?.getOneColor?.() || "#7b8a83" };
+      });
     },
     get occupancyLogicals() {
       if (!self.occupancyEnabled) return [];
@@ -63,8 +77,13 @@ export const Occupancy = types
         return [];
       }
     },
-    get occupancyPending() {
-      return self.occupancyLogicals.filter((r) => r.context.generation === "pending");
+    get occupancyBarriers() {
+      if (!self.occupancyEnabled) return [];
+      return barrierResults(self.occupancyData).map((result) => ({
+        id: result.id,
+        result,
+        context: occupancyBarrierContext(result),
+      }));
     },
     get occupancyActivePartId() {
       const selected = self.annotation.selectedRegions;
@@ -89,7 +108,9 @@ export const Occupancy = types
     },
     occupancyConstraintSpace(region) {
       const c = region?.results.find((r) => GEOMETRY.has(r.from_name?.name))?.meta?.occupancy_context;
-      const id = c?.parent_zone_id || (!region || region.isDrawing ? self.occupancyFocusId : "");
+      const drawingParentId =
+        self.occupancyDrawMode === "furniture_group" ? self.occupancyGroup?.parentId : self.occupancyFocusId;
+      const id = c?.parent_zone_id || (!region || region.isDrawing ? drawingParentId || self.occupancyFocusId : "");
       const parent = self.occupancyParents.find((p) => p.id === id);
       if (!parent) throw new Error("所属父分区不存在，请先重新绑定；不能用当前 Focus 替代原归属");
       return constraintSpace(parent.geometry, {
@@ -101,12 +122,18 @@ export const Occupancy = types
         pixel: self.occupancyPixelSnap,
       });
     },
-    occupancyDrawBlockReason() {
+    occupancyDrawBlockReason(controlName = "") {
       if (!self.occupancyEnabled) return "";
       if (self.occupancyBusy || self.annotation.submissionStarted) return "操作或保存正在进行";
-      if (self.occupancyPending.length) return "请先处理刚绘制轮廓的预览";
       if (!self.occupancyParents.some((p) => p.id === self.occupancyFocusId)) return "请先选择 Focus 功能分区";
-      if (self.occupancyDrawMode === "furniture_group" && !self.occupancyGroup) return "请先创建或选择家具组团";
+      if (controlName !== BARRIER_CONTROL && self.occupancyDrawMode === "furniture_group" && !self.occupancyGroup)
+        return "请先创建或选择家具组团";
+      if (
+        controlName !== BARRIER_CONTROL &&
+        self.occupancyDrawMode === "furniture_group" &&
+        self.occupancyGroup?.parentId !== self.occupancyFocusId
+      )
+        return "待绘制组团所属分区已变化，请重新创建组团";
       return "";
     },
     occupancyOperationBlockReason() {
@@ -128,6 +155,12 @@ export const Occupancy = types
     },
   }))
   .actions((self) => ({
+    setOccupancyEditNotice(message) {
+      self.occupancyEditNotice = message || "";
+    },
+    setOccupancyRoomReferencesVisible(visible) {
+      self.occupancyShowRoomReferences = !!visible;
+    },
     setOccupancySnapping(kind, enabled) {
       if (kind === "boundary") self.occupancyBoundarySnap = enabled;
       if (kind === "pixel") self.occupancyPixelSnap = enabled;
@@ -140,6 +173,7 @@ export const Occupancy = types
           self.occupancyEditNotice = "请在 Focus 功能分区内起笔";
           return null;
         }
+        self.occupancyEditNotice = "";
         return snapped;
       } catch (error) {
         self.occupancyEditNotice = error.message;
@@ -190,6 +224,34 @@ export const Occupancy = types
     setOccupancyBusy(value) {
       self.occupancyBusy = value;
     },
+    requestOccupancyDelete(region) {
+      const reason = self.occupancyOperationBlockReason();
+
+      if (reason) {
+        self.occupancyEditNotice = reason;
+        return false;
+      }
+      const logical = self.occupancyLogicals.find((candidate) =>
+        candidate.parts.some((part) => part.id === region?.cleanId),
+      );
+
+      if (!logical) {
+        self.occupancyEditNotice = "待删除的 L3 区域已不存在，请重新选择";
+        return false;
+      }
+      if (logical.context.generation !== "manual") {
+        self.occupancyEditNotice = "自动生成的可通行区域不能单独删除；请在“预览组团”中重新生成";
+        return false;
+      }
+      self.occupancyDeleteRequestId = logical.id;
+      self.occupancyFocusId = logical.context.parent_zone_id;
+      self.occupancySelectedId = logical.id;
+      self.occupancyEditNotice = "";
+      return true;
+    },
+    clearOccupancyDeleteRequest() {
+      self.occupancyDeleteRequestId = "";
+    },
     acceptOccupancyEdit(region, value) {
       if (!self.occupancyConstrains(region)) return true;
       const result = region.results.find((r) => GEOMETRY.has(r.from_name?.name));
@@ -197,11 +259,17 @@ export const Occupancy = types
       try {
         const parent = self.occupancyParents.find((p) => p.id === c?.parent_zone_id);
         if (!parent) throw new Error("父分区不存在，请先重新绑定");
+        if (value?.points) {
+          const space = self.occupancyConstraintSpace(region);
+          const points = value.points.map(([x, y]) => space.toPixel({ x, y }));
+          if (!space.inside(points, true)) throw new Error("调整后的多边形无效、自相交或越出所属功能分区");
+        }
         const geometry = resultGeometry({
           value,
           original_width: self.naturalWidth,
           original_height: self.naturalHeight,
         });
+        if (area(geometry) <= EPS_AREA) throw new Error("调整后的多边形面积过小，已保留原轮廓");
         if (area(difference(geometry, parent.geometry)) > EPS_AREA)
           throw new Error("调整不能越出所属功能分区，已保留原轮廓");
         self.occupancyEditNotice = "";
@@ -229,19 +297,85 @@ export const Occupancy = types
             result.setMetaValue("occupancy_context", c);
         }
     },
+    refreshOccupancyBarrier(region, { snap = true, threshold = 10, refreshReview = true } = {}) {
+      if (!self.occupancyEnabled || !region) return null;
+      const result = region.results.find((candidate) => barrierControlName(candidate) === BARRIER_CONTROL);
+      if (!result) return null;
+      let serialized = self.annotation
+        .serializeAnnotation({ fast: true })
+        .find((candidate) => candidate.id === region.cleanId && candidate.from_name === BARRIER_CONTROL);
+      if (!serialized) return null;
+      const saved = occupancyBarrierContext(serialized);
+      const parentId = saved.parent_zone_id || self.occupancyFocusId;
+      const parent = self.occupancyParents.find((candidate) => candidate.id === parentId);
+      if (!parent) {
+        result.setMetaValue("occupancy_barrier_context", {
+          ...saved,
+          schema_version: 1,
+          barrier_type: "wall",
+          parent_zone_id: parentId,
+          match_rule: "shared_boundary_overlap",
+          matched_pairs: [],
+          match_error: "所属功能分区已不存在",
+        });
+        self.occupancyEditNotice = "失效隔墙：所属功能分区已不存在";
+        return { matchedPairs: [], reason: "所属功能分区已不存在" };
+      }
+      const match = matchOccupancyBarrier(self.occupancyData, serialized, {
+        parentId,
+        width: self.naturalWidth,
+        height: self.naturalHeight,
+        screenWidth: (self.stageWidth || self.naturalWidth) * self.zoomScale,
+        screenHeight: (self.stageHeight || self.naturalHeight) * self.zoomScale,
+        threshold,
+      });
+      if (snap && match.snappedVertices?.length === 2) {
+        const previous = [...region.vertices];
+        region.vertices.replace(match.snappedVertices.map((vertex, index) => ({
+          ...(previous[index] || {}),
+          x: (vertex.x * self.naturalWidth) / 100,
+          y: (vertex.y * self.naturalHeight) / 100,
+          isBezier: false,
+        })));
+        serialized = self.annotation
+          .serializeAnnotation({ fast: true })
+          .find((candidate) => candidate.id === region.cleanId && candidate.from_name === BARRIER_CONTROL) || serialized;
+      }
+      result.setMetaValue("occupancy_barrier_context", {
+        ...barrierContextFor(serialized, parent, self.annotation.referenceVersion, match.matchedPairs),
+        ...(match.reason ? { match_error: match.reason } : {}),
+      });
+      self.occupancyEditNotice = match.matchedPairs.length
+        ? `隔墙已匹配 ${match.matchedPairs.length} 组家具紧邻关系`
+        : `失效隔墙：${match.reason}`;
+      if (refreshReview) self.refreshOccupancyReviews();
+      return match;
+    },
+    refreshAllOccupancyBarriers({ snap = false, threshold = 1e-5, refreshReview = false } = {}) {
+      const matches = [];
+      for (const region of self.regs) {
+        if (!region.results.some((candidate) => barrierControlName(candidate) === BARRIER_CONTROL)) continue;
+        matches.push(self.refreshOccupancyBarrier(region, { snap, threshold, refreshReview: false }));
+      }
+      if (refreshReview) self.refreshOccupancyReviews();
+      return matches;
+    },
     startOccupancyTool(name) {
-      const reason = self.occupancyDrawBlockReason();
+      const reason = self.occupancyDrawBlockReason(name);
       if (reason) throw new Error(reason);
       self.annotation.unselectAreas();
-      const labels = self.annotation.names.get("occupancy_type");
+      const labels = self.annotation.names.get(name === BARRIER_CONTROL ? BARRIER_CONTROL : "occupancy_type");
       labels.unselectAll();
-      labels.children.find((label) => label.value === self.occupancyDrawMode)?.setSelected(true);
+      labels.children
+        .find((label) => label.value === (name === BARRIER_CONTROL ? BARRIER_LABEL : self.occupancyDrawMode))
+        ?.setSelected(true);
       const tool = self
         .getToolsManager()
         .allTools()
         .find((tool) => tool.control?.name === name);
       if (!tool) throw new Error("绘制工具尚未就绪");
       self.getToolsManager().selectTool(tool, true);
+      self.occupancyDrawingControl = name;
     },
     setOccupancyFocus(id) {
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons) throw new Error("请先完成或取消绘制");
@@ -257,9 +391,30 @@ export const Occupancy = types
       if (!self.occupancyFocusId) throw new Error("请先选择父功能分区");
       self.annotation.unselectAreas();
       self.occupancyGroup = { id: newId(), type, note: note || "", parentId: self.occupancyFocusId };
+      self.occupancyDrawingControl = "";
       self.occupancyDrawMode = "furniture_group";
       self.occupancyCorrectionId = "";
       self.occupancyEditPartId = "";
+    },
+    upgradeLegacyOccupancy() {
+      let upgraded = 0;
+      for (const region of self.regs) {
+        const geometry = region.results.find((result) => GEOMETRY.has(result.from_name?.name));
+        const c = geometry?.meta?.occupancy_context;
+        if (c?.generation !== "pending" || !c.group_id || !GROUP_TYPES[c.group_type]) continue;
+        const upgradedContext = { ...c };
+        delete upgradedContext.pending_kind;
+        delete upgradedContext.pending_target_logical_id;
+        geometry.setMetaValue("occupancy_context", {
+          ...upgradedContext,
+          logical_id: c.group_id,
+          generation: "manual",
+          review_status: "pending",
+          review_fingerprint: null,
+        });
+        upgraded += 1;
+      }
+      return upgraded;
     },
     selectOccupancyLogical(id) {
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons || self.occupancyBusy) return;
@@ -268,15 +423,10 @@ export const Occupancy = types
       self.occupancySelectedId = id;
       self.occupancyFocusId = logical.context.parent_zone_id;
       self.occupancyEditPartId = "";
-      self.occupancyGroup =
-        logical.type === "furniture_group"
-          ? {
-              id: logical.context.group_id,
-              type: logical.context.group_type,
-              note: logical.context.group_note,
-              parentId: logical.context.parent_zone_id,
-            }
-          : null;
+      // Selecting an existing group is for inspection/editing only. A new
+      // drawing always requires Create group and can therefore never append a
+      // second physical component to the selected group by accident.
+      self.occupancyGroup = null;
       self.annotation.unselectAreas();
       const ids = new Set(logical.parts.map((r) => r.id));
       self.annotation.selectAreas(self.regs.filter((r) => ids.has(r.cleanId)));
@@ -298,7 +448,7 @@ export const Occupancy = types
         throw new Error("请先完成绘制或等待当前操作结束");
       const logical = self.occupancyLogicals.find((r) => r.parts.some((p) => p.id === id));
       if (!editableParts(logical).some((part) => part.id === id))
-        throw new Error("自动补余请使用局部修正，不编辑存储分块顶点");
+        throw new Error("自动生成区域或内部存储分块不能直接编辑顶点");
       self.selectOccupancyLogical(logical.id);
       self.occupancyEditPartId = id;
       self.annotation.unselectAreas();
@@ -306,6 +456,17 @@ export const Occupancy = types
     },
     initializeOccupancyRegion(region) {
       if (!self.occupancyEnabled) return;
+      const barrier = region.results.find((result) => barrierControlName(result) === BARRIER_CONTROL);
+      if (barrier) {
+        if (barrier.meta?.occupancy_barrier_context) return;
+        const parent = self.occupancyParents.find((candidate) => candidate.id === self.occupancyFocusId);
+        if (!parent) return;
+        barrier.setMetaValue("occupancy_barrier_context", {
+          ...barrierContextFor({ id: region.cleanId }, parent, self.annotation.referenceVersion, []),
+          match_error: "隔墙尚未完成绘制",
+        });
+        return;
+      }
       const geometry = region.results.find((r) => GEOMETRY.has(r.from_name?.name));
       if (!geometry || geometry.meta?.occupancy_context) return;
       const parent = self.occupancyParents.find((p) => p.id === self.occupancyFocusId);
@@ -313,12 +474,10 @@ export const Occupancy = types
       const mode = self.occupancyDrawMode,
         group = mode === "furniture_group" ? self.occupancyGroup : null;
       geometry.setMetaValue("occupancy_context", {
-        ...baseContext(parent, self.annotation.referenceVersion, "pending"),
+        ...baseContext(parent, self.annotation.referenceVersion, "manual", group?.id),
         group_id: group?.id || null,
         group_type: group?.type || null,
         group_note: group?.note || "",
-        pending_target_logical_id: self.occupancyCorrectionId || null,
-        pending_kind: mode,
       });
       const control = self.annotation.names.get("occupancy_type"),
         result = region.results.find((r) => r.from_name === control);
@@ -332,40 +491,18 @@ export const Occupancy = types
           value: { labels: [mode] },
         });
     },
-    previewOccupancyDrawing(id) {
-      const data = self.occupancyData,
-        pending = logicalRegions(data).find((r) => r.id === id && r.context.generation === "pending");
-      if (!pending) throw new Error("待处理绘制已不存在");
-      const parent = parents(data).find((p) => p.id === pending.context.parent_zone_id);
-      if (!parent) throw new Error("父功能分区已不存在");
-      const clipped = intersection(pending.geometry, parent.geometry);
-      if (!clipped.length) throw new Error("绘制范围不在父分区中；请取消该轮廓并重新绘制");
-      const c = { ...pending.context, generation: "manual" };
-      delete c.pending_target_logical_id;
-      delete c.pending_kind;
-      const clean = replaceLogicals(data, [id], []);
-      let next;
-      if (pending.context.pending_target_logical_id)
-        next = localCorrection(clean, pending.context.pending_target_logical_id, clipped, pending.type);
-      else if (pending.type === "furniture_group") {
-        const existing = logicalRegions(clean).find((r) => r.context.group_id === c.group_id);
-        if (existing && existing.context.parent_zone_id !== c.parent_zone_id) throw new Error("组团不能跨越父分区");
-        c.logical_id = existing?.id || c.group_id;
-        next = replaceLogicals(
-          clean,
-          existing ? [existing.id] : [],
-          resultsForGeometry(union(existing?.geometry || [], clipped), pending.type, c, parent.result, newId, [
-            ...(existing?.parts || []),
-            ...pending.parts,
-          ]),
-        );
-      } else next = [...clean, ...resultsForGeometry(clipped, pending.type, c, parent.result, newId, pending.parts)];
-      return {
-        results: next,
-        geometry: clipped,
-        clipped: !equivalent(clipped, pending.geometry),
-        fingerprint: self.occupancyOperationFingerprint(),
-      };
+    finalizeOccupancyRegion(region) {
+      if (!self.occupancyEnabled) return;
+      if (region.results.some((result) => barrierControlName(result) === BARRIER_CONTROL)) {
+        self.refreshOccupancyBarrier(region, { snap: true, threshold: 10, refreshReview: true });
+        return;
+      }
+      const geometry = region.results.find((result) => GEOMETRY.has(result.from_name?.name));
+      const c = geometry?.meta?.occupancy_context;
+      if (!c || c.generation !== "manual") return;
+      if (c.group_id && self.occupancyGroup?.id === c.group_id) self.occupancyGroup = null;
+      self.occupancySelectedId = c.logical_id || "";
+      self.occupancyCorrectionId = "";
     },
     applyOccupancyResults(next, expectedFingerprint) {
       const reason = self.occupancyOperationBlockReason();
@@ -380,11 +517,18 @@ export const Occupancy = types
       next = invalidateReviews(next, self.annotation.referenceVersion);
       self.annotation.history.freeze("occupancy-transaction");
       try {
+        const replacedRegions = [...self.regs].filter((region) =>
+          region.results.some((r) => GEOMETRY.has(r.from_name?.name)),
+        );
+        self.getToolsManager()?.releaseRegionReferences?.(replacedRegions);
         self.annotation.unselectAreas();
-        for (const region of [...self.regs])
-          if (region.results.some((r) => GEOMETRY.has(r.from_name?.name))) self.annotation.deleteArea(region);
+        for (const region of replacedRegions) self.annotation.deleteArea(region);
         self.annotation.deserializeResults(clone(next.filter(isO)));
         self.annotation.updateObjects();
+        // Barriers are independent manual results. Re-evaluate their original
+        // geometry against the rebuilt furniture set without silently snapping
+        // them to a different nearby edge.
+        self.refreshAllOccupancyBarriers({ snap: false, threshold: 1e-5, refreshReview: false });
         const actual = self.annotation.serializeAnnotation({ fast: true }).filter(isO);
         if (
           actual.length !== next.filter(isO).length ||
@@ -392,6 +536,7 @@ export const Occupancy = types
         )
           throw new Error("L3 结果未完整载入，已回滚");
         self.occupancyEditPartId = "";
+        self.occupancySelectedId = "";
       } catch (error) {
         applySnapshot(self.annotation.areas, snapshot);
         self.annotation.updateObjects();

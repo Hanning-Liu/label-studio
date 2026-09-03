@@ -6,6 +6,15 @@ import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
 // Coordinates are Label Studio image percentages. This is floating point noise,
 // not a minimum feature size: never drop a component based on its area.
 export const EPS_AREA = 1e-8;
+// Label Studio stores image coordinates as percentages. Integer source pixels
+// can therefore return from JSON as 373.9999993px or 374.0000006px. Validation
+// runs in source-pixel space and canonicalizes only this sub-pixel round-trip
+// noise; stored annotation coordinates are never changed.
+export const VALIDATION_PIXEL_EPS = 1e-5;
+// Shapely and polygon-clipping may leave different microscopic slivers after
+// boolean operations. This validation-only tolerance is one thousandth of a
+// source pixel area; it never changes JSON or drops stored components.
+export const VALIDATION_EPS_AREA = 1e-3;
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 const close = (ring) => {
   const points = ring.map((p) => [...p]);
@@ -86,6 +95,32 @@ export function resultGeometry(result) {
     ]);
   } else throw new Error("不支持的区域几何");
   return [[assertRing(ring)]];
+}
+
+const validationPixelCoordinate = (value) => {
+  const integer = Math.round(value);
+  return Math.abs(value - integer) <= VALIDATION_PIXEL_EPS ? integer : value;
+};
+
+export function validationGeometry(result) {
+  const width = result.original_width,
+    height = result.original_height;
+  if (!(width > 0 && height > 0)) throw new Error("缺少原图尺寸，无法进行像素级几何校验");
+  return validationMultiGeometry(resultGeometry(result), width, height);
+}
+
+export function validationMultiGeometry(multi, width, height) {
+  if (!(width > 0 && height > 0)) throw new Error("缺少原图尺寸，无法进行像素级几何校验");
+  return multi.map((polygon) => {
+    const scaled = polygon.map((ring) => ring.map(([x, y]) => [(x * width) / 100, (y * height) / 100]));
+    const normalized = scaled.map((ring) =>
+      ring.map(([x, y]) => [validationPixelCoordinate(x), validationPixelCoordinate(y)]),
+    );
+    // Preserve a real sub-pixel component/hole if canonicalization would
+    // collapse it. Internal storage pieces are unioned before reaching here,
+    // so this fallback protects semantic slivers rather than triangulation.
+    return area([normalized]) > 0 ? normalized : scaled;
+  });
 }
 
 // Portable fingerprint format v1. Rounding applies to the digest only, never to

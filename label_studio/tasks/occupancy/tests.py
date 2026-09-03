@@ -11,7 +11,7 @@ from tasks.reference_sync.models import ReferenceSyncBinding, ReferenceSyncMappi
 from tasks.reference_sync.service import process_pending, response_tokens, sync_atomic
 from .reference import SYNC_TYPE, initialize_binding, manual_hash, reference_hash
 from .template import build_template
-from .validation import GEOMETRY, content_fingerprint
+from .validation import GEOMETRY, content_fingerprint, validate
 
 SOURCE_CONFIG = '''<View><Image name="image" value="$image"/>
 <RectangleLabels name="room_rectangle" toName="image"><Label value="Bathroom"/></RectangleLabels>
@@ -128,6 +128,9 @@ class OccupancySyncTests(TransactionTestCase):
         draft.refresh_from_db()
         response = self.client.post(f'/api/tasks/{self.task.id}/annotations/', self.payload(draft), format='json')
         self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn('L3 正式提交未通过', str(response.data.get('detail', '')))
+        self.assertEqual(response.data.get('display_context', {}).get('reason'), 'OCCUPANCY_VALIDATION')
+        self.assertTrue(response.data.get('display_context', {}).get('issues'))
         self.assertTrue(AnnotationDraft.objects.filter(pk=draft.id).exists())
         response = self.client.patch(f'/api/drafts/{draft.id}/', self.payload(draft), format='json')
         self.assertEqual(response.status_code, 200, response.data)
@@ -140,6 +143,44 @@ class OccupancySyncTests(TransactionTestCase):
         saved = self.task.annotations.get()
         self.assertEqual(manual_hash(saved.result), expected)
         self.assertFalse(AnnotationDraft.objects.filter(pk=draft.id).exists())
+
+    def test_leisure_recreation_group_passes_backend_validation_and_submission(self):
+        draft = self.draft()
+        results = copy.deepcopy(draft.result)
+        group_geometry = next(
+            r for r in results
+            if r.get('from_name') in GEOMETRY
+            and next(
+                (
+                    label.get('value', {}).get('labels', [None])[0]
+                    for label in results
+                    if label.get('id') == r.get('id') and label.get('from_name') == 'occupancy_type'
+                ),
+                None,
+            ) == 'furniture_group'
+        )
+        group_geometry['meta']['occupancy_context']['group_type'] = 'leisure_recreation'
+        group_geometry['meta']['occupancy_context']['group_note'] = ''
+
+        remainder_stamp = content_fingerprint(results, self.parent_id, remainder=True)
+        for result in results:
+            if result.get('from_name') in GEOMETRY and result['meta']['occupancy_context'].get('generation') == 'remainder':
+                result['meta']['occupancy_context']['remainder_input_fingerprint'] = remainder_stamp
+        review_stamp = content_fingerprint(results, self.parent_id)
+        for result in results:
+            if result.get('from_name') in GEOMETRY:
+                result['meta']['occupancy_context']['review_status'] = 'reviewed'
+                result['meta']['occupancy_context']['review_fingerprint'] = review_stamp
+
+        self.assertEqual(validate(results, self.binding.applied_hash), [])
+        draft.result = results
+        draft.save()
+        response = self.client.post(f'/api/tasks/{self.task.id}/annotations/', self.payload(draft), format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        saved = self.task.annotations.get()
+        saved_group = next(r for r in saved.result if r.get('id') == group_geometry['id'] and r.get('from_name') in GEOMETRY)
+        self.assertEqual(saved_group['meta']['occupancy_context']['group_type'], 'leisure_recreation')
+        self.assertEqual(saved_group['meta']['occupancy_context']['group_note'], '')
 
     def test_readonly_reference_tampering_not_saved(self):
         draft = self.draft()

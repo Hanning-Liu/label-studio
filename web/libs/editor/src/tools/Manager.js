@@ -201,6 +201,22 @@ class ToolsManager {
     }
   }
 
+  /**
+   * Release drawing-tool references before their regions are removed or
+   * replaced. This changes only transient tool state; annotation regions and
+   * selection are left to the caller's transaction.
+   */
+  releaseRegionReferences(regions = []) {
+    const replaced = new Set(regions.filter(Boolean));
+
+    if (!replaced.size) return;
+    this.allTools().forEach((tool) => {
+      if (tool.currentArea && replaced.has(tool.currentArea)) {
+        tool.resetBeforeAnnotationSwitch?.();
+      }
+    });
+  }
+
   event(name, ev, ...args) {
     // if there is an active tool, dispatch there
     const selectedTool = this.findSelectedTool();

@@ -5,7 +5,7 @@
  * resetBeforeAnnotationSwitch, and TwoPointsDrawingTool / MultipleClicksDrawingTool / ThreePointsDrawingTool.
  */
 
-import { getEnv, types } from "mobx-state-tree";
+import { destroy, getEnv, isAlive, types } from "mobx-state-tree";
 import { DrawingTool, TwoPointsDrawingTool, MultipleClicksDrawingTool, ThreePointsDrawingTool } from "../DrawingTool";
 
 jest.mock("../../utils/feature-flags", () => ({
@@ -184,6 +184,43 @@ describe("DrawingTool mixin", () => {
       expect(tool.getActiveShape).toBe(mockDrawingRegion);
     });
 
+    it("releases a destroyed MST currentArea before occupancy events", () => {
+      const DeadRegion = types
+        .model("DeadDrawingRegion", {})
+        .volatile(() => ({ results: [] }))
+        .actions(() => ({
+          setDrawing() {},
+        }));
+      const Holder = types
+        .model("DeadDrawingRegionHolder", { region: types.maybe(DeadRegion) })
+        .actions((self) => ({
+          removeRegion() {
+            destroy(self.region);
+          },
+        }));
+      const holder = Holder.create({ region: {} });
+      const deadRegion = holder.region;
+      const { tool, annotation, control, obj } = createStore();
+
+      control.name = "occupancy_polygon";
+      obj.occupancyEnabled = true;
+      obj.occupancyDrawingPoint = jest.fn((point) => point);
+      obj.createDrawingRegion.mockReturnValue(deadRegion);
+      tool.startDrawing(1, 1);
+      holder.removeRegion();
+
+      expect(isAlive(deadRegion)).toBe(false);
+      expect(tool.getCurrentArea()).toBeNull();
+
+      tool.event("mousemove", { button: 0, shiftKey: false }, [2, 3, 20, 30]);
+
+      expect(tool.currentArea).toBeNull();
+      expect(tool.mode).toBe("viewing");
+      expect(obj.occupancyDrawingPoint).toHaveBeenCalledWith({ x: 2, y: 3 }, null, false);
+      expect(annotation.setIsDrawing).toHaveBeenLastCalledWith(false);
+      expect(annotation.history.unfreeze).toHaveBeenCalled();
+    });
+
     it("canStart returns false when annotation is read-only", () => {
       const { tool, annotation } = createStore();
       annotation.isReadOnly.mockReturnValue(true);
@@ -360,6 +397,24 @@ describe("DrawingTool mixin", () => {
       expect(area.setValue).toHaveBeenCalledWith(state1);
       expect(area.setValue).toHaveBeenCalledWith(state2);
     });
+
+    it("keeps readonly L2 labels out of L3 occupancy regions", () => {
+      const control = createMockControl({ name: "occupancy_rectangle" });
+      const occupancyType = { parent: { name: "occupancy_type" } };
+      const leakedFunctionZone = { parent: { name: "function_zone" } };
+      const obj = createMockObj({
+        occupancyEnabled: true,
+        activeStates: jest.fn(() => [control, occupancyType, leakedFunctionZone]),
+      });
+      const { tool } = createStore({ control, obj });
+      const area = { setValue: jest.fn() };
+
+      tool.applyActiveStates(area);
+
+      expect(area.setValue).toHaveBeenCalledWith(control);
+      expect(area.setValue).toHaveBeenCalledWith(occupancyType);
+      expect(area.setValue).not.toHaveBeenCalledWith(leakedFunctionZone);
+    });
   });
 
   describe("finishDrawing and commitDrawingRegion", () => {
@@ -414,6 +469,34 @@ describe("DrawingTool mixin", () => {
         state1,
         state2,
       ]);
+      mockFfIsActive.mockReturnValue(false);
+    });
+
+    it("filters L2 labels from FF multiple-label occupancy creation", () => {
+      mockFfIsActive.mockReturnValue(true);
+      const control = createMockControl({ name: "occupancy_polygon" });
+      const occupancyType = { parent: { name: "occupancy_type" } };
+      const leakedFunctionZone = { parent: { name: "function_zone" } };
+      const obj = createMockObj({
+        occupancyEnabled: true,
+        activeStates: jest.fn(() => [control, occupancyType, leakedFunctionZone]),
+      });
+      const annotation = createMockAnnotation();
+      const area = { setValue: jest.fn() };
+
+      annotation.createResult.mockReturnValue(area);
+      const { tool } = createStore({ annotation, control, obj });
+
+      tool.createRegion({ x: 10, y: 10 });
+
+      expect(annotation.createResult).toHaveBeenCalledWith(
+        { x: 10, y: 10 },
+        {},
+        control,
+        obj,
+        false,
+        [occupancyType],
+      );
       mockFfIsActive.mockReturnValue(false);
     });
   });

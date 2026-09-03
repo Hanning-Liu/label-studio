@@ -25,6 +25,7 @@ import {
   polygonInsidePolygon,
   withAlpha,
 } from "../utils/roomConstraintGeometry";
+import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
 
 const Model = types
   .model({
@@ -47,6 +48,14 @@ const Model = types
     supportsScale: true,
   }))
   .views((self) => ({
+    get occupancyVertexEditing() {
+      return Boolean(
+        self.closed &&
+          self.parent?.occupancyEnabled &&
+          self.parent.occupancyActivePartId &&
+          self.parent.occupancyActivePartId === self.cleanId,
+      );
+    },
     get store() {
       return getRoot(self);
     },
@@ -78,6 +87,10 @@ const Model = types
     },
   }))
   .actions((self) => {
+    const Super = {
+      deleteRegion: self.deleteRegion,
+    };
+
     return {
       afterCreate() {
         if (!self.points.length) return;
@@ -149,7 +162,10 @@ const Model = types
         const isLastPoint = self.points.length === 1;
         const isSelected = self.selectedPoint === point;
 
-        if (willNotEliminateClosedShape || isLastPoint) return;
+        if (willNotEliminateClosedShape || isLastPoint) {
+          self.parent?.setOccupancyEditNotice?.("多边形至少需要 3 个顶点，不能继续删除");
+          return false;
+        }
         if (
           self.closed &&
           self.parent?.occupancyEnabled &&
@@ -157,10 +173,20 @@ const Model = types
             points: self.points.filter((p) => p !== point).map((p) => [p.x, p.y]),
           })
         )
-          return;
+          return false;
         if (isSelected) self.selectedPoint = null;
         destroy(point);
         self.refreshPartitionContext?.();
+        self.parent?.setOccupancyEditNotice?.("");
+        return true;
+      },
+
+      deleteRegion() {
+        if (self.occupancyVertexEditing && self.selectedPoint) {
+          self.deletePoint(self.selectedPoint);
+          return;
+        }
+        Super.deleteRegion();
       },
 
       addPoint(x, y) {
@@ -376,6 +402,7 @@ const Model = types
       afterUnselectRegion() {
         if (self.selectedPoint) {
           self.selectedPoint.selected = false;
+          self.selectedPoint = null;
         }
 
         // self.points.forEach(p => p.computeOffset());
@@ -610,12 +637,12 @@ const Edges = memo(
     const { points, closed } = item;
     const name = "borders";
 
-    if (item.closed && (item.parent.useTransformer || !item.selected)) {
+    if (item.closed && ((item.parent.useTransformer && !item.occupancyVertexEditing) || !item.selected)) {
       return null;
     }
     return (
       <Group key={name} name={name}>
-        {points.map((p, idx) => {
+        {points.map((_p, idx) => {
           const idx1 = idx;
           const idx2 = idx === points.length - 1 ? 0 : idx + 1;
 
@@ -650,13 +677,17 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   });
   const isReference = shouldRenderRoomReference(item);
   const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
-  const displayStyles = isReference
-    ? {
-        fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
-        strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
-        strokeWidth: isFocused ? 2 : 1,
-      }
-    : regionStyles;
+  const occupancyReferenceStyles = occupancyZoneReferenceStyles(item, regionStyles);
+  const displayStyles =
+    occupancyReferenceStyles ||
+    (isReference
+      ? {
+          ...regionStyles,
+          fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
+          strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
+          strokeWidth: isFocused ? 2 : 1,
+        }
+      : regionStyles);
 
   function renderCircle({ points, idx }) {
     const name = `anchor_${points.length}_${idx}`;
@@ -670,12 +701,12 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   function renderCircles(points) {
     const name = "anchors";
 
-    if (item.closed && (item.parent.useTransformer || !item.selected)) {
+    if (item.closed && ((item.parent.useTransformer && !item.occupancyVertexEditing) || !item.selected)) {
       return null;
     }
     return (
       <Group key={name} name={name}>
-        {points.map((p, idx) => renderCircle({ points, idx }))}
+        {points.map((_p, idx) => renderCircle({ points, idx }))}
       </Group>
     );
   }
@@ -784,7 +815,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
       draggable={!item.isReadOnly() && (!item.inSelection || item.parent?.selectedRegions?.length === 1)}
       listening={!suggestion && !isReference}
     >
-      <LabelOnPolygon item={item} color={displayStyles.strokeColor} />
+      <LabelOnPolygon item={item} color={displayStyles.labelColor || displayStyles.strokeColor} />
 
       {item.mouseOverStartPoint}
 

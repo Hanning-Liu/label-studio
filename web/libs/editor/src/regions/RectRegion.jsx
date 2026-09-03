@@ -20,6 +20,7 @@ import { EditableRegion } from "./EditableRegion";
 import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
 import { withAlpha } from "../utils/roomConstraintGeometry";
+import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
 
 /**
  * Rectangle object for Bounding Box
@@ -442,13 +443,17 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
   const regionStyles = useRegionStyles(item, { suggestion });
   const isReference = shouldRenderRoomReference(item);
   const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
-  const displayStyles = isReference
-    ? {
-        fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
-        strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
-        strokeWidth: isFocused ? 2 : 1,
-      }
-    : regionStyles;
+  const occupancyReferenceStyles = occupancyZoneReferenceStyles(item, regionStyles);
+  const displayStyles =
+    occupancyReferenceStyles ||
+    (isReference
+      ? {
+          ...regionStyles,
+          fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
+          strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
+          strokeWidth: isFocused ? 2 : 1,
+        }
+      : regionStyles);
   const stage = item.parent?.stageRef;
 
   const eventHandlers = {};
@@ -594,7 +599,11 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
         }}
         listening={!suggestion && !isReference && !item.annotation?.isDrawing}
       />
-      <LabelOnRect item={item} color={displayStyles.strokeColor} strokewidth={displayStyles.strokeWidth} />
+      <LabelOnRect
+        item={item}
+        color={displayStyles.labelColor || displayStyles.strokeColor}
+        strokewidth={displayStyles.strokeWidth}
+      />
     </RegionWrapper>
   );
 };

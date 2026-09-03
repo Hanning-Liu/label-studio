@@ -431,6 +431,7 @@ const Model = types
         // Store whatever format KonvaVector gives us
         self.vertices.replace(points);
         self.invalidateGeometryReview?.();
+        if (!self.isDrawing) self.parent?.refreshOccupancyBarrier?.(self, { snap: true, threshold: 10, refreshReview: true });
       },
 
       onPathClosedChange(isClosed) {
@@ -631,6 +632,10 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const isReference = item.isOpeningReference;
   const isFocusedOpening = isReference && item.roomGraphEdge?.room_ids?.includes(item.parent?.focusedRoom?.cleanId);
   const referenceOpacity = isFocusedOpening ? 0.9 : 0.4;
+  const invalidBarrier = item.results.some(
+    (result) => result.from_name?.name === "occupancy_barrier_vector" && result.meta?.occupancy_barrier_context?.match_error,
+  );
+  const vectorStroke = invalidBarrier ? "#dc2626" : regionStyles.strokeColor;
 
   // Wait for stage to be properly initialized
   if (!item.parent?.stageWidth || !item.parent?.stageHeight) {
@@ -737,7 +742,7 @@ const HtxVectorView = observer(({ item, suggestion }) => {
           minPoints={item.minPoints}
           maxPoints={item.maxPoints}
           skeletonEnabled={item.control?.skeleton ?? false}
-          stroke={isReference ? regionStyles.strokeColor : item.selected ? "#ff0000" : regionStyles.strokeColor}
+          stroke={isReference ? regionStyles.strokeColor : item.selected ? "#ff0000" : vectorStroke}
           fill={regionStyles.fillColor}
           strokeWidth={isReference && isFocusedOpening ? 2 : regionStyles.strokeWidth}
           opacity={isReference ? referenceOpacity : Number.parseFloat(item.control?.opacity || "1")}
@@ -747,7 +752,7 @@ const HtxVectorView = observer(({ item, suggestion }) => {
           // Point styling - customize point appearance based on control settings
           pointRadius={item.pointRadiusFromSize}
           pointFill={item.selected ? "#ffffff" : "#f8fafc"}
-          pointStroke={item.selected ? "#ff0000" : regionStyles.strokeColor}
+          pointStroke={item.selected ? "#ff0000" : vectorStroke}
           pointStrokeSelected="#ff6b35"
           pointStrokeWidth={item.selected ? 2 : 1}
           pointStyle={item.pointStyle}
@@ -755,7 +760,7 @@ const HtxVectorView = observer(({ item, suggestion }) => {
         />
 
         {item.vertices.length > 0 && (
-          <LabelOnPolygon item={item} color={regionStyles.strokeColor} strokewidth={regionStyles.strokeWidth} />
+          <LabelOnPolygon item={item} color={vectorStroke} strokewidth={regionStyles.strokeWidth} />
         )}
       </Group>
     </RegionWrapper>

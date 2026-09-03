@@ -23,6 +23,7 @@ import { parseValue } from "../../../utils/data";
 import { FF_DEV_3377, FF_DEV_3391, FF_LSDV_4583, FF_ZOOM_OPTIM, isFF } from "../../../utils/feature-flags";
 import { guidGenerator } from "../../../utils/unique";
 import { clamp, isDefined } from "../../../utils/utilities";
+import { formatFunctionZoneRoomLabel } from "../../../utils/functionZoneValidationLabels";
 import ObjectBase from "../Base";
 import { DrawingRegion } from "./DrawingRegion";
 import { ImageEntityMixin } from "./ImageEntityMixin";
@@ -1280,21 +1281,27 @@ const Model = types
         const room = self.getRoomById(zone.parentRoomId);
         const roomPolygon = regionToInternalPolygon(room, self);
         if (!zone.parentRoomId || !roomPolygon) {
-          errors.push(`功能分区 ${zone.id} 未能唯一归属到 Room v3 房间。`);
+          errors.push(
+            `功能分区 ${zone.id} 未能归属到有效的 Room v3 房间：${formatFunctionZoneRoomLabel(
+              room,
+              zone.parentRoomId,
+            )}。`,
+          );
           return;
         }
         if (!isSimplePolygon(zone.polygon) || !polygonInsidePolygon(zone.polygon, roomPolygon)) {
-          errors.push(`功能分区 ${zone.id} 超出父房间 ${zone.parentRoomId} 的净空间。`);
+          errors.push(`功能分区 ${zone.id} 超出父房间 ${formatFunctionZoneRoomLabel(room)} 的净空间。`);
         }
         if (!byRoom.has(zone.parentRoomId)) byRoom.set(zone.parentRoomId, []);
         byRoom.get(zone.parentRoomId).push(zone);
       });
 
       byRoom.forEach((roomZones, roomId) => {
+        const roomLabel = formatFunctionZoneRoomLabel(self.getRoomById(roomId), roomId);
         for (let first = 0; first < roomZones.length; first++) {
           for (let second = first + 1; second < roomZones.length; second++) {
             if (polygonsHavePositiveOverlap(roomZones[first].polygon, roomZones[second].polygon)) {
-              errors.push(`房间 ${roomId} 内的分区 ${roomZones[first].id} 与 ${roomZones[second].id} 重叠。`);
+              errors.push(`房间 ${roomLabel} 内的分区 ${roomZones[first].id} 与 ${roomZones[second].id} 重叠。`);
             }
           }
         }
@@ -1306,7 +1313,7 @@ const Model = types
         const roomArea = polygonArea(roomPolygon);
         const zoneArea = (byRoom.get(room.cleanId) || []).reduce((total, zone) => total + polygonArea(zone.polygon), 0);
         if (roomArea <= 0 || Math.abs(roomArea - zoneArea) / roomArea > coverageTolerance) {
-          errors.push(`房间 ${room.cleanId} 的功能分区未完整覆盖净空间。`);
+          errors.push(`房间 ${formatFunctionZoneRoomLabel(room)} 的功能分区未完整覆盖净空间。`);
         }
       });
 
@@ -1326,7 +1333,11 @@ const Model = types
     },
 
     beforeSend() {
-      if (self.occupancyEnabled) { self.refreshOccupancyReviews(); return; }
+      if (self.occupancyEnabled) {
+        self.refreshAllOccupancyBarriers({ snap: false, threshold: 1e-5, refreshReview: false });
+        self.refreshOccupancyReviews();
+        return;
+      }
       self.refreshRoomV3Metadata();
       self.regs.forEach((region) => region.refreshPartitionContext?.(false));
       self.refreshGeometryReviewMetadata();

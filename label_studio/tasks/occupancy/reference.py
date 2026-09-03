@@ -78,6 +78,12 @@ def current_refs(binding):
     return prediction.result
 
 
+def validation_error_summary(issues):
+    shown = [str(issue.get('message') or issue.get('code') or '未知校验问题') for issue in issues[:6]]
+    suffix = f'；另有 {len(issues) - len(shown)} 项' if len(issues) > len(shown) else ''
+    return f"L3 正式提交未通过（{len(issues)} 项）：{'；'.join(shown)}{suffix}。草稿已保留。"
+
+
 def prepare_write(task, payload, instance, binding, submission):
     from tasks.reference_sync.service import SyncConflict, source_for, lock_target
     lock_target(task)
@@ -103,7 +109,12 @@ def prepare_write(task, payload, instance, binding, submission):
                 raise SyncConflict('请先保存、备份并手动应用最新 L2 参考', 'reference_version_conflict')
             issues = validate(merged, binding.applied_hash)
             if issues:
-                raise SyncConflict({'message': 'L3 校验未通过', 'issues': issues}, 'occupancy_validation', 400)
+                raise SyncConflict(
+                    validation_error_summary(issues),
+                    'occupancy_validation',
+                    400,
+                    display_context={'reason': 'OCCUPANCY_VALIDATION', 'issues': issues},
+                )
         except ValueError as exc:
             raise SyncConflict(str(exc), 'invalid_source', 400) from exc
     return merged, binding
