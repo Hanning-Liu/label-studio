@@ -18,6 +18,7 @@ SOURCE_CONFIG = '''<View><Image name="image" value="$image"/>
 <PolygonLabels name="room_polygon" toName="image"><Label value="Bathroom"/></PolygonLabels>
 <RectangleLabels name="portal_rectangle" toName="image"><Label value="Door"/></RectangleLabels>
 <VectorLabels name="portal_vector" toName="image"><Label value="Open passage"/></VectorLabels>
+<VectorLabels name="window_vector" toName="image" closable="false" curves="true" minPoints="2"><Label value="Window"/></VectorLabels>
 <Rectangle name="zone_rectangle" toName="image"/><Polygon name="zone_polygon" toName="image"/>
 <Labels name="function_zone" toName="image"><Label value="Sanitary/general"/><Label value="Toilet"/></Labels>
 <VectorLabels name="connection_vector" toName="image"><Label value="Open passage"/></VectorLabels>
@@ -71,6 +72,32 @@ class OccupancySyncTests(TransactionTestCase):
         self.source.save()
         self.binding.refresh_from_db()
 
+    def window_reference(self):
+        raw = {
+            'id': 'window-a', 'from_name': 'window_vector', 'to_name': 'image', 'type': 'vectorlabels',
+            'original_width': 1080, 'original_height': 671,
+            'value': {
+                'closed': False,
+                'vectorlabels': ['Window'],
+                'vertices': [
+                    {'id': 'window-a-1', 'x': 0, 'y': 25, 'isBezier': False},
+                    {'id': 'window-a-2', 'x': 0, 'y': 40, 'isBezier': False, 'prevPointId': 'window-a-1'},
+                ],
+            },
+        }
+        # Copied window references are authoritative even when the L3 template
+        # keeps the feature flag hidden. Build the complete server context that
+        # a formal L1/L2 save would persist instead of a permissive test stub.
+        from tasks.windows.service import prepare_formal_results
+        enabled = SOURCE_CONFIG.replace(
+            '<Image name="image" value="$image"/>',
+            '<Image name="image" value="$image" roomWindowV1="true" '
+            'roomV3Controls="room_rectangle,room_polygon" windowControls="window_vector"/>',
+        )
+        prepared, changes = prepare_formal_results(enabled, [copy.deepcopy(self.source.result[0]), raw])
+        self.assertEqual(len(changes['window_connections']), 1)
+        return prepared[-1]
+
     def test_manual_profile_never_worker_applies_and_stale_draft_still_saves(self):
         draft = self.draft()
         before = copy.deepcopy(draft.result)
@@ -105,6 +132,30 @@ class OccupancySyncTests(TransactionTestCase):
         self.assertEqual(other_result, other.result)
         again = self.client.post(f'/api/tasks/{self.task.id}/reference-sync/apply/', payload, format='json')
         self.assertEqual(again.status_code, 409)
+
+    def test_optional_window_reference_propagates_without_touching_submitted(self):
+        draft = self.draft()
+        submitted = Annotation.objects.create(
+            task=self.task,
+            project=self.target_project,
+            completed_by=self.user,
+            result=copy.deepcopy(draft.result),
+        )
+        before = copy.deepcopy(submitted.result)
+        expected = self.window_reference()
+        self.source.result.append(expected)
+        self.source.save()
+        self.binding.refresh_from_db()
+
+        payload = {**self.payload(draft), 'source_version': reference_hash(self.source.result)}
+        response = self.client.post(f'/api/tasks/{self.task.id}/reference-sync/apply/', payload, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        draft.refresh_from_db()
+        copied = next(result for result in draft.result if result.get('from_name') == 'window_vector')
+        self.assertTrue(copied['readonly'])
+        self.assertEqual(copied['value'], expected['value'])
+        submitted.refresh_from_db()
+        self.assertEqual(submitted.result, before)
 
     def test_conflicts_no_mutation_and_no_implicit_submission(self):
         draft = self.draft()

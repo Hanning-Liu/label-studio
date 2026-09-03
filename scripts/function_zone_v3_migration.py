@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,339 @@ ZONE_CONTROLS = {"zone_rectangle", "zone_polygon", "function_zone"}
 CONNECTION_CONTROLS = {"connection_vector", "visual_connection_vector"}
 ROOM_CONTROLS = {"room_rectangle", "room_polygon"}
 PORTAL_CONTROLS = {"portal_rectangle", "portal_vector"}
+WINDOW_CONTROLS = {"window_vector"}
+WINDOW_PARENT_ALGORITHM_VERSION = "window-parent-room/1"
+WINDOW_PAIRING_ALGORITHM_VERSION = "window-pairing/1"
+
+
+def _canonical_fingerprint_value(value: Any) -> Any:
+    """Match ``tasks.windows.geometry.fingerprint`` without importing Shapely."""
+    if isinstance(value, dict):
+        return {key: _canonical_fingerprint_value(value[key]) for key in sorted(value)}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_fingerprint_value(item) for item in value]
+    if isinstance(value, bool) or value is None or isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)):
+        if not math.isfinite(value):
+            raise RoomV3Error("Room v3 window fingerprint contains a non-finite number")
+        fixed = format(value, ".10f")
+        return "0.0000000000" if fixed == "-0.0000000000" else fixed
+    return value
+
+
+def _fingerprint(value: Any) -> str:
+    encoded = json.dumps(
+        _canonical_fingerprint_value(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _number(value: Any, field: str, result_id: str, *, positive: bool = False) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RoomV3Error(f"Room v3 window {result_id} has invalid {field}") from exc
+    if not math.isfinite(number) or (positive and number <= 0):
+        raise RoomV3Error(f"Room v3 window {result_id} has invalid {field}")
+    return number
+
+
+def _surface_key(result: dict[str, Any]) -> tuple[str, str]:
+    item_index = result.get("item_index")
+    return str(result.get("to_name") or ""), json.dumps(
+        None if item_index is None else item_index,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def _stable_room_id(result: dict[str, Any]) -> str | None:
+    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+    node = meta.get("room_graph_node") if isinstance(meta.get("room_graph_node"), dict) else {}
+    node_id = node.get("node_id")
+    return node_id if isinstance(node_id, str) and node_id else result.get("id")
+
+
+def _room_fingerprint(result: dict[str, Any]) -> str:
+    result_id = str(result.get("id") or "unknown")
+    width = _number(result.get("original_width"), "original_width", result_id, positive=True)
+    height = _number(result.get("original_height"), "original_height", result_id, positive=True)
+    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+    return _fingerprint({
+        "id": _stable_room_id(result),
+        "type": result.get("type"),
+        "value": copy.deepcopy(result.get("value")),
+        "width": width,
+        "height": height,
+        "image_rotation": result.get("image_rotation") if result.get("image_rotation") is not None else 0,
+        "room_graph_node": copy.deepcopy(meta.get("room_graph_node")),
+    })
+
+
+def _window_trace_fingerprint(result: dict[str, Any]) -> str:
+    result_id = str(result.get("id") or "unknown")
+    width = _number(result.get("original_width"), "original_width", result_id, positive=True)
+    height = _number(result.get("original_height"), "original_height", result_id, positive=True)
+    value = result.get("value") if isinstance(result.get("value"), dict) else {}
+    return _fingerprint({
+        "closed": False,
+        "value": {"vertices": copy.deepcopy(value.get("vertices"))},
+        "label": "window",
+        "width": width,
+        "height": height,
+    })
+
+
+def _same_number(first: Any, second: Any) -> bool:
+    try:
+        return math.isclose(float(first), float(second), rel_tol=1e-12, abs_tol=1e-12)
+    except (TypeError, ValueError):
+        return False
+
+
+def _validate_window_vector(result: dict[str, Any]) -> None:
+    result_id = str(result.get("id") or "unknown")
+    value = result.get("value") if isinstance(result.get("value"), dict) else {}
+    vertices = value.get("vertices")
+    if result.get("type") != "vectorlabels" or value.get("closed") is not False:
+        raise RoomV3Error(f"Room v3 window {result_id} must be an open VectorLabels result")
+    labels = value.get("vectorlabels")
+    if not isinstance(labels, list) or len(labels) != 1 or str(labels[0]).strip().lower() != "window":
+        raise RoomV3Error(f"Room v3 window {result_id} must use exactly the Window label")
+    if not isinstance(vertices, list) or len(vertices) < 2:
+        raise RoomV3Error(f"Room v3 window {result_id} must contain at least two vertices")
+    identifiers: set[str] = set()
+    previous_ids: list[str | None] = []
+    for vertex in vertices:
+        if not isinstance(vertex, dict):
+            raise RoomV3Error(f"Room v3 window {result_id} contains an invalid vertex")
+        vertex_id = vertex.get("id")
+        if not isinstance(vertex_id, str) or not vertex_id or vertex_id in identifiers:
+            raise RoomV3Error(f"Room v3 window {result_id} has missing or duplicate vertex IDs")
+        identifiers.add(vertex_id)
+        previous_ids.append(vertex.get("prevPointId"))
+        if not isinstance(vertex.get("isBezier"), bool):
+            raise RoomV3Error(f"Room v3 window {result_id} has a vertex without boolean isBezier")
+        if vertex.get("disconnected") is True or vertex.get("isBranching") is True:
+            raise RoomV3Error(f"Room v3 window {result_id} must be one continuous, unbranched path")
+        for field in ("x", "y"):
+            coordinate = _number(vertex.get(field), f"vertex.{field}", result_id)
+            if coordinate < 0 or coordinate > 100:
+                raise RoomV3Error(f"Room v3 window {result_id} has a vertex outside 0..100")
+        if vertex["isBezier"] and not all(isinstance(vertex.get(key), dict) for key in ("controlPoint1", "controlPoint2")):
+            raise RoomV3Error(f"Room v3 window {result_id} has incomplete Bezier control points")
+        for key in ("controlPoint1", "controlPoint2"):
+            if key not in vertex:
+                continue
+            point = vertex[key]
+            if not isinstance(point, dict):
+                raise RoomV3Error(f"Room v3 window {result_id} has an invalid {key}")
+            for field in ("x", "y"):
+                coordinate = _number(point.get(field), f"{key}.{field}", result_id)
+                if coordinate < 0 or coordinate > 100:
+                    raise RoomV3Error(f"Room v3 window {result_id} has a control point outside 0..100")
+    roots = sum(previous in (None, "") for previous in previous_ids)
+    children = [previous for previous in previous_ids if previous not in (None, "")]
+    if roots != 1 or any(previous not in identifiers for previous in children) or len(children) != len(set(children)):
+        raise RoomV3Error(f"Room v3 window {result_id} has an invalid open vertex chain")
+
+
+def _validate_policy(policy: Any, result_id: str) -> dict[str, Any]:
+    if not isinstance(policy, dict) or policy.get("pairing_rule") != "mutual_outward_projection":
+        raise RoomV3Error(f"Room v3 window {result_id} has an invalid matching policy")
+    for field in (
+        "boundary_match_tolerance_px",
+        "pair_search_limit_px",
+        "minimum_projected_overlap_px",
+        "flattening_tolerance_px",
+    ):
+        _number(policy.get(field), field, result_id, positive=True)
+    angle = _number(policy.get("maximum_tangent_delta_deg"), "maximum_tangent_delta_deg", result_id)
+    if angle < 0 or angle > 90:
+        raise RoomV3Error(f"Room v3 window {result_id} has an invalid maximum_tangent_delta_deg")
+    inward = policy.get("lower_level_inward_projection_limit_px")
+    if inward is not None:
+        _number(inward, "lower_level_inward_projection_limit_px", result_id, positive=True)
+    return policy
+
+
+def _validate_window_references(results: list[dict[str, Any]]) -> None:
+    """Reject pending/stale contexts using only their immutable source fingerprints.
+
+    The online save path remains responsible for computational geometry.  This
+    offline migration verifies that the approved result bytes still match the
+    room/window fingerprints and complete-search evidence produced there.  It
+    intentionally has no Label Studio, Django, or Shapely import dependency.
+    """
+    rooms: dict[tuple[tuple[str, str], str], tuple[dict[str, Any], str]] = {}
+    windows: list[dict[str, Any]] = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        if result.get("from_name") in ROOM_CONTROLS:
+            room_id = _stable_room_id(result)
+            if not isinstance(room_id, str) or not room_id:
+                raise RoomV3Error("Room v3 window validation found a room without a stable ID")
+            key = (_surface_key(result), room_id)
+            if key in rooms:
+                raise RoomV3Error(f"Room v3 window validation found duplicate room ID {room_id}")
+            rooms[key] = (result, _room_fingerprint(result))
+        elif result.get("from_name") in WINDOW_CONTROLS:
+            windows.append(result)
+
+    trace_by_id: dict[str, tuple[dict[str, Any], dict[str, Any], str]] = {}
+    connection_by_id: dict[str, dict[str, Any]] = {}
+    first_policy_fingerprint: str | None = None
+    for result in windows:
+        _validate_window_vector(result)
+        result_id = result.get("id")
+        trace_id = f"window-trace:{result_id}"
+        if trace_id in trace_by_id:
+            raise RoomV3Error(f"Room v3 window result ID is duplicated: {result_id}")
+        trace_fingerprint = _window_trace_fingerprint(result)
+        meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+        context = meta.get("window_context") if isinstance(meta.get("window_context"), dict) else {}
+        parent_room_id = context.get("parent_room_id")
+        room_entry = rooms.get((_surface_key(result), parent_room_id))
+        if (
+            context.get("schema_version") != 1
+            or context.get("derivation_status") != "current"
+            or context.get("source_trace_id") != trace_id
+            or context.get("source_window_trace_fingerprint") != trace_fingerprint
+            or room_entry is None
+            or context.get("source_room_fingerprint") != room_entry[1]
+        ):
+            raise RoomV3Error(f"Room v3 window {result_id} has a stale or incomplete parent context")
+
+        parent = context.get("parent_derivation") if isinstance(context.get("parent_derivation"), dict) else {}
+        policy = _validate_policy(context.get("window_matching_policy"), result_id)
+        if (
+            parent.get("algorithm_version") != WINDOW_PARENT_ALGORITHM_VERSION
+            or parent.get("source_window_trace_fingerprint") != trace_fingerprint
+            or parent.get("room_fingerprint") != room_entry[1]
+            or not _same_number(parent.get("boundary_match_tolerance_px"), policy["boundary_match_tolerance_px"])
+            or not _same_number(parent.get("flattening_tolerance_px"), policy["flattening_tolerance_px"])
+        ):
+            raise RoomV3Error(f"Room v3 window {result_id} has stale parent-derivation evidence")
+
+        attachment = context.get("boundary_attachment") if isinstance(context.get("boundary_attachment"), dict) else {}
+        path_length = _number(attachment.get("path_length_px"), "path_length_px", result_id, positive=True)
+        overlap_length = _number(attachment.get("overlap_length_px"), "overlap_length_px", result_id, positive=True)
+        segment_ids = attachment.get("room_boundary_segment_ids")
+        if (
+            attachment.get("match_rule") != "full_positive_length_room_boundary_overlap"
+            or overlap_length > path_length + 1e-6
+            or path_length - overlap_length > max(1e-6, float(policy["boundary_match_tolerance_px"]) * 0.01)
+            or not isinstance(segment_ids, list)
+            or not segment_ids
+            or len(segment_ids) != len(set(segment_ids))
+            or any(not isinstance(item, str) or not item for item in segment_ids)
+        ):
+            raise RoomV3Error(f"Room v3 window {result_id} has incomplete boundary-attachment evidence")
+
+        policy_fingerprint = _fingerprint(policy)
+        if first_policy_fingerprint is None:
+            first_policy_fingerprint = policy_fingerprint
+        elif first_policy_fingerprint != policy_fingerprint:
+            raise RoomV3Error("Room v3 windows contain inconsistent matching policies")
+
+        search = context.get("pairing_search") if isinstance(context.get("pairing_search"), dict) else {}
+        candidate_ids = search.get("candidate_trace_ids")
+        candidate_count = search.get("candidate_count")
+        if (
+            search.get("status") != "complete"
+            or search.get("algorithm_version") != WINDOW_PAIRING_ALGORITHM_VERSION
+            or not _same_number(search.get("pair_search_limit_px"), policy["pair_search_limit_px"])
+            or isinstance(candidate_count, bool)
+            or not isinstance(candidate_count, int)
+            or candidate_count < 0
+            or not isinstance(candidate_ids, list)
+            or len(candidate_ids) != candidate_count
+            or len(candidate_ids) != len(set(candidate_ids))
+            or any(not isinstance(item, str) or not item for item in candidate_ids)
+        ):
+            raise RoomV3Error(f"Room v3 window {result_id} has pending or incomplete pairing-search evidence")
+
+        connection = context.get("connection") if isinstance(context.get("connection"), dict) else {}
+        connection_id = connection.get("id")
+        trace_ids = connection.get("trace_ids")
+        if (
+            connection.get("kind") != "window_connection"
+            or connection.get("read_only") is not True
+            or not isinstance(connection_id, str)
+            or not connection_id
+            or not isinstance(trace_ids, list)
+            or trace_id not in trace_ids
+            or len(trace_ids) != len(set(trace_ids))
+            or connection_id != "window-connection:" + _fingerprint({"trace_ids": sorted(trace_ids)})[:24]
+        ):
+            raise RoomV3Error(f"Room v3 window {result_id} has incomplete connection evidence")
+        previous_connection = connection_by_id.setdefault(connection_id, connection)
+        if _fingerprint(previous_connection) != _fingerprint(connection):
+            raise RoomV3Error(f"Room v3 window connection {connection_id} is inconsistent across its traces")
+        trace_by_id[trace_id] = (result, context, trace_fingerprint)
+
+    for trace_id, (result, context, trace_fingerprint) in trace_by_id.items():
+        result_id = result["id"]
+        parent_room_id = context["parent_room_id"]
+        policy = context["window_matching_policy"]
+        search = context["pairing_search"]
+        connection = context["connection"]
+        evidence = connection.get("evidence") if isinstance(connection.get("evidence"), dict) else {}
+        trace_ids = connection["trace_ids"]
+        room_ids = connection.get("connected_room_ids")
+        if any(candidate_id not in trace_by_id or candidate_id == trace_id for candidate_id in search["candidate_trace_ids"]):
+            raise RoomV3Error(f"Room v3 window {result_id} pairing search references a missing trace")
+        if connection.get("connection_kind") == "room_to_exterior":
+            valid = (
+                trace_ids == [trace_id]
+                and room_ids == [parent_room_id]
+                and connection.get("connects_to_exterior") is True
+                and connection.get("review_status") == "derived"
+                and context.get("pairing_status") == "exterior"
+                and search["candidate_count"] == 0
+                and evidence.get("match_rule") == "no_opposite_window_trace_within_search_limit"
+                and evidence.get("candidate_count") == 0
+                and evidence.get("automatically_classified") is True
+                and evidence.get("trace_fingerprints") == [trace_fingerprint]
+            )
+        elif connection.get("connection_kind") == "room_to_room":
+            other_ids = [item for item in trace_ids if item != trace_id]
+            connected = [trace_by_id.get(item) for item in trace_ids]
+            actual_rooms = sorted(item[1]["parent_room_id"] for item in connected if item is not None)
+            actual_fingerprints = sorted(item[2] for item in connected if item is not None)
+            valid = (
+                len(trace_ids) == 2
+                and len(other_ids) == 1
+                and all(item is not None for item in connected)
+                and sorted(room_ids or []) == actual_rooms
+                and len(set(actual_rooms)) == 2
+                and connection.get("connects_to_exterior") is False
+                and connection.get("review_status") == "candidate"
+                and context.get("pairing_status") == "paired"
+                and other_ids[0] in search["candidate_trace_ids"]
+                and evidence.get("match_rule") == "mutual_outward_projection"
+                and evidence.get("mutual_nearest") is True
+                and evidence.get("trace_fingerprints") == actual_fingerprints
+                and _number(evidence.get("projected_overlap_length_px"), "projected_overlap_length_px", result_id, positive=True) > 0
+                and _number(evidence.get("mean_separation_px"), "mean_separation_px", result_id) >= 0
+                and 0 <= _number(evidence.get("maximum_tangent_delta_deg"), "maximum_tangent_delta_deg", result_id) <= 90
+            )
+        else:
+            valid = False
+        if (
+            not valid
+            or evidence.get("algorithm_version") != WINDOW_PAIRING_ALGORITHM_VERSION
+            or not _same_number(evidence.get("pair_search_limit_px"), policy["pair_search_limit_px"])
+        ):
+            raise RoomV3Error(f"Room v3 window {result_id} has stale or incomplete pairing evidence")
 
 
 def _segments_from_edge(edge: dict[str, Any], room_id: str) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -93,6 +428,7 @@ def convert(
     rooms: dict[str, list[tuple[float, float]]] = {}
     references: list[dict[str, Any]] = []
     portals: list[dict[str, Any]] = []
+    windows: list[dict[str, Any]] = []
     for source in room_results:
         if not isinstance(source, dict) or not isinstance(source.get("id"), str):
             continue
@@ -108,6 +444,10 @@ def convert(
             if not isinstance(edge, dict) or edge.get("schema_version") != 3:
                 raise RoomV3Error(f"Room v3 portal {source['id']} lacks valid schema-v3 edge metadata")
             portals.append(source)
+        elif control in WINDOW_CONTROLS:
+            # This remains a lossless readonly copy and never reuses Portal
+            # metadata, but the complete domain is verified below first.
+            windows.append(source)
         else:
             continue
         item = copy.deepcopy(source)
@@ -115,6 +455,8 @@ def convert(
         references.append(item)
     if not rooms:
         raise RoomV3Error("approved Room v3 annotation has no rooms")
+    if windows:
+        _validate_window_references(room_results)
 
     zone_results = zone_annotation.get("result")
     if not isinstance(zone_results, list):
@@ -226,6 +568,7 @@ def convert(
             "visual_vector_count": visual_count,
             "room_reference_count": len(rooms),
             "portal_reference_count": len(portals),
+            "window_reference_count": len(windows),
         },
     }
 
@@ -264,7 +607,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"wrote {args.output_json}: {manifest['functional_zone_count']} zones, "
         f"{manifest['transport_vector_count']} transport vectors, "
-        f"{manifest['visual_vector_count']} visual vector"
+        f"{manifest['visual_vector_count']} visual vector, "
+        f"{manifest['window_reference_count']} window references"
     )
     return 0
 

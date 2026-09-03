@@ -9,10 +9,17 @@ from .geometry import collinear_overlap, point_in_polygon, point_on_segment, res
 
 ROOMS = {'room_rectangle', 'room_polygon'}
 PORTALS = {'portal_rectangle', 'portal_vector'}
-REFERENCES = ROOMS | PORTALS
+WINDOWS = {'window_vector'}
+REFERENCES = ROOMS | PORTALS | WINDOWS
 ZONES = {'zone_rectangle', 'zone_polygon'}
 VECTORS = {'connection_vector', 'visual_connection_vector'}
-DERIVED_META = {'partition_context', 'reference_review', 'geometry_review'}
+DERIVED_META = {
+    'partition_context',
+    'reference_review',
+    'geometry_review',
+    'window_projections',
+    'window_projection_state',
+}
 
 
 def digest(value):
@@ -111,6 +118,61 @@ def valid_polygon(poly):
     return True
 
 
+def valid_window_vector(result):
+    """Validate only the lossless Label Studio Vector envelope.
+
+    Room assignment and pairing are owned by the windows domain validator.  A
+    reference sync must neither require Portal metadata nor flatten/mutate the
+    original Bezier control points.
+    """
+    value = result.get('value', {})
+    vertices = value.get('vertices')
+    if result.get('type') != 'vectorlabels' or value.get('closed') is not False:
+        return False
+    if not isinstance(vertices, list) or len(vertices) < 2:
+        return False
+    for vertex in vertices:
+        if not isinstance(vertex, dict):
+            return False
+        if any(
+            not isinstance(vertex.get(axis), (int, float)) or not math.isfinite(vertex[axis])
+            for axis in ('x', 'y')
+        ):
+            return False
+        if vertex.get('isBezier'):
+            for key in ('controlPoint1', 'controlPoint2'):
+                point = vertex.get(key)
+                if not isinstance(point, dict) or any(
+                    not isinstance(point.get(axis), (int, float)) or not math.isfinite(point[axis])
+                    for axis in ('x', 'y')
+                ):
+                    return False
+    return True
+
+
+def window_parent_room_ids(result):
+    """Return optional room provenance without imposing a windows meta shape."""
+    meta = result.get('meta', {})
+    candidates = [result]
+    if isinstance(meta, dict):
+        candidates.extend(
+            value for key in ('window_context', 'window_trace', 'window_derivation')
+            if isinstance((value := meta.get(key)), dict)
+        )
+    room_ids = set()
+    for candidate in candidates:
+        room_id = candidate.get('parent_room_id')
+        if isinstance(room_id, str) and room_id:
+            room_ids.add(room_id)
+        parent_room_ids = candidate.get('parent_room_ids') or []
+        if not isinstance(parent_room_ids, (list, tuple, set)):
+            continue
+        for room_id in parent_room_ids:
+            if isinstance(room_id, str) and room_id:
+                room_ids.add(room_id)
+    return room_ids
+
+
 def inside(poly, room):
     if not valid_polygon(poly) or not valid_polygon(room):
         return False
@@ -148,6 +210,8 @@ def validate_source(results, target_config):
             if not valid_polygon(poly) or r.get('meta', {}).get('room_graph_node', {}).get('schema_version') != 3:
                 raise ValueError(f"房间 {r['id']} 的 v3 元数据或几何无效")
             rooms[r['id']] = poly
+        elif r['from_name'] in WINDOWS and not valid_window_vector(r):
+            raise ValueError(f"Window {r['id']} 的开放 Vector 几何无效")
     if not rooms:
         raise ValueError('正式 Room 标注没有有效房间')
     for r in refs:
@@ -176,6 +240,9 @@ def validate_source(results, target_config):
                 portal_edges = [result_segment(r)] if r['from_name'] == 'portal_vector' else edges(result_polygon(r))
                 if not any(all(point_on_segment(p,*e,0.02) for p in points) for e in portal_edges):
                     raise ValueError(f"Portal {r['id']} 接触边与实际开口几何不一致")
+    if any(result.get('from_name') in WINDOWS for result in refs):
+        from tasks.windows.downstream import validate_authoritative_window_contexts
+        validate_authoritative_window_contexts(refs)
     return [{**copy.deepcopy(r), 'readonly': True} for r in refs]
 
 
@@ -211,10 +278,15 @@ def diff_refs(old, new):
                 reference_types.add('room')
                 affected.add(key)
                 affected_for_reference.add(key)
-            else:
+            elif r['from_name'] in PORTALS:
                 reference_types.add('portal')
                 edge = r.get('meta', {}).get('room_graph_edge', {})
                 room_ids = edge.get('connected_room_ids') or edge.get('room_ids') or []
+                affected.update(room_ids)
+                affected_for_reference.update(room_ids)
+            elif r['from_name'] in WINDOWS:
+                reference_types.add('window')
+                room_ids = window_parent_room_ids(r)
                 affected.update(room_ids)
                 affected_for_reference.update(room_ids)
         references.append({

@@ -1,7 +1,7 @@
 """Build a compatible L3 template from an explicit L2 config, keeping names/labels."""
 import copy
 import xml.etree.ElementTree as ET
-from .validation import BARRIER_CONTROL, BARRIER_LABEL, REFERENCES
+from .validation import BARRIER_CONTROL, BARRIER_LABEL, REFERENCES, REQUIRED_REFERENCES
 
 
 BARRIER_ATTRIBUTES = {
@@ -90,8 +90,9 @@ def build_template(source_config):
         for child in copied.iter():
             child.attrib.pop('hotkey', None)
         hidden.append(copied)
-    if found != REFERENCES:
-        raise ValueError(f'来源缺少控件: {REFERENCES - found}')
+    missing = REQUIRED_REFERENCES - found
+    if missing:
+        raise ValueError(f'来源缺少控件: {missing}')
     # Category selection is owned by logical-region UI; never expose per-storage-part edits.
     labels = ET.SubElement(hidden, 'Labels', {'name': 'occupancy_type', 'toName': source_image.get('name')})
     for value, color in [('furniture_group', '#b06e28'), ('walkable', '#249376'), ('restricted_free', '#5967b6'), ('unclassified', '#c36d94')]:

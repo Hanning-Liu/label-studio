@@ -135,7 +135,7 @@ class ReferenceSyncRepairSourceAPI(ReferenceSyncStatusAPI):
         original_geometry = geometry_digest(annotation.result)
         refreshed, changes = prepare_source_annotation_result(task, annotation.result)
         if geometry_digest(refreshed) != original_geometry:
-            raise RuntimeError('元数据修复不得修改房间或 Portal 几何')
+            raise RuntimeError('元数据修复不得修改房间、Portal 或窗线几何')
         annotation.result = refreshed
         annotation.updated_by = request.user
         annotation.save(update_fields=['result', 'updated_by', 'updated_at'])
@@ -144,6 +144,7 @@ class ReferenceSyncRepairSourceAPI(ReferenceSyncStatusAPI):
         summary = {
             'room_ids': changes['room_ids'],
             'portal_ids': changes['portal_ids'],
+            'window_ids': changes['window_ids'],
             'user_id': request.user.id,
             'annotation_id': annotation.id,
             'geometry_unchanged': True,
@@ -159,9 +160,10 @@ class ReferenceSyncRepairSourceAPI(ReferenceSyncStatusAPI):
                 summary=summary,
             )
         return Response({
-            'repaired': bool(changes['room_ids'] or changes['portal_ids']),
+            'repaired': bool(changes['room_ids'] or changes['portal_ids'] or changes['window_ids']),
             'repaired_room_ids': changes['room_ids'],
             'repaired_portal_ids': changes['portal_ids'],
+            'repaired_window_ids': changes['window_ids'],
             'source_annotation_id': annotation.id,
             'source_annotation_updated_at': annotation.updated_at,
             'mode': 'source',

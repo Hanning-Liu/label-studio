@@ -7,9 +7,11 @@ from .geometry import EPS_AREA, VALIDATION_EPS_AREA, fingerprint, result_geometr
 
 GEOMETRY = {'occupancy_rectangle', 'occupancy_polygon'}
 PARENTS = {'zone_rectangle', 'zone_polygon'}
-REFERENCES = {'room_rectangle', 'room_polygon', 'portal_rectangle', 'portal_vector',
-              'zone_rectangle', 'zone_polygon', 'function_zone', 'connection_vector',
-              'visual_connection_vector', 'connection_review', 'visual_connection_review'}
+REQUIRED_REFERENCES = {'room_rectangle', 'room_polygon', 'portal_rectangle', 'portal_vector',
+                       'zone_rectangle', 'zone_polygon', 'function_zone', 'connection_vector',
+                       'visual_connection_vector', 'connection_review', 'visual_connection_review'}
+OPTIONAL_REFERENCES = {'window_vector'}
+REFERENCES = REQUIRED_REFERENCES | OPTIONAL_REFERENCES
 TYPES = {'furniture_group', 'walkable', 'restricted_free', 'unclassified'}
 GROUP_TYPES = {'sleeping', 'study_work', 'dining', 'living_social', 'storage', 'dressing_grooming',
                'cooking_preparation', 'washbasin', 'toilet', 'shower_fixtures', 'bathtub',
