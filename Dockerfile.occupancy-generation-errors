@@ -1,0 +1,6 @@
+FROM label-studio-functionzone-validation-labels:20260831
+LABEL org.opencontainers.image.title="Label Studio L3 detailed generation errors"
+LABEL org.opencontainers.image.version="1.23.0-l3-generation-errors1"
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+COPY --chown=1001:0 label_studio/tasks/occupancy/validation.py /label-studio/label_studio/tasks/occupancy/validation.py
+USER 1001

@@ -1,0 +1,12 @@
+FROM label-studio-l3-stale-review-ux:20260901-v3
+
+LABEL org.opencontainers.image.title="Label Studio L3 validation tolerance and diagnostics"
+LABEL org.opencontainers.image.version="1.23.0-l3-validation-tolerance-v4"
+
+COPY --chown=1001:0 label_studio/tasks/occupancy/geometry.py /label-studio/label_studio/tasks/occupancy/geometry.py
+COPY --chown=1001:0 label_studio/tasks/occupancy/validation.py /label-studio/label_studio/tasks/occupancy/validation.py
+COPY --chown=1001:0 label_studio/tasks/occupancy/reference.py /label-studio/label_studio/tasks/occupancy/reference.py
+COPY --chown=1001:0 label_studio/tasks/reference_sync/service.py /label-studio/label_studio/tasks/reference_sync/service.py
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+
+USER 1001

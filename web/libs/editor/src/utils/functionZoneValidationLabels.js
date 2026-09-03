@@ -13,4 +13,3 @@ export const formatFunctionZoneRoomLabel = (room, fallbackId = null) => {
 
   return `${roomType}（${regionIndex}${geometryTypeLabel(room)}，ID ${roomId}）`;
 };
-

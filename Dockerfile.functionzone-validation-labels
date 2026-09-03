@@ -1,0 +1,5 @@
+FROM label-studio-reference-review-ux:20260831
+LABEL org.opencontainers.image.title="Label Studio FunctionZone readable validation labels"
+LABEL org.opencontainers.image.version="1.23.0-functionzone-validation-labels1"
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+USER 1001

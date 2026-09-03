@@ -1,0 +1,7 @@
+FROM label-studio-l3-rectangle-snap:20260828
+
+LABEL org.opencontainers.image.version="1.23.0-l3-occupancy-v1-anchor-resize1"
+
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+
+USER 1001

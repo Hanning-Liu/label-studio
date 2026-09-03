@@ -1,0 +1,13 @@
+FROM label-studio-l3-validation-tolerance:20260901-v4
+
+LABEL org.opencontainers.image.title="Label Studio L3 artificial wall barrier"
+LABEL org.opencontainers.image.version="1.23.0-l3-barrier-validation-v4"
+
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+COPY --chown=1001:0 label_studio/core/context_processors.py /label-studio/label_studio/core/context_processors.py
+COPY --chown=1001:0 label_studio/tasks/occupancy/validation.py /label-studio/label_studio/tasks/occupancy/validation.py
+COPY --chown=1001:0 label_studio/tasks/occupancy/template.py /label-studio/label_studio/tasks/occupancy/template.py
+COPY --chown=1001:0 label_studio/tasks/management/commands/add_occupancy_barrier_control.py /label-studio/label_studio/tasks/management/commands/add_occupancy_barrier_control.py
+COPY --chown=1001:0 examples/occupancy-v1 /label-studio/examples/occupancy-v1
+
+USER 1001

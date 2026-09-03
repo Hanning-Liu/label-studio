@@ -1,0 +1,7 @@
+FROM label-studio-l3-group-dialog:20260827
+
+LABEL org.opencontainers.image.version="1.23.0-l3-occupancy-v1-polygon-edit1"
+
+COPY --chown=1001:0 web/dist /label-studio/web/dist
+
+USER 1001
