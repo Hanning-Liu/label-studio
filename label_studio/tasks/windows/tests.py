@@ -473,7 +473,7 @@ class WindowDownstreamAdapterTests(SimpleTestCase):
         references = self.prepared_references()
         module._validate_window_references(references)
         references[-1]["meta"]["window_context"]["pairing_search"]["status"] = "pending"
-        with self.assertRaisesRegex(module.RoomV3Error, "stale or incomplete"):
+        with self.assertRaisesRegex(module.RoomV3Error, "pending or incomplete pairing-search"):
             module._validate_window_references(references)
 
     def test_hidden_downstream_control_still_requires_current_window_context(self):
