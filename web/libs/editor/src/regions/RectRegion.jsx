@@ -21,6 +21,7 @@ import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
 import { withAlpha } from "../utils/roomConstraintGeometry";
 import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
+import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
 
 /**
  * Rectangle object for Bounding Box
@@ -444,7 +445,9 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
   const isReference = shouldRenderRoomReference(item);
   const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
   const occupancyReferenceStyles = occupancyZoneReferenceStyles(item, regionStyles);
+  const furnitureInstanceReferenceStyles = furnitureReferenceStyles(item, regionStyles);
   const displayStyles =
+    furnitureInstanceReferenceStyles ||
     occupancyReferenceStyles ||
     (isReference
       ? {

@@ -15,6 +15,7 @@ import { EmptyState } from "../Components/EmptyState";
 import { IconCursor, IconRelationLink } from "@humansignal/icons";
 import { getDocsUrl } from "../../../utils/docs";
 import { OccupancyDetails } from "../../../occupancy/OccupancyOutliner";
+import { FurnitureInstanceDetails } from "../../../furnitureInstances/FurnitureInstanceOutliner";
 
 interface DetailsPanelProps extends PanelProps {
   regions: any;
@@ -42,6 +43,14 @@ const DetailsComponent: FC<DetailsPanelProps> = ({ currentEntity, regions }) => 
 };
 
 const Content: FC<any> = observer(function Content({ selection, currentEntity }: any): JSX.Element {
+  const furnitureInstances = currentEntity?.objects?.find((object: any) => object.furnitureInstancesEnabled);
+  if (
+    furnitureInstances &&
+    selection.list?.some((region: any) =>
+      region.results?.some((result: any) => result.meta?.furniture_instance_context),
+    )
+  )
+    return <FurnitureInstanceDetails item={furnitureInstances} />;
   const occupancy = currentEntity?.objects?.find((object: any) => object.occupancyEnabled);
   if (occupancy && selection.list?.some((region: any) => region.results?.some((r: any) => r.meta?.occupancy_context)))
     return <OccupancyDetails item={occupancy} />;

@@ -16,6 +16,8 @@ export const ReadOnlyRegionMixin = types
         return false;
       }
       return (
+        (self.parent?.furnitureInstancesEnabled &&
+          self.results?.some((r) => self.parent.furnitureInstanceIsReference?.(r.from_name?.name))) ||
         (self.parent?.occupancyEnabled && self.results?.some((r) => self.parent.occupancyIsReference(r.from_name?.name))) ||
         (self.parent?.occupancyEnabled && self.results?.some((r) => r.meta?.occupancy_context?.generation === "remainder")) ||
         self.locked ||

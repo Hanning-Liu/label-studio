@@ -2,7 +2,7 @@ import { isAlive, types } from "mobx-state-tree";
 
 import BaseTool, { DEFAULT_DIMENSIONS } from "./Base";
 import ToolMixin from "../mixins/Tool";
-import { MultipleClicksDrawingTool } from "../mixins/DrawingTool";
+import { constrainFurnitureInstanceEventPoint, MultipleClicksDrawingTool } from "../mixins/DrawingTool";
 import { NodeViews } from "../components/Node/Node";
 import { observe } from "mobx";
 
@@ -156,6 +156,11 @@ const _Tool = types
         // For Vector tool, allow shift-key events to pass through
         // This enables shift-click for inserting points on segments
         if (ev.button > 0) return; // Still filter right clicks and middle clicks
+
+        const currentArea = self.releaseStaleCurrentArea();
+        const point = constrainFurnitureInstanceEventPoint(self, name, { x, y }, currentArea);
+        if (!point) return;
+        [x, y] = [point.x, point.y];
 
         let fn = `${name}Ev`;
 
@@ -359,6 +364,7 @@ const _Tool = types
         // For incomplete vector regions, don't trigger selectAfterCreate behavior
         if (!currentArea.incomplete) {
           self.obj.finalizeOccupancyRegion?.(currentArea);
+          self.obj.finalizeFurnitureInstanceRegion?.(currentArea);
           self.annotation.afterCreateResult(currentArea, control);
         }
       },
@@ -371,11 +377,15 @@ const _Tool = types
       deleteRegion() {
         const { currentArea } = self;
 
-        self.setDrawing(false);
-        self.currentArea = null;
-        self.stopListening();
-        if (currentArea) {
-          currentArea.deleteRegion();
+        try {
+          // Keep annotation.isDrawing true while deleting the transient area.
+          // Otherwise protected L4 deletion interprets cancelling orientation
+          // drawing as a request to delete the complete furniture instance.
+          if (currentArea) currentArea.deleteRegion();
+        } finally {
+          self.annotation.setIsDrawing(false);
+          self.currentArea = null;
+          self.stopListening();
         }
       },
 

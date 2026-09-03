@@ -33,6 +33,12 @@ import {
   partitionOccupancyZoneReferenceRegions,
   shouldRenderOccupancyReferenceRegion,
 } from "../../occupancy/referenceDisplay";
+import { FurnitureInstanceControls } from "../../furnitureInstances/FurnitureInstanceControls";
+import {
+  furnitureInstanceMultiRegionSelection,
+  furnitureInstanceToolbarTools,
+  partitionFurnitureReferenceRegions,
+} from "../../furnitureInstances/referenceDisplay";
 
 Konva.showWarnings = false;
 
@@ -349,12 +355,14 @@ const SelectionLayer = observer(({ item, selectionArea }) => {
     item.occupancyEnabled &&
     item.selectedRegions.length > 1 &&
     item.selectedRegions.some((shape) => ["occupancy_rectangle", "occupancy_polygon"].includes(shape.control?.name));
+  const protectedMultiRegionSelection =
+    occupancyMultiPartSelection || furnitureInstanceMultiRegionSelection(item);
   const selectedShapeUsesTransformer =
     item.selectedShape?.useTransformer && !item.selectedShape?.occupancyVertexEditing;
 
   supportsTransform =
     supportsTransform &&
-    !occupancyMultiPartSelection &&
+    !protectedMultiRegionSelection &&
     (item.selectedRegions.length > 1 ||
       ((item.useTransformer || item.selectedShape?.preferTransformer) && selectedShapeUsesTransformer));
 
@@ -1070,7 +1078,10 @@ export default observer(
 
       if (store.annotationStore.viewingAll) return null;
 
-      const tools = occupancyToolbarTools(item.getToolsManager().allTools(), item.occupancyEnabled);
+      const tools = furnitureInstanceToolbarTools(
+        occupancyToolbarTools(item.getToolsManager().allTools(), item.occupancyEnabled),
+        item.furnitureInstancesEnabled,
+      );
 
       return (
         <>
@@ -1125,7 +1136,9 @@ export default observer(
       return (
         <>
           {!isViewingAll &&
-            (item.occupancyEnabled ? (
+            (item.furnitureInstancesEnabled ? (
+              <FurnitureInstanceControls item={item} />
+            ) : item.occupancyEnabled ? (
               <OccupancyControls item={item} />
             ) : item.wholeRoomInheritanceEnabled && item.hasRoomConstraints ? (
               <section
@@ -1500,22 +1513,32 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
   const { references: occupancyZoneReferenceRegions, interactive: interactiveShapeRegions } = item.occupancyEnabled
     ? partitionOccupancyZoneReferenceRegions(backgroundShapeRegions)
     : { references: [], interactive: backgroundShapeRegions };
+  const { references: furnitureReferenceRegions, interactive: furnitureInteractiveRegions } =
+    item.furnitureInstancesEnabled
+      ? partitionFurnitureReferenceRegions(interactiveShapeRegions, item)
+      : { references: [], interactive: interactiveShapeRegions };
 
   const {
     brushRegions: suggestedBrushRegions,
     shapeRegions: suggestedShapeRegions,
     bitmaskRegions: suggestedBitmaskRegions,
   } = splitRegions(item.suggestions.filter((region) => shouldRenderOccupancyReferenceRegion(item, region)));
-  const suggestedReferenceRegions = suggestedShapeRegions.filter((region) => region.isRoomLayoutReference);
-  const otherSuggestedShapeRegions = suggestedShapeRegions.filter((region) => !region.isRoomLayoutReference);
+  const { references: suggestedFurnitureReferenceRegions, interactive: remainingSuggestedShapeRegions } =
+    item.furnitureInstancesEnabled
+      ? partitionFurnitureReferenceRegions(suggestedShapeRegions, item)
+      : { references: [], interactive: suggestedShapeRegions };
+  const suggestedReferenceRegions = remainingSuggestedShapeRegions.filter((region) => region.isRoomLayoutReference);
+  const otherSuggestedShapeRegions = remainingSuggestedShapeRegions.filter((region) => !region.isRoomLayoutReference);
 
   const renderableRegions = [
     // L2 function zones are read-only references in L3. Render them first and
     // disable hit testing so they cannot cover or steal clicks from furniture.
     ["occupancyZoneReference", occupancyZoneReferenceRegions, false],
-    ["suggestedReference", suggestedReferenceRegions, !item.occupancyEnabled],
+    ["furnitureInstanceReference", furnitureReferenceRegions, false],
+    ["suggestedFurnitureInstanceReference", suggestedFurnitureReferenceRegions, false],
+    ["suggestedReference", suggestedReferenceRegions, !(item.occupancyEnabled || item.furnitureInstancesEnabled)],
     ["brush", brushRegions, true],
-    ["shape", interactiveShapeRegions, true],
+    ["shape", furnitureInteractiveRegions, true],
     ["bitmask", bitmaskRegions, true],
     ["suggestedBrush", suggestedBrushRegions, true],
     ["suggestedBismask", suggestedBitmaskRegions, true],

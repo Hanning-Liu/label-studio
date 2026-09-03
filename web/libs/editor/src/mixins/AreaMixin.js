@@ -215,6 +215,15 @@ export const AreaMixinBase = types
       if (self.annotation.isReadOnly()) return;
       if (self.isReadOnly()) return;
       if (
+        self.parent?.furnitureInstancesEnabled &&
+        !self.annotation.isDrawing &&
+        !self.annotation.hasIncompletePolygons &&
+        self.results.some((r) => r.meta?.furniture_instance_context)
+      ) {
+        self.parent.requestFurnitureInstanceDelete?.(self);
+        return;
+      }
+      if (
         self.parent?.occupancyEnabled &&
         !self.annotation.isDrawing &&
         !self.annotation.hasIncompletePolygons &&

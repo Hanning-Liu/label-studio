@@ -31,6 +31,29 @@ test("L3 apply stops on failed save without calling the apply endpoint", async (
   expect(controller.request).not.toHaveBeenCalled();
   expect(controller.applying).toBe(false);
 });
+test("L4 manual apply uses the same guarded endpoint without changing L3 compatibility", async () => {
+  const { controller, current } = setup();
+  controller.state.status = {
+    ...status,
+    apply_policy: "manual",
+    sync_type: "occupancy_to_furniture_instances",
+    source_version: "new",
+  };
+  current.draftRevision = "2026-09-03T08:00:00Z";
+  controller.replace = jest.fn();
+  controller.request.mockResolvedValue({ id: 7, updated_at: current.draftRevision, result: [] });
+
+  await controller.applyFurnitureInstancesReference();
+
+  expect(controller.request).toHaveBeenCalledWith("/api/tasks/20/reference-sync/apply/", {
+    draft_id: 7,
+    expected_updated_at: current.draftRevision,
+    reference_version: "old",
+    base_manual_hash: "manual",
+    source_version: "new",
+  });
+  expect(controller.replace).toHaveBeenCalledTimes(1);
+});
 test("L3 operation check always fetches a fresh source/reference version", async () => {
   const { controller } = setup();
   controller.state.status = { ...status, source_version: "old", reference_version: "old" };
@@ -39,6 +62,16 @@ test("L3 operation check always fetches a fresh source/reference version", async
   controller.request.mockResolvedValue({ ...status, sync_type: "function_zone_to_occupancy", source_version: "new", reference_version: "old" });
   await expect(controller.checkOccupancyReference("old")).rejects.toThrow("L2 参考已变化");
   expect(controller.request).toHaveBeenCalledTimes(2);
+});
+test("L4 operation check rejects a changed L3 source version", async () => {
+  const { controller } = setup();
+  controller.request.mockResolvedValue({
+    ...status,
+    sync_type: "occupancy_to_furniture_instances",
+    source_version: "newer",
+    reference_version: "old",
+  });
+  await expect(controller.checkFurnitureInstancesReference("old")).rejects.toThrow("L3 参考已变化");
 });
 
 test.each(["isDraftSaving", "submissionStarted", "hasIncompletePolygons"])("does not replace during %s", (key) => {

@@ -10,6 +10,7 @@ import { IconLsLabeling } from "@humansignal/ui";
 import { EmptyState } from "../Components/EmptyState";
 import { getDocsUrl } from "../../../utils/docs";
 import { OccupancyOutliner } from "../../../occupancy/OccupancyOutliner";
+import { FurnitureInstanceOutliner } from "../../../furnitureInstances/FurnitureInstanceOutliner";
 
 // Local type definitions based on ViewControls and RegionStore
 type GroupingOptions = "manual" | "label" | "type";
@@ -50,6 +51,9 @@ const OutlinerPanelComponent: FC<OutlinerPanelProps> = ({ regions, ...props }) =
 
   regions.setGrouping(group);
 
+  const furnitureInstances = regions.annotation?.objects?.find((object: any) => object.furnitureInstancesEnabled);
+  if (furnitureInstances)
+    return <PanelBase {...props} name="outliner" title="L4 家具实例"><FurnitureInstanceOutliner item={furnitureInstances} /></PanelBase>;
   const occupancy = regions.annotation?.objects?.find((object: any) => object.occupancyEnabled);
   if (occupancy) return <PanelBase {...props} name="outliner" title="L3 区域"><OccupancyOutliner item={occupancy} /></PanelBase>;
 
@@ -82,6 +86,8 @@ const OutlinerStandAlone: FC<OutlinerPanelProps> = ({ regions }) => {
     [regions],
   );
 
+  const furnitureInstances = regions.annotation?.objects?.find((object: any) => object.furnitureInstancesEnabled);
+  if (furnitureInstances) return <FurnitureInstanceOutliner item={furnitureInstances} />;
   const occupancy = regions.annotation?.objects?.find((object: any) => object.occupancyEnabled);
   if (occupancy) return <OccupancyOutliner item={occupancy} />;
 

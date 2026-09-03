@@ -104,9 +104,11 @@ export const Occupancy = types
       return self.occupancyEnabled && REFERENCES.has(controlName);
     },
     occupancyConstrains(region) {
+      if (self.furnitureInstancesEnabled) return self.furnitureInstanceConstrains?.(region);
       return self.occupancyEnabled && GEOMETRY.has(region?.control?.name) && !region.isReadOnly();
     },
     occupancyConstraintSpace(region) {
+      if (self.furnitureInstancesEnabled) return self.furnitureInstanceConstraintSpace(region);
       const c = region?.results.find((r) => GEOMETRY.has(r.from_name?.name))?.meta?.occupancy_context;
       const drawingParentId =
         self.occupancyDrawMode === "furniture_group" ? self.occupancyGroup?.parentId : self.occupancyFocusId;
@@ -156,6 +158,10 @@ export const Occupancy = types
   }))
   .actions((self) => ({
     setOccupancyEditNotice(message) {
+      if (self.furnitureInstancesEnabled) {
+        self.setFurnitureInstanceEditNotice?.(message);
+        return;
+      }
       self.occupancyEditNotice = message || "";
     },
     setOccupancyRoomReferencesVisible(visible) {
@@ -166,6 +172,8 @@ export const Occupancy = types
       if (kind === "pixel") self.occupancyPixelSnap = enabled;
     },
     occupancyDrawingPoint(point, region = null, starting = false) {
+      if (self.furnitureInstancesEnabled)
+        return self.furnitureInstanceDrawingPoint(point, region, starting, region?.control?.name);
       try {
         const space = self.occupancyConstraintSpace(region);
         const snapped = snapOccupancyPoint(point, space);
@@ -181,6 +189,8 @@ export const Occupancy = types
       }
     },
     constrainOccupancyRectangle(region, previous, target) {
+      if (self.furnitureInstancesEnabled)
+        return self.constrainFurnitureInstanceRectangle(region, previous, target);
       if (!self.occupancyConstrains(region)) return target;
       try {
         const accepted = constrainRectangle(previous, target, self.occupancyConstraintSpace(region));
@@ -194,6 +204,8 @@ export const Occupancy = types
       }
     },
     constrainOccupancyPolygon(region, previous, target, snap = true) {
+      if (self.furnitureInstancesEnabled)
+        return self.constrainFurnitureInstancePolygon(region, previous, target, snap);
       if (!self.occupancyConstrains(region)) return target;
       try {
         const accepted = constrainPolygon(previous, target, self.occupancyConstraintSpace(region), region.closed, snap);
@@ -207,6 +219,7 @@ export const Occupancy = types
       }
     },
     occupancyNextPoint(region, point) {
+      if (self.furnitureInstancesEnabled) return self.furnitureInstanceNextPoint(region, point);
       const snapped = self.occupancyDrawingPoint(point, region);
       if (!snapped) return null;
       const space = self.occupancyConstraintSpace(region),
@@ -253,6 +266,7 @@ export const Occupancy = types
       self.occupancyDeleteRequestId = "";
     },
     acceptOccupancyEdit(region, value) {
+      if (self.furnitureInstancesEnabled) return self.acceptFurnitureInstanceEdit(region, value);
       if (!self.occupancyConstrains(region)) return true;
       const result = region.results.find((r) => GEOMETRY.has(r.from_name?.name));
       const c = result?.meta?.occupancy_context;

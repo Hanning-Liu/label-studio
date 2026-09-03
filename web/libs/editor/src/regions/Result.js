@@ -410,6 +410,21 @@ const Result = types
         } else if (data.meta.occupancy_context) {
           delete data.meta.occupancy_context;
         }
+        // L4 identity belongs to every explicit instance result (geometry,
+        // category, or orientation evidence). Never let another result's
+        // area-level metadata overwrite its role/provenance during a refresh.
+        if (
+          meta?.furniture_instance_context &&
+          ["rectangle", "polygon", "choices", "vectorlabels"].includes(type)
+        ) {
+          data.meta.furniture_instance_context = meta.furniture_instance_context;
+          if (meta.furniture_instance_provenance)
+            data.meta.furniture_instance_provenance = meta.furniture_instance_provenance;
+          else delete data.meta.furniture_instance_provenance;
+        } else {
+          delete data.meta.furniture_instance_context;
+          delete data.meta.furniture_instance_provenance;
+        }
         if (!Object.keys(data.meta).length && !meta) delete data.meta;
       }
 
