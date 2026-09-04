@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal } from "antd";
+import { Button } from "@humansignal/ui";
 
 import { GROUP_TYPES } from "../occupancy/domain";
 import { focusOccupancy } from "../occupancy/focus";
@@ -51,7 +52,7 @@ const ValidationContent = ({ items, onLocate }) => {
   return (
     <section aria-label="L4 家具实例提交问题">
       <p>提交前需要处理下列实例；未复核实例可能位于当前 Focus 以外的家具组团。</p>
-      <ul>
+      <ul className="flex flex-col gap-base">
         {items.map((item) => (
           <li key={item.instanceId || item.messages.join("\u0000")}>
             <strong>
@@ -63,8 +64,14 @@ const ValidationContent = ({ items, onLocate }) => {
               ))}
             </ul>
             {item.instanceId && (
-              <button
+              <Button
                 type="button"
+                size="small"
+                variant="primary"
+                look="filled"
+                className="mt-2 w-full justify-center"
+                aria-label={`定位并选择 ${item.category} 实例 ${item.shortId}`}
+                tooltip="切换到该家具实例及其所属家具组团"
                 onClick={async () => {
                   try {
                     await onLocate(item.instanceId);
@@ -74,8 +81,8 @@ const ValidationContent = ({ items, onLocate }) => {
                   }
                 }}
               >
-                定位并选择该实例
-              </button>
+                定位并选择该实例 →
+              </Button>
             )}
           </li>
         ))}
