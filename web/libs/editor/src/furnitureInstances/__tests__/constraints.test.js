@@ -1,5 +1,6 @@
 import { TextEncoder } from "util";
 import { area, difference, resultGeometry } from "../../occupancy/geometry";
+import { constrainOccupancyBox } from "../../occupancy/transform";
 import {
   FRONT_EDGE_BOUNDARY_EPS_PX,
   VALIDATION_PIXEL_EPS,
@@ -626,6 +627,52 @@ test("MultiPolygon constraint space respects components and holes for create, ed
       ),
     ),
   ).toBeLessThanOrEqual(1e-8);
+});
+
+test("rectangle resize sticks to real MultiPolygon component and hole boundaries", () => {
+  const geometry = [[square(0, 0, 40, 40)[0], square(10, 10, 20, 20)[0]], square(60, 0, 90, 30)];
+  const space = furnitureConstraintSpace(geometry, {
+    width: 1000,
+    height: 500,
+    screenWidth: 1000,
+    screenHeight: 500,
+  });
+
+  const componentBefore = { x: 65, y: 5, width: 20, height: 10, rotation: 0 };
+  const component = constrainFurnitureRectangle(componentBefore, { ...componentBefore, width: 24.5 }, space);
+  expect(component.x + component.width).toBeCloseTo(90, 10);
+
+  const holeBefore = { x: 12, y: 22, width: 5, height: 5, rotation: 0 };
+  const hole = constrainFurnitureRectangle(holeBefore, { ...holeBefore, y: 20.5, height: 6.5 }, space);
+  expect(hole.y).toBeCloseTo(20, 10);
+  for (const value of [component, hole])
+    expect(area(difference(resultGeometry({ ...SOURCE, value }), geometry))).toBeLessThanOrEqual(1e-8);
+});
+
+test("live rectangle Transformer sticks an L4 instance to its MultiPolygon boundary", () => {
+  const geometry = [square(60, 0, 90, 30)];
+  const space = furnitureConstraintSpace(geometry, {
+    width: 1000,
+    height: 500,
+    screenWidth: 1000,
+    screenHeight: 500,
+  });
+  const instance = { x: 65, y: 5, width: 20, height: 10, rotation: 0, type: "rectangleregion" };
+  const image = {
+    occupancyConstrains: () => true,
+    canvasToInternalX: (value) => value / 10,
+    canvasToInternalY: (value) => value / 5,
+    internalToCanvasX: (value) => value * 10,
+    internalToCanvasY: (value) => value * 5,
+    fixZoomedCoords: (value) => value,
+    zoomOriginalCoords: (value) => value,
+    constrainOccupancyRectangle: (_region, previous, target) => constrainFurnitureRectangle(previous, target, space),
+  };
+  const oldBox = { x: 650, y: 25, width: 200, height: 50, rotation: 0 };
+  const box = constrainOccupancyBox(image, instance, oldBox, { ...oldBox, width: 245 }, "middle-right");
+
+  expect(box.x).toBeCloseTo(oldBox.x, 10);
+  expect(box.width).toBeCloseTo(250, 10);
 });
 
 test("parent group fingerprint includes hole/multipart geometry rather than a bbox or convex hull", () => {

@@ -318,6 +318,74 @@ export function constrainFurnitureRectangle(previous, target, space) {
         break;
       }
     }
+  } else if (close(before.rotation, proposed.rotation)) {
+    // A live Transformer resize changes only one or two rectangle edges. The
+    // initial limit above keeps the complete shape in its saved parent, but it
+    // leaves the moving edge fractionally inside the boundary. That feels like
+    // a rebound when the pointer passes the group edge. Snap only each moving
+    // edge to nearby real boundaries, including every MultiPolygon component
+    // and every hole; never replace the parent with a bounding box.
+    const radians = (accepted.rotation * Math.PI) / 180;
+    const c = Math.cos(radians);
+    const s = Math.sin(radians);
+    const local = (candidate) => ({ x: candidate.x * c + candidate.y * s, y: -candidate.x * s + candidate.y * c });
+    const world = (candidate) => ({ x: candidate.x * c - candidate.y * s, y: candidate.x * s + candidate.y * c });
+    const bounds = (rectangle) => {
+      const origin = local(rectangle);
+
+      return [origin.x, origin.x + rectangle.width, origin.y, origin.y + rectangle.height];
+    };
+    const beforeEdges = bounds(before);
+    const desiredEdges = bounds(proposed);
+    let edges = bounds(accepted);
+    const parents = space.rings.map((ring) => ring.map(local));
+    const rectangle = (candidate) => ({
+      ...world({ x: candidate[0], y: candidate[2] }),
+      width: candidate[1] - candidate[0],
+      height: candidate[3] - candidate[2],
+      rotation: accepted.rotation,
+    });
+
+    for (let side = 0; side < 4; side++) {
+      if (close(beforeEdges[side], desiredEdges[side])) continue;
+      const axis = side < 2 ? "x" : "y";
+      const other = axis === "x" ? "y" : "x";
+      const ends = side < 2 ? [edges[2], edges[3]] : [edges[0], edges[1]];
+      const candidates = [];
+
+      if (space.boundary) {
+        for (const parent of parents) {
+          for (const end of ends) {
+            for (let index = 0; index < parent.length; index++) {
+              const start = parent[index];
+              const finish = parent[(index + 1) % parent.length];
+              if (close(start[other], finish[other])) continue;
+              const amount = (end - start[other]) / (finish[other] - start[other]);
+              if (amount < -1e-10 || amount > 1 + 1e-10) continue;
+              const value = mix(start[axis], finish[axis], amount);
+              if (
+                space.screenDistance(
+                  world({ [axis]: edges[side], [other]: end }),
+                  world({ [axis]: value, [other]: end }),
+                ) <= space.threshold
+              )
+                candidates.push(value);
+            }
+          }
+        }
+      }
+      candidates.sort((left, right) => Math.abs(left - edges[side]) - Math.abs(right - edges[side]));
+      if (space.pixel) candidates.push(Math.round(edges[side]));
+      for (const value of candidates) {
+        const candidate = [...edges];
+        candidate[side] = value;
+        if (valid(rectangle(candidate))) {
+          edges = candidate;
+          break;
+        }
+      }
+    }
+    accepted = rectangle(edges);
   }
   return {
     ...space.fromPixel(accepted),
