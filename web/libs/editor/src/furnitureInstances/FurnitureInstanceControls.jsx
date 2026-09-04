@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal } from "antd";
+import { Button } from "@humansignal/ui";
 
 import { GROUP_TYPES } from "../occupancy/domain";
 import { downloadJson } from "../occupancy/download";
-import { CONTROLS, FURNITURE_TYPES } from "./domain";
+import { CONTROLS, FURNITURE_TYPES, ORIENTATION_CONTROLS } from "./domain";
 import { orientationForInstance } from "./constraints";
 import { downloadFurnitureInstances, reimportFurnitureInstances } from "./download";
+import { effectiveFurnitureInstanceReviewStatus } from "./FurnitureInstanceOutliner";
 import {
   applyFurnitureInstanceOperation,
+  recoverFurnitureInstanceOrientation,
   retryableFurnitureInstanceOperation,
   retryFurnitureInstanceSave,
 } from "./operations";
@@ -76,18 +79,65 @@ export const FurnitureInstanceControls = observer(({ item }) => {
   const selected = instances.find((instance) => instance.id === effectiveSelectedId);
   const errors = item.furnitureInstanceErrors;
   const currentErrors = errors.filter((issue) => issue.instanceId === selected?.id);
+  const reviewErrors = currentErrors.filter((issue) => issue.code === "review");
+  const selectedDrawingControl = item.getToolsManager?.()?.findSelectedTool?.()?.control?.name || "";
+  const activeDrawingControl =
+    selectedDrawingControl === item.furnitureInstanceDrawingControl ? selectedDrawingControl : "";
+  const activeOrientationControl = ORIENTATION_CONTROLS.has(activeDrawingControl) ? activeDrawingControl : "";
+  const visibleErrors = currentErrors.filter(
+    (issue) => issue.code !== "review" && !(activeOrientationControl && issue.code === "orientation"),
+  );
   const status = state.status;
   const referenceChanged =
     status?.enabled &&
     (status.source_version !== annotation.referenceVersion || status.reference_version !== annotation.referenceVersion);
   const historical = annotation.type !== "prediction" && !!annotation.pk && !annotation.draftSelected;
-  const retryDisabled =
-    item.furnitureInstanceBusy ||
-    annotation.isDrawing ||
-    annotation.hasIncompletePolygons ||
-    !!annotation.submissionStarted ||
-    annotation.isReadOnly();
-  const disabled = retryDisabled || hasUnsavedMutation;
+  const commonDisabledReason = item.furnitureInstanceBusy
+    ? "L4 操作或保存正在进行"
+    : annotation.submissionStarted
+      ? "正式提交正在进行"
+      : annotation.isReadOnly()
+        ? "当前标注为只读"
+        : "";
+  const drawingDisabledReason =
+    annotation.isDrawing || annotation.hasIncompletePolygons ? "请先完成或取消当前绘制" : "";
+  const retryDisabledReason = commonDisabledReason || drawingDisabledReason;
+  const disabledReason =
+    commonDisabledReason || (hasUnsavedMutation ? "请先重试保存或导出窗口备份" : drawingDisabledReason);
+  const retryDisabled = Boolean(retryDisabledReason);
+  const disabled = Boolean(disabledReason);
+
+  const drawDisabledReason = (control) => {
+    if (activeDrawingControl === control) return commonDisabledReason;
+    return (
+      disabledReason ||
+      (!focus ? "请先选择 Focus 家具组团" : "") ||
+      (referenceChanged ? "L3 参考有更新；请先保存、备份并手动应用" : "") ||
+      item.furnitureInstanceDrawBlockReason?.(control) ||
+      ""
+    );
+  };
+
+  const orientationDisabledReason = (control) => {
+    if (activeOrientationControl) return commonDisabledReason;
+    return (
+      commonDisabledReason ||
+      (hasUnsavedMutation ? "请先重试保存或导出窗口备份" : "") ||
+      drawingDisabledReason ||
+      (!selected ? "请先选择家具实例" : "") ||
+      (referenceChanged ? "L3 参考有更新；请先保存、备份并手动应用" : "") ||
+      (selected?.orientationResults.length ? "该实例已有朝向证据；请先恢复 unknown" : "") ||
+      item.furnitureInstanceDrawBlockReason?.(control) ||
+      ""
+    );
+  };
+
+  const resetDisabledReason =
+    commonDisabledReason ||
+    (hasUnsavedMutation ? "请先重试保存或导出窗口备份" : "") ||
+    (!activeOrientationControl && drawingDisabledReason) ||
+    (!selected ? "请先选择家具实例" : "") ||
+    (referenceChanged ? "L3 参考有更新；请先保存、备份并手动应用" : "");
 
   const start = (control) => {
     setError("");
@@ -108,6 +158,16 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         return `实例 ${selected.id} 已记录人工复核并保存；仍需正式提交任务。`;
       });
     });
+
+  const restoreUnknown = () =>
+    run(() =>
+      recoverFurnitureInstanceOrientation(item, () => {
+        const changed = item.clearFurnitureInstanceOrientation(selected.id);
+        return changed
+          ? `实例 ${selected.id} 的朝向已恢复 unknown 并保存。`
+          : `实例 ${selected.id} 已是 unknown；未产生新结果。`;
+      }),
+    );
 
   const applyReference = () =>
     Modal.confirm({
@@ -141,12 +201,24 @@ export const FurnitureInstanceControls = observer(({ item }) => {
     });
   };
 
-  let orientation = "unknown";
-  try {
-    if (selected) orientation = orientationForInstance(selected).status;
-  } catch {
-    orientation = "invalid";
+  let orientation = activeOrientationControl ? "drawing" : "unknown";
+  if (!activeOrientationControl) {
+    try {
+      if (selected) orientation = orientationForInstance(selected).status;
+    } catch {
+      orientation = "invalid";
+    }
   }
+  const effectiveReviewStatus = selected ? effectiveFurnitureInstanceReviewStatus(selected, currentErrors) : "";
+  const reviewStatus = selected
+    ? effectiveReviewStatus === "stale"
+      ? "stale（父级已过期）"
+      : reviewErrors.length || effectiveReviewStatus === "pending"
+        ? "needs_review（待复核；保存值 pending）"
+        : effectiveReviewStatus === "reviewed"
+          ? "reviewed（已复核）"
+          : "stale（父级已过期）"
+    : "—";
 
   return (
     <section className={styles.dock} data-testid="furniture-instance-controls" aria-label="L4 家具实例工具">
@@ -156,29 +228,68 @@ export const FurnitureInstanceControls = observer(({ item }) => {
           L3 参考 {referenceChanged ? "有更新" : status?.enabled ? "已应用" : "状态未就绪"} · 实例 {instances.length}
         </span>
         {referenceChanged && !historical && (
-          <button type="button" disabled={disabled} onClick={applyReference}>
+          <Button
+            type="button"
+            size="smaller"
+            variant="neutral"
+            look="outlined"
+            disabled={disabled}
+            tooltip={disabledReason || "保存当前草稿并显式应用最新 L3 参考"}
+            aria-label="保存并手动应用 L3 更新"
+            onClick={applyReference}
+          >
             保存并手动应用 L3 更新
-          </button>
+          </Button>
         )}
-        <button type="button" onClick={exportRecovery}>
-          导出窗口备份
-        </button>
-        {hasUnsavedMutation && (
-          <button type="button" disabled={retryDisabled} onClick={() => run(() => retryFurnitureInstanceSave(item))}>
-            仅重试保存当前草稿
-          </button>
-        )}
-        <button
+        <Button
           type="button"
+          size="smaller"
+          variant="neutral"
+          look="outlined"
+          aria-label="导出 L4 窗口备份"
+          tooltip="导出当前窗口原始结果，不提交标注"
+          onClick={exportRecovery}
+        >
+          导出窗口备份
+        </Button>
+        {hasUnsavedMutation && (
+          <Button
+            type="button"
+            size="smaller"
+            variant="warning"
+            look="outlined"
+            disabled={retryDisabled}
+            tooltip={retryDisabledReason || "只重试保存已保留的本地修改"}
+            aria-label="仅重试保存当前 L4 草稿"
+            onClick={() => run(() => retryFurnitureInstanceSave(item))}
+          >
+            仅重试保存当前草稿
+          </Button>
+        )}
+        <Button
+          type="button"
+          size="smaller"
+          variant="neutral"
+          look="outlined"
           disabled={disabled}
           onClick={() => run(() => downloadFurnitureInstances(annotation))}
-          title="正式保存后的结果才具有服务器 provenance"
+          tooltip={disabledReason || "正式保存后的结果才具有服务器 provenance"}
+          aria-label="导出家具实例"
         >
           导出家具实例
-        </button>
-        <button type="button" disabled={disabled} onClick={() => file.current?.click()}>
+        </Button>
+        <Button
+          type="button"
+          size="smaller"
+          variant="neutral"
+          look="outlined"
+          disabled={disabled}
+          tooltip={disabledReason || "重新导入经过校验的家具实例 JSON"}
+          aria-label="重新导入家具实例"
+          onClick={() => file.current?.click()}
+        >
           重新导入
-        </button>
+        </Button>
         <input ref={file} hidden type="file" accept="application/json,.json" onChange={importFile} />
       </div>
 
@@ -217,16 +328,32 @@ export const FurnitureInstanceControls = observer(({ item }) => {
             placeholder="可选"
           />
         </label>
-        <button
+        <Button
           type="button"
-          disabled={disabled || !focus || referenceChanged}
-          onClick={() => start(CONTROLS.rectangle)}
+          size="smaller"
+          variant={activeDrawingControl === CONTROLS.rectangle ? "primary" : "neutral"}
+          look={activeDrawingControl === CONTROLS.rectangle ? "filled" : "outlined"}
+          disabled={Boolean(drawDisabledReason(CONTROLS.rectangle))}
+          tooltip={drawDisabledReason(CONTROLS.rectangle) || "在当前 Focus 家具组团内绘制矩形实例"}
+          aria-label="绘制矩形家具实例"
+          aria-pressed={activeDrawingControl === CONTROLS.rectangle}
+          onClick={() => activeDrawingControl === CONTROLS.rectangle || start(CONTROLS.rectangle)}
         >
           画矩形实例
-        </button>
-        <button type="button" disabled={disabled || !focus || referenceChanged} onClick={() => start(CONTROLS.polygon)}>
+        </Button>
+        <Button
+          type="button"
+          size="smaller"
+          variant={activeDrawingControl === CONTROLS.polygon ? "primary" : "neutral"}
+          look={activeDrawingControl === CONTROLS.polygon ? "filled" : "outlined"}
+          disabled={Boolean(drawDisabledReason(CONTROLS.polygon))}
+          tooltip={drawDisabledReason(CONTROLS.polygon) || "在当前 Focus 家具组团内绘制多边形实例"}
+          aria-label="绘制多边形家具实例"
+          aria-pressed={activeDrawingControl === CONTROLS.polygon}
+          onClick={() => activeDrawingControl === CONTROLS.polygon || start(CONTROLS.polygon)}
+        >
           画多边形实例
-        </button>
+        </Button>
       </div>
 
       <div className={styles.row}>
@@ -241,55 +368,89 @@ export const FurnitureInstanceControls = observer(({ item }) => {
             {instances.map((instance) => (
               <option key={instance.id} value={instance.id}>
                 {FURNITURE_TYPES[instance.context.instance_type] || instance.context.instance_type} ·{" "}
-                {short(instance.id)} · {instance.context.review_status}
+                {short(instance.id)} · {effectiveFurnitureInstanceReviewStatus(instance, errors)}
               </option>
             ))}
           </select>
         </label>
         <span>朝向证据：{orientation}</span>
-        <button
+        <span>复核状态：{reviewStatus}</span>
+        <Button
           type="button"
-          disabled={disabled || !selected || !!selected.orientationResults.length || referenceChanged}
-          onClick={() => start(CONTROLS.frontDirection)}
+          size="smaller"
+          variant={activeOrientationControl === CONTROLS.frontDirection ? "primary" : "neutral"}
+          look={activeOrientationControl === CONTROLS.frontDirection ? "filled" : "outlined"}
+          disabled={Boolean(orientationDisabledReason(CONTROLS.frontDirection))}
+          tooltip={
+            orientationDisabledReason(CONTROLS.frontDirection) ||
+            (activeOrientationControl === CONTROLS.frontDirection
+              ? "当前正在标注正面方向；Esc 取消"
+              : "激活两点式正面方向 Vector")
+          }
+          aria-label="标注家具正面方向"
+          aria-pressed={activeOrientationControl === CONTROLS.frontDirection}
+          onClick={() => activeOrientationControl === CONTROLS.frontDirection || start(CONTROLS.frontDirection)}
         >
           标注正面方向
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          disabled={disabled || !selected || !!selected.orientationResults.length || referenceChanged}
-          onClick={() => start(CONTROLS.frontEdge)}
+          size="smaller"
+          variant={activeOrientationControl === CONTROLS.frontEdge ? "primary" : "neutral"}
+          look={activeOrientationControl === CONTROLS.frontEdge ? "filled" : "outlined"}
+          disabled={Boolean(orientationDisabledReason(CONTROLS.frontEdge))}
+          tooltip={
+            orientationDisabledReason(CONTROLS.frontEdge) ||
+            (activeOrientationControl === CONTROLS.frontEdge
+              ? "当前正在标注正面边；Esc 取消"
+              : "激活并吸附到真实家具边界的两点 Vector")
+          }
+          aria-label="标注家具正面边"
+          aria-pressed={activeOrientationControl === CONTROLS.frontEdge}
+          onClick={() => activeOrientationControl === CONTROLS.frontEdge || start(CONTROLS.frontEdge)}
         >
           标注正面边
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          disabled={disabled || !selected?.orientationResults.length || referenceChanged}
-          onClick={() => {
-            const retryableClear = retryableFurnitureInstanceOperation(item, () => {
-              item.clearFurnitureInstanceOrientation(selected.id);
-              return `实例 ${selected.id} 的朝向已恢复 unknown 并保存。`;
-            });
-            Modal.confirm({
-              title: "删除显式朝向证据",
-              content: "实例几何和类别将保留，orientation 会恢复为 unknown 并要求重新复核。",
-              okText: "删除朝向证据",
-              cancelText: "取消",
-              onOk: () => run(retryableClear, { rethrow: true }),
-            });
-          }}
+          size="smaller"
+          variant="neutral"
+          look="outlined"
+          disabled={Boolean(resetDisabledReason)}
+          tooltip={resetDisabledReason || "只清除当前实例的显式朝向证据和未完成草稿"}
+          aria-label="将当前家具实例朝向恢复为 unknown"
+          onClick={restoreUnknown}
         >
           恢复 unknown
-        </button>
-        <button type="button" disabled={disabled || !selected || referenceChanged} onClick={confirmSelected}>
-          已检查，确认复核
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="smaller"
+          variant="positive"
+          look="outlined"
+          disabled={disabled || !selected || referenceChanged}
+          tooltip={
+            disabledReason ||
+            (!selected ? "请先选择家具实例" : "") ||
+            (referenceChanged ? "L3 参考有更新；请先应用" : "确认当前内容已完成人工复核")
+          }
+          aria-label="确认当前家具实例已复核"
+          onClick={confirmSelected}
+        >
+          已检查，确认复核
+        </Button>
+        <Button
+          type="button"
+          size="smaller"
+          variant="negative"
+          look="outlined"
           disabled={disabled || !selected}
+          tooltip={disabledReason || (!selected ? "请先选择家具实例" : "删除当前实例的全部几何、类别和朝向")}
+          aria-label="删除当前家具实例"
           onClick={() => item.requestFurnitureInstanceDelete(selected.id)}
         >
           删除实例
-        </button>
+        </Button>
       </div>
 
       <div className={styles.options}>
@@ -319,11 +480,11 @@ export const FurnitureInstanceControls = observer(({ item }) => {
           {error || state.error}
         </p>
       )}
-      {!!currentErrors.length && (
+      {!!visibleErrors.length && (
         <details className={styles.errors} open>
-          <summary>当前实例需处理 {currentErrors.length} 项</summary>
+          <summary>当前实例需处理 {visibleErrors.length} 项</summary>
           <ul>
-            {currentErrors.map((issue, index) => (
+            {visibleErrors.map((issue, index) => (
               <li key={`${issue.code}-${index}`}>{issue.message}</li>
             ))}
           </ul>

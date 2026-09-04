@@ -7,18 +7,14 @@ const appearance = Object.freeze({
 });
 
 const resultName = (result) => result?.from_name?.name || result?.from_name;
-const DRAWING_CONTROLS = new Set([
-  "furniture_instance_rectangle",
-  "furniture_instance_polygon",
-  "furniture_front_direction",
-  "furniture_front_edge",
-]);
-
 export function furnitureInstanceToolbarTools(tools, enabled) {
   if (!enabled) return tools;
   const seen = new Set();
   return tools.filter((tool) => {
-    if (tool.isDrawingTool && !DRAWING_CONTROLS.has(tool.control?.name)) return false;
+    // L4 drawing has one explicit entry point in FurnitureInstanceControls.
+    // Keep the tools registered so the top buttons can activate them, but do
+    // not expose a second set of ambiguous color/tool buttons below the dock.
+    if (tool.isDrawingTool) return false;
     if (seen.has(tool.fullName)) return false;
     seen.add(tool.fullName);
     return true;
