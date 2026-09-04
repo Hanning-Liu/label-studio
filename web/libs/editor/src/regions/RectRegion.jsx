@@ -21,6 +21,7 @@ import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
 import { withAlpha } from "../utils/roomConstraintGeometry";
 import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
+import { lockRectangleToActiveAnchor } from "../occupancy/transform";
 import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
 
 /**
@@ -230,8 +231,8 @@ const Model = types
       return false;
     },
 
-    setPositionInternal(x, y, width, height, rotation) {
-      const target = { x, y, width, height, rotation: (rotation + 360) % 360 };
+    setPositionInternal(x, y, width, height, rotation, activeAnchor = "") {
+      const rawTarget = { x, y, width, height, rotation: (rotation + 360) % 360 };
       const previous = {
         x: self.x,
         y: self.y,
@@ -239,7 +240,9 @@ const Model = types
         height: self.height,
         rotation: self.rotation,
       };
-      const accepted = self.parent?.occupancyConstrains?.(self)
+      const constrained = self.parent?.occupancyConstrains?.(self);
+      const target = constrained ? lockRectangleToActiveAnchor(previous, rawTarget, activeAnchor) : rawTarget;
+      const accepted = constrained
         ? self.parent.constrainOccupancyRectangle(self, previous, target)
         : self.control?.constrainto
           ? self.parent?.constrainRectangle?.(self, previous, target) || previous
@@ -289,7 +292,7 @@ const Model = types
      * @param {number} height
      * @param {number} rotation
      */
-    setPosition(x, y, width, height, rotation) {
+    setPosition(x, y, width, height, rotation, activeAnchor = "") {
       [x, y, width, height, rotation] = self.beforeSetPosition(x, y, width, height, rotation);
       const internalX = self.parent.canvasToInternalX(x);
       const internalY = self.parent.canvasToInternalY(y);
@@ -320,9 +323,9 @@ const Model = types
         if (snappedWidth < minPixelWidth) snappedWidth = minPixelWidth;
         if (snappedHeight < minPixelHeight) snappedHeight = minPixelHeight;
 
-        self.setPositionInternal(topLeftPoint.x, topLeftPoint.y, snappedWidth, snappedHeight, rotation);
+        self.setPositionInternal(topLeftPoint.x, topLeftPoint.y, snappedWidth, snappedHeight, rotation, activeAnchor);
       } else {
-        self.setPositionInternal(internalX, internalY, internalWidth, internalHeight, rotation);
+        self.setPositionInternal(internalX, internalY, internalWidth, internalHeight, rotation, activeAnchor);
       }
     },
 
@@ -437,6 +440,23 @@ const RectRegionModel = types.compose(
   Model,
 );
 
+// Konva fires a Transformer's `transformend` before the selected Rectangle's
+// `transformend`, and clears its active handle afterwards. Read the handle
+// while it is still available so the model commit preserves the three
+// stationary edges exactly. This matters for a small L4 instance that already
+// shares a parent boundary: a sub-pixel round trip must not turn a one-edge
+// resize into an invalid four-edge move on mouse-up.
+function activeTransformerAnchor(node) {
+  const transformer = node.getStage?.()?.findOne((candidate) => {
+    if (candidate === node || typeof candidate.getActiveAnchor !== "function") return false;
+    const nodes = candidate.nodes?.();
+
+    return Array.isArray(nodes) && nodes.includes(node);
+  });
+
+  return transformer?.getActiveAnchor?.() || "";
+}
+
 const HtxRectangleView = ({ item, setShapeRef }) => {
   const { store } = item;
 
@@ -480,6 +500,7 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
         t.getAttr("width") * t.getAttr("scaleX"),
         t.getAttr("height") * t.getAttr("scaleY"),
         t.getAttr("rotation"),
+        activeTransformerAnchor(t),
       );
 
       t.setAttr("scaleX", 1);

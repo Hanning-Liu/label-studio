@@ -1,6 +1,6 @@
 import { TextEncoder } from "util";
 import { area, difference, resultGeometry } from "../../occupancy/geometry";
-import { constrainOccupancyBox } from "../../occupancy/transform";
+import { constrainOccupancyBox, lockRectangleToActiveAnchor } from "../../occupancy/transform";
 import {
   FRONT_EDGE_BOUNDARY_EPS_PX,
   VALIDATION_PIXEL_EPS,
@@ -673,6 +673,41 @@ test("live rectangle Transformer sticks an L4 instance to its MultiPolygon bound
 
   expect(box.x).toBeCloseTo(oldBox.x, 10);
   expect(box.width).toBeCloseTo(250, 10);
+});
+
+test("final L4 bottom-edge commit reaches a two-pixel parent boundary without moving the other edges", () => {
+  // These are the dimensions of the small cabinet exercised in the Mac QA
+  // recording. It already shares the parent's top, left and right edges; only
+  // its bottom edge is two source pixels short of the parent boundary.
+  const before = {
+    x: 28.24074074074093,
+    y: 89.26974664679582,
+    width: 1.2037037037037706,
+    height: 5.961251862891203,
+    rotation: 0,
+  };
+  const parentHeight = 6.2593144560361065;
+  const geometry = [square(before.x, before.y, before.x + before.width, before.y + parentHeight)];
+  const space = furnitureConstraintSpace(geometry, {
+    width: 1080,
+    height: 671,
+    screenWidth: 1080,
+    screenHeight: 671,
+  });
+  const roundTripDrift = {
+    ...before,
+    x: before.x + 0.0001,
+    width: before.width + 0.0001,
+    height: before.height + 3,
+  };
+  const anchored = lockRectangleToActiveAnchor(before, roundTripDrift, "bottom-center");
+  const accepted = constrainFurnitureRectangle(before, anchored, space);
+
+  expect(accepted.x).toBeCloseTo(before.x, 12);
+  expect(accepted.y).toBeCloseTo(before.y, 12);
+  expect(accepted.width).toBeCloseTo(before.width, 12);
+  expect(accepted.height).toBeCloseTo(parentHeight, 12);
+  expect((accepted.height * 671) / 100).toBeCloseTo(42, 10);
 });
 
 test("parent group fingerprint includes hole/multipart geometry rather than a bbox or convex hull", () => {
