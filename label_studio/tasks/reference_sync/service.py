@@ -11,9 +11,11 @@ from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import APIException
 
 from .models import ReferenceSyncAudit, ReferenceSyncBinding, ReferenceSyncMapping
-from .results import (REFERENCES, ROOMS, digest, manual_hash, merge_results, pending_reviews,
+from .results import (REFERENCES, PORTALS, ROOMS, WINDOWS, digest, manual_hash, merge_results, pending_reviews,
                       reference_hash, reference_results, validate_source, validate_submission, diff_refs)
 from .room_metadata import RoomV3MetadataError, refresh_room_v3_metadata
+from tasks.windows.config import parse_window_config
+from tasks.windows.service import WindowValidationError, prepare_formal_results as prepare_window_results
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +40,26 @@ def prepare_source_annotation_result(task, results):
     reference synchronization treats the formal annotation as authoritative.
     """
     mappings = source_room_mappings(task)
-    if not mappings:
-        return results, {'room_ids': [], 'portal_ids': []}
     try:
-        refreshed, changes = refresh_room_v3_metadata(results)
+        window_config = parse_window_config(task.project.label_config)
+        if not mappings and not window_config.enabled:
+            return results, {'room_ids': [], 'portal_ids': [], 'window_ids': []}
+        refreshed = results
+        changes = {'room_ids': [], 'portal_ids': []}
+        if mappings or window_config.enabled:
+            refreshed, changes = refresh_room_v3_metadata(refreshed)
+        refreshed, window_changes = prepare_window_results(task.project.label_config, refreshed)
+        changes['window_ids'] = window_changes['window_ids']
         for mapping in mappings:
             validate_source(refreshed, mapping.target_project.label_config)
         return refreshed, changes
+    except WindowValidationError as exc:
+        raise SyncConflict(
+            str(exc),
+            'invalid_room_window_geometry',
+            400,
+            display_context={'reason': 'WINDOW_VALIDATION', 'issues': exc.issues},
+        ) from exc
     except RoomV3MetadataError as exc:
         raise SyncConflict(str(exc), 'invalid_room_v3_geometry', 400) from exc
     except (ValueError, TypeError, KeyError) as exc:
@@ -106,14 +121,16 @@ def source_for(binding):
 def source_metadata_repair_status(binding):
     """Describe whether a blocked source can be repaired without geometry edits."""
     try:
-        _, annotation = source_for(binding)
+        source_task, annotation = source_for(binding)
         refreshed, changes = refresh_room_v3_metadata(annotation.result)
+        refreshed, window_changes = prepare_window_results(source_task.project.label_config, refreshed)
         validate_source(refreshed, binding.mapping.target_project.label_config)
-        changed = bool(changes['room_ids'] or changes['portal_ids'])
+        changed = bool(changes['room_ids'] or changes['portal_ids'] or window_changes['window_ids'])
         return {
             'source_metadata_repair_available': changed,
             'source_metadata_repair_room_ids': changes['room_ids'],
             'source_metadata_repair_portal_ids': changes['portal_ids'],
+            'source_metadata_repair_window_ids': window_changes['window_ids'],
             'source_annotation_updated_at': annotation.updated_at,
             'source_metadata_repair_error': '',
         }
@@ -122,6 +139,7 @@ def source_metadata_repair_status(binding):
             'source_metadata_repair_available': False,
             'source_metadata_repair_room_ids': [],
             'source_metadata_repair_portal_ids': [],
+            'source_metadata_repair_window_ids': [],
             'source_metadata_repair_error': str(exc),
         }
 
@@ -226,9 +244,17 @@ def process_binding(binding_id):
             model_version=f'room-v3-task{source.id}-annotation{annotation.id}-reference')
         binding.prediction_id = prediction.id
     difference = diff_refs(old_refs,refs)
+    from tasks.windows.downstream import prepare_downstream_window_results
     drafts = list(AnnotationDraft.objects.filter(task=target).select_for_update())
     for draft in drafts:
+        previous_result = draft.result
         draft.result = merge_results(draft.result,refs,revision)
+        draft.result, _ = prepare_downstream_window_results(
+            draft.result,
+            level='L2',
+            submission=False,
+            prior_results=previous_result,
+        )
         draft.save(update_fields=['result','updated_at'])
     # Existing submitted results are immutable to this worker. Review goes into
     # the owner's linked draft, and repeated sync reuses it.
@@ -240,13 +266,21 @@ def process_binding(binding_id):
         if len(owned) > 1:
             raise ValueError('同一标注存在多份归属相同的草稿，停止自动合并')
         if not owned:
+            review_result = merge_results(saved.result,refs,revision)
+            review_result, _ = prepare_downstream_window_results(
+                review_result,
+                level='L2',
+                submission=False,
+                prior_results=saved.result,
+            )
             AnnotationDraft.objects.create(task=target,annotation=saved,user=owner,
-                result=merge_results(saved.result,refs,revision))
+                result=review_result)
     metadata = copy.deepcopy(target.meta or {})
     provenance = metadata.setdefault('room_layout_reference',{})
     provenance.update(schema_version=3, source_project_id=source.project_id, source_task_id=source.id,
         source_annotation_id=annotation.id, source_result_sha256=revision,
-        room_count=sum(r['from_name'] in ROOMS for r in refs),portal_count=sum(r['from_name'] not in ROOMS for r in refs),
+        room_count=sum(r['from_name'] in ROOMS for r in refs),portal_count=sum(r['from_name'] in PORTALS for r in refs),
+        window_count=sum(r['from_name'] in WINDOWS for r in refs),
         inheritance_mode='readonly_reference_only',source_updated_at=annotation.updated_at.isoformat(),
         last_synced_at=timezone.now().isoformat(),last_sync_added_reference_ids=difference['added'])
     target.meta = metadata
@@ -347,6 +381,21 @@ def prepare_write(task, payload, instance=None, *, submission=False):
             validate_submission(merged)
         except ValueError as exc:
             raise SyncConflict(str(exc),'reference_review_required',400) from exc
+    try:
+        from tasks.windows.downstream import DownstreamWindowError, prepare_downstream_window_results
+        merged, _ = prepare_downstream_window_results(
+            merged,
+            level='L2',
+            submission=submission,
+            prior_results=prior,
+        )
+    except DownstreamWindowError as exc:
+        raise SyncConflict(
+            str(exc),
+            'window_projection_invalid',
+            400,
+            display_context={'reason': 'WINDOW_PROJECTION_VALIDATION', 'level': 'L2'},
+        ) from exc
     return merged,binding
 
 

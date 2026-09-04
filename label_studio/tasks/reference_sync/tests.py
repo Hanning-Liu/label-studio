@@ -15,7 +15,7 @@ from projects.models import Project
 from tasks.models import Annotation,AnnotationDraft,Prediction,Task
 from users.models import User
 from .models import ReferenceSyncAudit,ReferenceSyncBinding,ReferenceSyncMapping
-from .results import manual_hash,reference_hash,merge_results,pending_reviews,inside,validate_source,openings
+from .results import diff_refs,manual_hash,reference_hash,merge_results,pending_reviews,inside,validate_source,openings
 from .service import (SyncConflict, enqueue_source, prepare_write, process_binding, process_pending,
                       reconcile, response_tokens, snapshot, sync_atomic)
 from .room_metadata import geometry_digest, refresh_room_v3_metadata
@@ -26,6 +26,7 @@ CONFIG='''<View><Image name="image" value="$image" roomV3Validate="true" functio
 <PolygonLabels name="room_polygon" toName="image"><Label value="Bathroom"/></PolygonLabels>
 <RectangleLabels name="portal_rectangle" toName="image"><Label value="Door"/><Label value="Sliding door"/><Label value="Open passage"/></RectangleLabels>
 <VectorLabels name="portal_vector" toName="image"><Label value="Open passage"/></VectorLabels>
+<VectorLabels name="window_vector" toName="image" closable="false" curves="true" minPoints="2"><Label value="Window"/></VectorLabels>
 <Rectangle name="zone_rectangle" toName="image"/><Polygon name="zone_polygon" toName="image"/>
 <Labels name="function_zone" toName="image"><Label value="Circulation"/><Label value="Bathing/washing"/></Labels>
 <VectorLabels name="connection_vector" toName="image"><Label value="Open passage"/></VectorLabels></View>'''
@@ -45,6 +46,23 @@ def portal(i='passage'):
         'value':{'vertices':points,'closed':False,'vectorlabels':['Open passage']},
         'meta':{'room_graph_edge':{'schema_version':3,'room_ids':['hall','bath'],'connected_room_ids':['hall','bath'],
         'boundary_segments':{'hall':[copy.deepcopy(points)],'bath':[copy.deepcopy(points)]}}}}
+
+
+def window(i='window-a', parent_room_id='hall'):
+    raw = {'id':i,'from_name':'window_vector','to_name':'image','type':'vectorlabels',
+        'original_width':1000,'original_height':1000,'image_rotation':0,
+        'value':{'vertices':[{'id':f'{i}-1','x':0,'y':20,'isBezier':False},
+                             {'id':f'{i}-2','x':0,'y':35,'isBezier':False,'prevPointId':f'{i}-1'}],
+                 'closed':False,'vectorlabels':['Window']}}
+    from tasks.windows.service import prepare_formal_results
+    enabled = CONFIG.replace(
+        '<Image name="image" value="$image" roomV3Validate="true" functionZoneV3Validate="true"/>',
+        '<Image name="image" value="$image" roomV3Validate="true" functionZoneV3Validate="true" '
+        'roomWindowV1="true" roomV3Controls="room_rectangle,room_polygon" windowControls="window_vector"/>',
+    )
+    parent = room(parent_room_id, 0, 'Hallway')
+    prepared, _ = prepare_formal_results(enabled, [parent, raw])
+    return prepared[-1]
 
 
 def zones():
@@ -445,6 +463,56 @@ class ReferenceSyncTests(TransactionTestCase):
             validate_source(self.source.result+[invalid],CONFIG)
         with self.assertRaises(ValueError):
             validate_source(self.source.result,CONFIG.replace('<Label value="Hallway"/>',''))
+
+    def test_optional_window_reference_is_not_a_portal(self):
+        old_config = CONFIG.replace(
+            '<VectorLabels name="window_vector" toName="image" closable="false" curves="true" minPoints="2"><Label value="Window"/></VectorLabels>\n',
+            '',
+        )
+        self.assertEqual(len(validate_source(self.source.result, old_config)), 2)
+
+        source = copy.deepcopy(self.source.result)
+        source.append(window())
+        refs = validate_source(source, CONFIG)
+        copied = next(result for result in refs if result.get('from_name') == 'window_vector')
+        self.assertTrue(copied['readonly'])
+        self.assertEqual(copied['value'], source[-1]['value'])
+        self.assertNotIn('room_graph_edge', copied.get('meta', {}))
+
+        difference = diff_refs(self.source.result, source)
+        change = next(item for item in difference['references'] if item['id'] == 'window-a')
+        self.assertEqual(change['types'], ['window'])
+        self.assertEqual(change['affected_room_ids'], ['hall'])
+        self.assertEqual(openings([(0, 0), (50, 0), (50, 100), (0, 100)], 'hall', refs), ([], []))
+
+        invalid = window('closed-window')
+        invalid['value']['closed'] = True
+        with self.assertRaisesRegex(ValueError, 'Window'):
+            validate_source(self.source.result + [invalid], CONFIG)
+
+    def test_window_sync_preserves_submitted_annotation(self):
+        draft = self.draft()
+        saved = Annotation.objects.create(
+            task=self.target,
+            project=self.target_project,
+            completed_by=self.user,
+            result=copy.deepcopy(draft.result),
+        )
+        before = copy.deepcopy(saved.result)
+        expected_window = window()
+        self.source.result.append(expected_window)
+        self.source.save()
+
+        self.assertEqual(process_pending(), 1)
+        copied = next(
+            result
+            for result in Prediction.objects.get(pk=self.binding.prediction_id).result
+            if result.get('from_name') == 'window_vector'
+        )
+        self.assertTrue(copied['readonly'])
+        self.assertEqual(copied['value'], expected_window['value'])
+        saved.refresh_from_db()
+        self.assertEqual(saved.result, before)
 
     def test_source_update_recomputes_portal_metadata_before_save(self):
         stale = portal()

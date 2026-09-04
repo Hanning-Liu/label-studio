@@ -857,6 +857,7 @@ const _Annotation = types
       }
 
       self.objects.forEach((object) => object.refreshWholeRoomReviews?.());
+      self.objects.forEach((object) => object.refreshWindowDerivations?.());
       const result = self.serializeAnnotation({ fast: true });
       const fingerprint = JSON.stringify(result);
       const startedAt = Utils.UDate.currentISODate();

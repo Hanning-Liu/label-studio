@@ -1,7 +1,8 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from .template import ensure_barrier_control
+from .template import build_template, ensure_barrier_control
+from .validation import REQUIRED_REFERENCES
 
 
 CONFIG = '''<View>
@@ -16,8 +17,41 @@ CONFIG = '''<View>
   <Header value="existing" />
 </View>'''
 
+SOURCE_CONFIG = '''<View><Image name="image" value="$image"/>
+<RectangleLabels name="room_rectangle" toName="image"/><PolygonLabels name="room_polygon" toName="image"/>
+<RectangleLabels name="portal_rectangle" toName="image"/><VectorLabels name="portal_vector" toName="image"/>
+<Rectangle name="zone_rectangle" toName="image"/><Polygon name="zone_polygon" toName="image"/>
+<Labels name="function_zone" toName="image"/>
+<VectorLabels name="connection_vector" toName="image"/><VectorLabels name="visual_connection_vector" toName="image"/>
+<Choices name="connection_review" toName="image"/><Choices name="visual_connection_review" toName="image"/>
+</View>'''
+
+WINDOW_CONTROL = (
+    '<VectorLabels name="window_vector" toName="image" closable="false" curves="true" minPoints="2">'
+    '<Label value="Window"/></VectorLabels>'
+)
+
 
 class OccupancyBarrierTemplateTests(unittest.TestCase):
+    def test_window_reference_control_is_optional_and_losslessly_copied(self):
+        legacy = ET.fromstring(build_template(SOURCE_CONFIG))
+        legacy_names = {element.get('name') for element in legacy.iter() if element.get('name')}
+        self.assertTrue(REQUIRED_REFERENCES <= legacy_names)
+        self.assertNotIn('window_vector', legacy_names)
+
+        source = SOURCE_CONFIG.replace('</View>', f'{WINDOW_CONTROL}</View>')
+        root = ET.fromstring(build_template(source))
+        windows = [element for element in root.iter('VectorLabels') if element.get('name') == 'window_vector']
+        self.assertEqual(len(windows), 1)
+        self.assertEqual(
+            {key: windows[0].get(key) for key in ('toName', 'closable', 'curves', 'minPoints')},
+            {'toName': 'image', 'closable': 'false', 'curves': 'true', 'minPoints': '2'},
+        )
+
+        missing_required = SOURCE_CONFIG.replace('name="portal_vector"', 'name="not_portal_vector"')
+        with self.assertRaisesRegex(ValueError, 'portal_vector'):
+            build_template(missing_required)
+
     def test_adds_one_hidden_control_and_is_idempotent(self):
         before = ET.fromstring(CONFIG)
         updated = ensure_barrier_control(CONFIG)

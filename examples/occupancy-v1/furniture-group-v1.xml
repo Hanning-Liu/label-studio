@@ -49,6 +49,9 @@
     <VectorLabels name="portal_vector" toName="image" choice="single" closable="false" curves="false" minPoints="2" maxPoints="2" snap="pixel" strokeWidth="4" pointSize="medium" showInline="true">
       <Label value="Open passage" background="#00A878" />
     </VectorLabels>
+    <VectorLabels name="window_vector" toName="image" choice="single" closable="false" curves="true" minPoints="2" snap="pixel" strokeWidth="5" pointSize="medium" showInline="true">
+      <Label value="Window" background="#1677FF" />
+    </VectorLabels>
     <Labels name="function_zone" toName="image">
       <Label value="Entry/transition" background="#FFB74D" />
       <Label value="Circulation" background="#D4AC0D" />

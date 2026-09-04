@@ -1,5 +1,6 @@
 """Manual L2 -> L3 strategy. No worker may apply this profile automatically."""
 import copy
+import math
 import xml.etree.ElementTree as ET
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -21,14 +22,52 @@ def reference_hash(results):
 
 
 def manual_hash(results):
-    return digest(sorted([{k: v for k, v in r.items() if k not in {'origin', 'readonly'}} for r in results if r.get('from_name') not in REFERENCES],
-                         key=lambda r: (r.get('id', ''), r.get('from_name', ''), digest(r))))
+    manual = []
+    for result in results:
+        if result.get('from_name') in REFERENCES:
+            continue
+        item = {key: copy.deepcopy(value) for key, value in result.items() if key not in {'origin', 'readonly'}}
+        meta = item.get('meta') if isinstance(item.get('meta'), dict) else {}
+        meta.pop('window_projections', None)
+        meta.pop('window_projection_state', None)
+        if meta:
+            item['meta'] = meta
+        else:
+            item.pop('meta', None)
+        manual.append(item)
+    return digest(sorted(manual, key=lambda r: (r.get('id', ''), r.get('from_name', ''), digest(r))))
 
 
 def merge_results(results, refs):
     # Invalidation is derived from source + content fingerprints. Keep all manual
     # bytes, including old parent IDs and review stamps, for audit and recovery.
     return [copy.deepcopy(r) for r in results if r.get('from_name') not in REFERENCES] + copy.deepcopy(refs)
+
+
+def _valid_window_reference(result):
+    value = result.get('value', {})
+    vertices = value.get('vertices')
+    if result.get('type') != 'vectorlabels' or value.get('closed') is not False:
+        return False
+    if not isinstance(vertices, list) or len(vertices) < 2:
+        return False
+    for vertex in vertices:
+        if not isinstance(vertex, dict):
+            return False
+        if any(
+            not isinstance(vertex.get(axis), (int, float)) or not math.isfinite(vertex[axis])
+            for axis in ('x', 'y')
+        ):
+            return False
+        if vertex.get('isBezier'):
+            for key in ('controlPoint1', 'controlPoint2'):
+                point = vertex.get(key)
+                if not isinstance(point, dict) or any(
+                    not isinstance(point.get(axis), (int, float)) or not math.isfinite(point[axis])
+                    for axis in ('x', 'y')
+                ):
+                    return False
+    return True
 
 
 def validate_source(results, config):
@@ -59,6 +98,11 @@ def validate_source(results, config):
                 raise ValueError('功能分区缺少父房间关联')
         if r['from_name'] == 'function_zone' and r['id'] not in parents:
             raise ValueError('功能类别缺少配对几何')
+        if r['from_name'] == 'window_vector' and not _valid_window_reference(r):
+            raise ValueError(f'窗线参考必须是至少两点的开放 Vector: {key}')
+    if any(result.get('from_name') == 'window_vector' for result in refs):
+        from tasks.windows.downstream import validate_authoritative_window_contexts
+        validate_authoritative_window_contexts(refs)
     return [{**copy.deepcopy(r), 'readonly': True} for r in refs]
 
 
@@ -117,6 +161,21 @@ def prepare_write(task, payload, instance, binding, submission):
                 )
         except ValueError as exc:
             raise SyncConflict(str(exc), 'invalid_source', 400) from exc
+    try:
+        from tasks.windows.downstream import DownstreamWindowError, prepare_downstream_window_results
+        merged, _ = prepare_downstream_window_results(
+            merged,
+            level='L3',
+            submission=submission,
+            prior_results=prior,
+        )
+    except DownstreamWindowError as exc:
+        raise SyncConflict(
+            str(exc),
+            'window_projection_invalid',
+            400,
+            display_context={'reason': 'WINDOW_PROJECTION_VALIDATION', 'level': 'L3'},
+        ) from exc
     return merged, binding
 
 
@@ -167,7 +226,15 @@ def apply_reference(binding, draft, payload, user):
     lock_target(draft.task)
     before = snapshot(draft.task)
     protected = manual_hash(draft.result)
+    previous_result = draft.result
     draft.result = merge_results(draft.result, refs)
+    from tasks.windows.downstream import prepare_downstream_window_results
+    draft.result, _ = prepare_downstream_window_results(
+        draft.result,
+        level='L3',
+        submission=False,
+        prior_results=previous_result,
+    )
     if manual_hash(draft.result) != protected:
         raise RuntimeError('参考应用不得改写人工 L3')
     draft.save(update_fields=['result', 'updated_at'])

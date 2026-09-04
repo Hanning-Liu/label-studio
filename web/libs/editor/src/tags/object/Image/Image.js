@@ -10,6 +10,7 @@ import { AnnotationMixin } from "../../../mixins/AnnotationMixin";
 import { WholeRoomInheritance } from "../../../mixins/WholeRoomInheritance";
 import { VectorReview } from "../../../mixins/VectorReview";
 import { Occupancy } from "../../../mixins/Occupancy";
+import { RoomWindows } from "../../../windows/RoomWindows";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
@@ -1339,6 +1340,7 @@ const Model = types
         return;
       }
       self.refreshRoomV3Metadata();
+      self.refreshWindowDerivations();
       self.regs.forEach((region) => region.refreshPartitionContext?.(false));
       self.refreshGeometryReviewMetadata();
       self.refreshWholeRoomReviews();
@@ -1351,8 +1353,21 @@ const Model = types
         InfoModal.warning(`L3 校验未通过（${errors.length} 项），请使用顶部“复核与问题”逐项定位。\n${errors.slice(0, 6).map((e) => e.message).join("\n")}`);
         return false;
       }
+      const roomErrors = self.refreshRoomV3Metadata();
+      self.refreshWindowDerivations();
+      const windowErrors = self.validateWindows();
+      if (windowErrors.length) {
+        const selected = self.selectWindowIssue(windowErrors[0]);
+        InfoModal.warning(
+          `窗户校验未通过（${windowErrors.length} 项）${selected ? "，已选中第一个问题窗线" : ""}。\n${windowErrors
+            .slice(0, 6)
+            .map((error) => `• ${error.message}`)
+            .join("\n")}`,
+        );
+        return false;
+      }
       const errors = [
-        ...self.refreshRoomV3Metadata(),
+        ...roomErrors,
         ...self.validateFunctionZoneV3(),
         ...self.validateWholeRoomInheritance(),
       ];
@@ -2003,6 +2018,7 @@ const ImageModel = types.compose(
   WholeRoomInheritance,
   VectorReview,
   Occupancy,
+  RoomWindows,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),
