@@ -63,6 +63,7 @@ const setup = ({
   const item = {
     annotation,
     furnitureInstancesEnabled: true,
+    furnitureInstanceOrientationEnabled: true,
     furnitureInstanceBusy: false,
     furnitureInstanceType: "desk",
     furnitureInstanceNote: "",
@@ -159,6 +160,15 @@ test("delete modal rejects after an unsaved local mutation and retry only saves 
   expect(controller.checkFurnitureInstancesReference).toHaveBeenCalledTimes(1);
   expect(annotation.saveDraftImmediatelyWithResults).toHaveBeenCalledTimes(3);
   expect(screen.getByRole("status")).toHaveTextContent("实例 instance-i 已从当前草稿删除");
+});
+
+test("orientation controls are absent when a project explicitly disables them", () => {
+  const { item, rerender } = setup();
+  item.furnitureInstanceOrientationEnabled = false;
+  rerender();
+  expect(screen.queryByRole("button", { name: "标注家具正面方向" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "标注家具正面边" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "将当前家具实例朝向恢复为 unknown" })).not.toBeInTheDocument();
 });
 
 test("orientation buttons are explicit controls with pressed feedback and a single active mode", () => {

@@ -201,8 +201,9 @@ export const FurnitureInstanceControls = observer(({ item }) => {
     });
   };
 
+  const orientationEnabled = item.furnitureInstanceOrientationEnabled;
   let orientation = activeOrientationControl ? "drawing" : "unknown";
-  if (!activeOrientationControl) {
+  if (orientationEnabled && !activeOrientationControl) {
     try {
       if (selected) orientation = orientationForInstance(selected).status;
     } catch {
@@ -373,8 +374,9 @@ export const FurnitureInstanceControls = observer(({ item }) => {
             ))}
           </select>
         </label>
-        <span>朝向证据：{orientation}</span>
+        {orientationEnabled && <span>朝向证据：{orientation}</span>}
         <span>复核状态：{reviewStatus}</span>
+        {orientationEnabled && <>
         <Button
           type="button"
           size="smaller"
@@ -423,6 +425,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         >
           恢复 unknown
         </Button>
+        </>}
         <Button
           type="button"
           size="smaller"

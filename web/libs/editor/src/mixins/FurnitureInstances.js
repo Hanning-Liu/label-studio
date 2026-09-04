@@ -43,6 +43,7 @@ const contextResult = (region) => region?.results?.find((result) => context(resu
 export const FurnitureInstances = types
   .model("FurnitureInstances", {
     furnitureinstancesv1: types.optional(types.boolean, false),
+    furnitureinstanceorientation: types.optional(types.boolean, true),
   })
   .volatile(() => ({
     furnitureInstanceFocusId: "",
@@ -59,6 +60,9 @@ export const FurnitureInstances = types
   .views((self) => ({
     get furnitureInstancesEnabled() {
       return self.furnitureinstancesv1;
+    },
+    get furnitureInstanceOrientationEnabled() {
+      return self.furnitureInstancesEnabled && self.furnitureinstanceorientation;
     },
     get furnitureInstanceData() {
       getSnapshot(self.annotation.areas);
@@ -103,7 +107,7 @@ export const FurnitureInstances = types
     furnitureInstanceTransientOrientationRegion(region) {
       const activeControl = self.furnitureInstanceDrawingControl;
       return Boolean(
-        self.furnitureInstancesEnabled &&
+        self.furnitureInstanceOrientationEnabled &&
           ORIENTATION_CONTROLS.has(activeControl) &&
           region?.isDrawing &&
           region?.incomplete &&
@@ -140,6 +144,7 @@ export const FurnitureInstances = types
         if (!Object.hasOwn(FURNITURE_TYPES, self.furnitureInstanceType)) return "请选择家具实例类别";
       }
       if ([CONTROLS.frontDirection, CONTROLS.frontEdge].includes(control)) {
+        if (!self.furnitureInstanceOrientationEnabled) return "当前项目未启用家具朝向标注";
         const instance = self.furnitureInstanceLogicals.find(
           (candidate) => candidate.id === self.furnitureInstanceEffectiveSelectedId,
         );

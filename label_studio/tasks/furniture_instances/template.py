@@ -53,6 +53,7 @@ def build_template(source_config):
             'zoom': 'true',
             'smoothing': 'false',
             'furnitureInstancesV1': 'true',
+            'furnitureInstanceOrientation': 'true',
         },
     )
     references = ET.SubElement(

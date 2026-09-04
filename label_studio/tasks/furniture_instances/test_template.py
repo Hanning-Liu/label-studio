@@ -30,6 +30,7 @@ class FurnitureInstanceTemplateTests(unittest.TestCase):
         root = ET.fromstring(build_template(SOURCE_CONFIG))
         image = root.find('Image')
         self.assertEqual(image.get('furnitureInstancesV1'), 'true')
+        self.assertEqual(image.get('furnitureInstanceOrientation'), 'true')
         self.assertIsNone(image.get('occupancyV1'))
         hidden = next(
             element
