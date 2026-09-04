@@ -49,10 +49,21 @@ class FurnitureInstanceTemplateTests(unittest.TestCase):
         self.assertEqual(actual, list(FURNITURE_TYPE_CHOICES))
         self.assertEqual(len(actual), 26)
         self.assertIn(('armchair', '扶手椅'), actual)
-        direction = root.find("VectorLabels[@name='furniture_front_direction']/Label")
-        edge = root.find("VectorLabels[@name='furniture_front_edge']/Label")
+        orientation_view = root.find("View[@className='furniture-instance-orientation-controls']")
+        self.assertIsNotNone(orientation_view)
+        self.assertEqual(orientation_view.get('style'), 'display: none;')
+        direction_control = orientation_view.find("VectorLabels[@name='furniture_front_direction']")
+        edge_control = orientation_view.find("VectorLabels[@name='furniture_front_edge']")
+        direction = direction_control.find('Label')
+        edge = edge_control.find('Label')
         self.assertEqual((direction.get('alias'), direction.get('value')), ('front_direction', '正面方向'))
         self.assertEqual((edge.get('alias'), edge.get('value')), ('front_edge', '正面边'))
+        for control in (direction_control, edge_control):
+            self.assertEqual(control.get('closable'), 'false')
+            self.assertEqual(control.get('curves'), 'false')
+            self.assertEqual(control.get('minPoints'), '2')
+            self.assertEqual(control.get('maxPoints'), '2')
+            self.assertEqual(control.get('snap'), 'none')
 
     def test_does_not_rename_or_repurpose_l1_l3_controls(self):
         def signature(element):

@@ -4,7 +4,13 @@ import unittest
 from tasks.occupancy.validation import content_fingerprint
 from tasks.occupancy.validation import source_fingerprint as zone_fingerprint
 
-from .geometry import orientation_from_results, parent_fingerprint, review_fingerprint, union_result_geometry
+from .geometry import (
+    FRONT_EDGE_BOUNDARY_EPS_PX,
+    orientation_from_results,
+    parent_fingerprint,
+    review_fingerprint,
+    union_result_geometry,
+)
 from .validation import furniture_groups, validate
 
 SOURCE_VERSION = 'd' * 64
@@ -290,6 +296,33 @@ class FurnitureInstanceValidationTests(unittest.TestCase):
         stale_review = instance_results(refs)
         stale_review[0]['value']['width'] = 21
         self.assertIn('review', {error['code'] for error in validate(refs + stale_review, SOURCE_VERSION)})
+
+    def test_front_edge_source_pixel_tolerance_matches_geometry_validation(self):
+        refs = reference_results()
+        accepted = instance_results(refs)
+        common = accepted[0]['meta']['furniture_instance_context']
+        accepted.append(
+            orientation(
+                'furniture_front_edge',
+                'front_edge',
+                [(10, 10 + FRONT_EDGE_BOUNDARY_EPS_PX * 0.5), (30, 10 + FRONT_EDGE_BOUNDARY_EPS_PX * 0.5)],
+                common,
+            )
+        )
+        mark_reviewed(accepted)
+        self.assertEqual(validate(refs + accepted, SOURCE_VERSION), [])
+
+        rejected = instance_results(refs)
+        common = rejected[0]['meta']['furniture_instance_context']
+        rejected.append(
+            orientation(
+                'furniture_front_edge',
+                'front_edge',
+                [(10, 10 + FRONT_EDGE_BOUNDARY_EPS_PX * 3), (30, 10 + FRONT_EDGE_BOUNDARY_EPS_PX * 3)],
+                common,
+            )
+        )
+        self.assertIn('orientation', {error['code'] for error in validate(refs + rejected, SOURCE_VERSION)})
 
     def test_result_ids_are_nonempty_and_control_pairs_are_task_unique(self):
         refs = reference_results()

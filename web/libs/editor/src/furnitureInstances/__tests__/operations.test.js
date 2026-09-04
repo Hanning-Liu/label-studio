@@ -1,4 +1,8 @@
-import { applyFurnitureInstanceOperation, retryableFurnitureInstanceOperation } from "../operations";
+import {
+  applyFurnitureInstanceOperation,
+  recoverFurnitureInstanceOrientation,
+  retryableFurnitureInstanceOperation,
+} from "../operations";
 
 const setup = () => {
   const calls = [];
@@ -80,4 +84,34 @@ test("retry after post-write failure saves the retained mutation without repeati
   expect(operation).toHaveBeenCalledTimes(1);
   expect(controller.checkFurnitureInstancesReference).toHaveBeenCalledTimes(1);
   expect(item.annotation.saveDraftImmediatelyWithResults).toHaveBeenCalledTimes(3);
+});
+
+test("orientation recovery checks L3, removes transient evidence locally, then saves exactly once", async () => {
+  const { calls, controller, item, operation } = setup();
+
+  await expect(recoverFurnitureInstanceOrientation(item, operation)).resolves.toBe("done");
+  expect(calls).toEqual(["reference:l3-v1", "write", "save"]);
+  expect(controller.checkFurnitureInstancesReference).toHaveBeenCalledWith("l3-v1");
+  expect(operation).toHaveBeenCalledTimes(1);
+});
+
+test("orientation recovery never mutates against a changed L3 reference", async () => {
+  const { controller, item, operation } = setup();
+  controller.checkFurnitureInstancesReference.mockRejectedValue(new Error("L3 参考已变化"));
+
+  await expect(recoverFurnitureInstanceOrientation(item, operation)).rejects.toThrow("L3 参考已变化");
+  expect(operation).not.toHaveBeenCalled();
+  expect(item.annotation.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
+});
+
+test("orientation recovery exposes retained local state when its single save fails", async () => {
+  const { item, operation } = setup();
+  item.annotation.saveDraftImmediatelyWithResults.mockRejectedValue(new Error("offline"));
+
+  await expect(recoverFurnitureInstanceOrientation(item, operation)).rejects.toMatchObject({
+    code: "furniture_instance_local_mutation_unsaved",
+    localMutationApplied: true,
+  });
+  expect(operation).toHaveBeenCalledTimes(1);
+  expect(item.annotation.saveDraftImmediatelyWithResults).toHaveBeenCalledTimes(1);
 });

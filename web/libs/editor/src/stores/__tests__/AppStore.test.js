@@ -54,6 +54,8 @@ import "../../tags/visual/View";
 import "../../tags/object/RichText";
 import Tree from "../../core/Tree";
 import Registry from "../../core/Registry";
+import { Hotkey } from "../../core/Hotkey";
+import ToolsManager from "../../tools/Manager";
 import AppStore from "../AppStore";
 import { FF_CUSTOM_SCRIPT } from "../../utils/feature-flags";
 
@@ -105,6 +107,49 @@ describe("AppStore", () => {
       expect(store.task).toBeDefined();
       expect(store.task.id).toBe(1);
       expect(store.interfaces).toEqual(["basic"]);
+    });
+
+    it("Esc completes an active L4 orientation tool even before its first point", () => {
+      createStore();
+      const exitRegistration = Hotkey().addNamed.mock.calls.find(([name]) => name === "region:exit");
+      expect(exitRegistration).toBeDefined();
+      const complete = jest.fn();
+      const tool = {
+        isDrawing: false,
+        control: { name: "furniture_front_direction" },
+        obj: {
+          furnitureInstancesEnabled: true,
+          furnitureInstanceDrawingControl: "furniture_front_direction",
+        },
+        complete,
+      };
+      ToolsManager.allInstances.mockReturnValue([{ findSelectedTool: () => tool }]);
+      const event = { stopImmediatePropagation: jest.fn() };
+
+      exitRegistration[1](event);
+
+      expect(event.stopImmediatePropagation).toHaveBeenCalledTimes(1);
+      expect(complete).toHaveBeenCalledTimes(1);
+    });
+
+    it("Esc does not run Vector completion for an armed L4 geometry tool before its first point", () => {
+      createStore();
+      const exitRegistration = Hotkey().addNamed.mock.calls.find(([name]) => name === "region:exit");
+      const complete = jest.fn();
+      const tool = {
+        isDrawing: false,
+        control: { name: "furniture_instance_rectangle" },
+        obj: {
+          furnitureInstancesEnabled: true,
+          furnitureInstanceDrawingControl: "furniture_instance_rectangle",
+        },
+        complete,
+      };
+      ToolsManager.allInstances.mockReturnValue([{ findSelectedTool: () => tool }]);
+
+      exitRegistration[1]({ stopImmediatePropagation: jest.fn() });
+
+      expect(complete).not.toHaveBeenCalled();
     });
 
     it("preProcessSnapshot converts customButtons array to map with _replace", () => {

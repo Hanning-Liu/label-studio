@@ -1,6 +1,8 @@
 import { TextEncoder } from "util";
 import { area, difference, resultGeometry } from "../../occupancy/geometry";
 import {
+  FRONT_EDGE_BOUNDARY_EPS_PX,
+  VALIDATION_PIXEL_EPS,
   assertFrontEdgeOnBoundary,
   confirmFurnitureInstances,
   constrainFurniturePolygon,
@@ -17,6 +19,7 @@ import { context, furnitureGroups, furnitureInstances, resultForOrientation } fr
 import { id, makeInstance, makeOccupancy, resetIds, SOURCE, square } from "./helpers";
 
 global.TextEncoder = TextEncoder;
+if (!globalThis.structuredClone) globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));
 
 beforeEach(resetIds);
 
@@ -331,6 +334,7 @@ test("front_edge must lie on the actual union boundary and exports a geometry-de
     end: { x: 40, y: 20 },
     outward_normal: { dx: 0, dy: -1 },
   });
+  expect(() => assertFrontEdgeOnBoundary({ ...top, original_width: "100" }, instance.geometry)).toThrow("缺少原图尺寸");
   const interior = {
     ...top,
     value: {
@@ -360,6 +364,230 @@ test("a hole edge points outward from furniture material into the preserved hole
     id,
   );
   expect(frontEdgeOrientation(edge, instance.geometry).outward_normal).toEqual({ dx: 0, dy: 1 });
+});
+
+test("front_edge tolerance is measured in source pixels and never rewrites raw evidence", () => {
+  const geometry = [
+    [
+      [10, 10],
+      [90, 90],
+      [90, 10],
+      [10, 10],
+    ],
+  ];
+  const percentPerPixel = 100 / 1000;
+  const edge = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 30, y: 30 + FRONT_EDGE_BOUNDARY_EPS_PX * 0.5 * percentPerPixel },
+        { x: 70, y: 70 + FRONT_EDGE_BOUNDARY_EPS_PX * 0.5 * percentPerPixel },
+      ],
+      { instance_id: "instance-i" },
+      SOURCE,
+      id,
+    ),
+    original_width: 1000,
+    original_height: 1000,
+  };
+  const before = structuredClone(edge);
+  expect(assertFrontEdgeOnBoundary(edge, [geometry])).toEqual(edge.value.vertices.map(({ x, y }) => ({ x, y })));
+  expect(edge).toEqual(before);
+
+  const rejected = structuredClone(edge);
+  for (const vertex of rejected.value.vertices) {
+    vertex.y += FRONT_EDGE_BOUNDARY_EPS_PX * 3 * percentPerPixel;
+  }
+  expect(() => assertFrontEdgeOnBoundary(rejected, [geometry])).toThrow("真实边界");
+
+  const endpointOutsideTolerance = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 10 - FRONT_EDGE_BOUNDARY_EPS_PX * 1.5, y: 10 },
+        { x: 40, y: 10 },
+      ],
+      { instance_id: "instance-i" },
+      { ...SOURCE, original_width: 100, original_height: 100 },
+      id,
+    ),
+    original_width: 100,
+    original_height: 100,
+  };
+  expect(() => assertFrontEdgeOnBoundary(endpointOutsideTolerance, [geometry])).toThrow("真实边界");
+});
+
+test("front_edge applies the same near-integer pixel normalization as backend validation", () => {
+  const offset = VALIDATION_PIXEL_EPS * 0.9;
+  const geometry = [
+    [
+      [10 + offset, 10 - offset],
+      [90 + offset, 90 - offset],
+      [90, 10],
+      [10 + offset, 10 - offset],
+    ],
+  ];
+  const edge = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 30.5, y: 30.5 - offset * 2 },
+        { x: 70.5, y: 70.5 - offset * 2 },
+      ],
+      { instance_id: "instance-i" },
+      { ...SOURCE, original_width: 100, original_height: 100 },
+      id,
+    ),
+    original_width: 100,
+    original_height: 100,
+  };
+  expect(() => assertFrontEdgeOnBoundary(edge, [geometry])).toThrow("真实边界");
+
+  const normalizedCoincident = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 20 - VALIDATION_PIXEL_EPS * 0.9, y: 10 },
+        { x: 20 + VALIDATION_PIXEL_EPS * 0.9, y: 10 },
+      ],
+      { instance_id: "instance-i" },
+      { ...SOURCE, original_width: 100, original_height: 100 },
+      id,
+    ),
+    original_width: 100,
+    original_height: 100,
+  };
+  const squareGeometry = [
+    [
+      [10, 10],
+      [90, 10],
+      [90, 90],
+      [10, 90],
+      [10, 10],
+    ],
+  ];
+  expect(() => assertFrontEdgeOnBoundary(normalizedCoincident, squareGeometry)).toThrow("不能重合");
+});
+
+test("front_edge exact corner capsules agree with backend tolerance semantics", () => {
+  const geometry = [
+    [
+      [10.12345, 20.23456],
+      [90.12345, 20.23456],
+      [90.12345, 90.23456],
+      [10.12345, 90.23456],
+      [10.12345, 20.23456],
+    ],
+  ];
+  const toleranceShellEdge = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 10.123444122735263, y: 20.234551910639073 },
+        { x: 10.123444408630158, y: 20.23455171045331 },
+      ],
+      { instance_id: "instance-i" },
+      { ...SOURCE, original_width: 100, original_height: 100 },
+      id,
+    ),
+    original_width: 100,
+    original_height: 100,
+  };
+  expect(frontEdgeOrientation(toleranceShellEdge, [geometry])).toMatchObject({ status: "front_edge" });
+});
+
+test("front_edge preserves a raw valid notch when pixel normalization would invalidate it", () => {
+  const geometry = [
+    [
+      [0, 0],
+      [20, 0],
+      [20, 20],
+      [10.000009, 20],
+      [10.000009, 5],
+      [9.999991, 5],
+      [9.999991, 20],
+      [0, 20],
+      [0, 0],
+    ],
+  ];
+  const notchEdge = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 10.000009, y: 6 },
+        { x: 10.000009, y: 15 },
+      ],
+      { instance_id: "instance-i" },
+      { ...SOURCE, original_width: 100, original_height: 100 },
+      id,
+    ),
+    original_width: 100,
+    original_height: 100,
+  };
+  expect(frontEdgeOrientation(notchEdge, [geometry]).outward_normal).toEqual({ dx: -1, dy: 0 });
+});
+
+test("front_edge keeps valid normalization after collapsing consecutive vertices", () => {
+  const geometry = [
+    [
+      [0, 0],
+      [10, 0],
+      [10.000009, 10.000009],
+      [10.000008, 10.000008],
+      [0, 10],
+      [0, 0],
+    ],
+  ];
+  const rawOnlyEdge = {
+    ...resultForOrientation(
+      "front_edge",
+      [
+        { x: 10.00001219999352, y: 7.9999999999955 },
+        { x: 10.00001309999271, y: 8.9999999999955 },
+      ],
+      { instance_id: "instance-i" },
+      { ...SOURCE, original_width: 100, original_height: 100 },
+      id,
+    ),
+    original_width: 100,
+    original_height: 100,
+  };
+  expect(() => frontEdgeOrientation(rawOnlyEdge, [geometry])).toThrow("真实边界");
+});
+
+test("front_edge accepts hole boundaries but rejects chords and gaps between MultiPolygon parts", () => {
+  const occupancy = makeOccupancy();
+  const geometry = [[square(0, 0, 40, 40)[0], square(10, 10, 20, 20)[0]], square(60, 0, 100, 40)];
+  const instance = furnitureInstances(makeInstance(occupancy, { geometry }))[0];
+  const evidence = (vertices) => resultForOrientation("front_edge", vertices, instance.context, SOURCE, id);
+
+  expect(
+    frontEdgeOrientation(
+      evidence([
+        { x: 10, y: 10 },
+        { x: 20, y: 10 },
+      ]),
+      geometry,
+    ).outward_normal,
+  ).toEqual({ dx: 0, dy: 1 });
+  expect(() =>
+    assertFrontEdgeOnBoundary(
+      evidence([
+        { x: 20, y: 0 },
+        { x: 80, y: 0 },
+      ]),
+      geometry,
+    ),
+  ).toThrow("真实边界");
+  expect(() =>
+    assertFrontEdgeOnBoundary(
+      evidence([
+        { x: 0, y: 20 },
+        { x: 40, y: 20 },
+      ]),
+      geometry,
+    ),
+  ).toThrow("真实边界");
 });
 
 test("MultiPolygon constraint space respects components and holes for create, edit and snapping", () => {
