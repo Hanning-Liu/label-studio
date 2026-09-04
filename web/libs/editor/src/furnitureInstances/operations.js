@@ -28,6 +28,26 @@ export async function applyFurnitureInstanceOperation(item, operation) {
   return result;
 }
 
+// Orientation recovery is intentionally local-first. An incomplete one-point
+// Vector must be removed before any draft save can serialize it. We still
+// perform a fresh L3 reference check before mutation, then persist the repaired
+// draft immediately. A failed post-write save follows the same explicit
+// recoverable-unsaved contract as every other L4 mutation.
+export async function recoverFurnitureInstanceOrientation(item, operation) {
+  const annotation = item.annotation;
+  const controller = annotation.store.referenceSyncController;
+
+  if (controller) await controller.checkFurnitureInstancesReference(annotation.referenceVersion);
+
+  const result = await operation();
+  try {
+    await annotation.saveDraftImmediatelyWithResults();
+  } catch (error) {
+    throw unsavedMutationError(error, result);
+  }
+  return result;
+}
+
 // Modal.confirm keeps the dialog open when onOk returns a rejected promise.
 // Retrying this closure after a post-write save failure only persists the
 // already-applied local mutation; it never repeats the destructive model action.

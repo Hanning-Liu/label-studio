@@ -101,25 +101,81 @@ const validationPixelCoordinate = (value) => {
   const integer = Math.round(value);
   return Math.abs(value - integer) <= VALIDATION_PIXEL_EPS ? integer : value;
 };
+const validImageDimensions = (width, height) =>
+  Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0;
+
+const segmentsIntersect = (a, b, c, d) =>
+  (cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0) ||
+  onSegment(a, b, c) ||
+  onSegment(a, b, d) ||
+  onSegment(c, d, a) ||
+  onSegment(c, d, b);
+
+const ringsIntersect = (left, right) => {
+  for (let i = 0; i < left.length - 1; i++)
+    for (let j = 0; j < right.length - 1; j++)
+      if (segmentsIntersect(left[i], left[i + 1], right[j], right[j + 1])) return true;
+  return false;
+};
+
+const pointInsideRing = ([x, y], ring) => {
+  let inside = false;
+  const size = ring.length - 1;
+  for (let i = 0, j = size - 1; i < size; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+
+const validPolygonTopology = (polygon) => {
+  let rings;
+  try {
+    rings = polygon.map((ring) =>
+      assertRing(
+        ring.filter(
+          (point, index) => index === 0 || point[0] !== ring[index - 1][0] || point[1] !== ring[index - 1][1],
+        ),
+      ),
+    );
+  } catch {
+    return false;
+  }
+  const [exterior, ...holes] = rings;
+  for (const hole of holes) {
+    if (ringsIntersect(exterior, hole) || !pointInsideRing(hole[0], exterior)) return false;
+  }
+  for (let i = 0; i < holes.length; i++)
+    for (let j = i + 1; j < holes.length; j++)
+      if (
+        ringsIntersect(holes[i], holes[j]) ||
+        pointInsideRing(holes[i][0], holes[j]) ||
+        pointInsideRing(holes[j][0], holes[i])
+      )
+        return false;
+  return true;
+};
 
 export function validationGeometry(result) {
-  const width = result.original_width,
-    height = result.original_height;
-  if (!(width > 0 && height > 0)) throw new Error("缺少原图尺寸，无法进行像素级几何校验");
+  const width = result.original_width;
+  const height = result.original_height;
+  if (!validImageDimensions(width, height)) throw new Error("缺少原图尺寸，无法进行像素级几何校验");
   return validationMultiGeometry(resultGeometry(result), width, height);
 }
 
 export function validationMultiGeometry(multi, width, height) {
-  if (!(width > 0 && height > 0)) throw new Error("缺少原图尺寸，无法进行像素级几何校验");
+  if (!validImageDimensions(width, height)) throw new Error("缺少原图尺寸，无法进行像素级几何校验");
   return multi.map((polygon) => {
     const scaled = polygon.map((ring) => ring.map(([x, y]) => [(x * width) / 100, (y * height) / 100]));
     const normalized = scaled.map((ring) =>
       ring.map(([x, y]) => [validationPixelCoordinate(x), validationPixelCoordinate(y)]),
     );
     // Preserve a real sub-pixel component/hole if canonicalization would
-    // collapse it. Internal storage pieces are unioned before reaching here,
-    // so this fallback protects semantic slivers rather than triangulation.
-    return area([normalized]) > 0 ? normalized : scaled;
+    // collapse it or make its topology invalid. Internal storage pieces are
+    // unioned before reaching here, so this fallback protects semantic
+    // slivers rather than triangulation.
+    return area([normalized]) > 0 && validPolygonTopology(normalized) ? normalized : scaled;
   });
 }
 

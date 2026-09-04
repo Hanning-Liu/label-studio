@@ -5,7 +5,9 @@ import {
   fingerprint,
   intersection,
   resultGeometry,
+  union,
   VALIDATION_EPS_AREA,
+  VALIDATION_PIXEL_EPS,
   validationMultiGeometry,
 } from "../occupancy/geometry";
 import { constrainPolygon as constrainBasePolygon } from "../occupancy/constraints";
@@ -27,7 +29,10 @@ import {
 } from "./domain";
 
 export const VECTOR_EPS = 1e-7;
-export const BOUNDARY_PIXEL_EPS = 1e-5;
+export const FRONT_EDGE_BOUNDARY_EPS_PX = 1e-5;
+export const BOUNDARY_PIXEL_EPS = FRONT_EDGE_BOUNDARY_EPS_PX;
+export { VALIDATION_PIXEL_EPS };
+const INTERVAL_NUMERIC_EPS = 1e-9;
 
 const point = (value) => ({ x: value.x, y: value.y });
 const sub = (left, right) => ({ x: left.x - right.x, y: left.y - right.y });
@@ -322,28 +327,68 @@ export function constrainFurnitureRectangle(previous, target, space) {
   };
 }
 
-const pixelPoint = (value, width, height) => ({ x: (value.x * width) / 100, y: (value.y * height) / 100 });
+const validationPixelCoordinate = (value) => {
+  const integer = Math.round(value);
+  return Math.abs(value - integer) <= VALIDATION_PIXEL_EPS ? integer : value;
+};
+const pixelPoint = (value, width, height) => ({
+  x: validationPixelCoordinate((value.x * width) / 100),
+  y: validationPixelCoordinate((value.y * height) / 100),
+});
 
-function boundaryIntervals(geometry, start, direction, width, height) {
+const intersectIntervals = (left, right) => {
+  if (!left || !right) return null;
+  const interval = [Math.max(left[0], right[0]), Math.min(left[1], right[1])];
+  return interval[0] <= interval[1] ? interval : null;
+};
+
+function linearInterval(offset, slope, low, high) {
+  if (Math.abs(slope) <= 1e-14)
+    return offset >= low && offset <= high ? [Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY] : null;
+  const first = (low - offset) / slope;
+  const second = (high - offset) / slope;
+  return [Math.min(first, second), Math.max(first, second)];
+}
+
+function circleInterval(start, direction, center, tolerance) {
+  const relative = sub(center, start);
+  const projection = dot(relative, direction);
+  const perpendicularSquared = Math.max(0, dot(relative, relative) - projection * projection);
+  if (perpendicularSquared > tolerance * tolerance) return null;
+  const extent = Math.sqrt(Math.max(0, tolerance * tolerance - perpendicularSquared));
+  return [projection - extent, projection + extent];
+}
+
+// Return the parameter intervals along the evidence line that lie in the
+// source-pixel capsule around one real boundary segment. This is the exact JS
+// counterpart of Shapely boundary.buffer(eps).covers(edge): it accepts tiny
+// numeric drift while rejecting interior chords and gaps between components.
+function segmentCapsuleIntervals(start, direction, boundaryStart, boundaryEnd, tolerance) {
+  const segment = sub(boundaryEnd, boundaryStart);
+  const size = length(segment);
+  const intervals = [
+    circleInterval(start, direction, boundaryStart, tolerance),
+    circleInterval(start, direction, boundaryEnd, tolerance),
+  ].filter(Boolean);
+  if (size <= 1e-14) return intervals;
+
+  const unitSegment = { x: segment.x / size, y: segment.y / size };
+  const relative = sub(start, boundaryStart);
+  const along = linearInterval(dot(relative, unitSegment), dot(direction, unitSegment), 0, size);
+  const across = linearInterval(cross(unitSegment, relative), cross(unitSegment, direction), -tolerance, tolerance);
+  const strip = intersectIntervals(along, across);
+  if (strip) intervals.push(strip);
+  return intervals;
+}
+
+function boundaryIntervals(geometry, start, direction) {
   const intervals = [];
   for (const polygon of geometry) {
     for (const ring of polygon) {
       for (let index = 0; index < ring.length - 1; index++) {
-        const first = pixelPoint(arrayPoint(ring[index]), width, height);
-        const second = pixelPoint(arrayPoint(ring[index + 1]), width, height);
-        const segment = sub(second, first);
-        const size = length(segment);
-        if (size <= BOUNDARY_PIXEL_EPS) continue;
-        if (Math.abs(cross(direction, { x: segment.x / size, y: segment.y / size })) > 1e-8) continue;
-        if (
-          Math.abs(cross(direction, sub(first, start))) > BOUNDARY_PIXEL_EPS ||
-          Math.abs(cross(direction, sub(second, start))) > BOUNDARY_PIXEL_EPS
-        )
-          continue;
-        intervals.push([
-          Math.min(dot(sub(first, start), direction), dot(sub(second, start), direction)),
-          Math.max(dot(sub(first, start), direction), dot(sub(second, start), direction)),
-        ]);
+        const first = arrayPoint(ring[index]);
+        const second = arrayPoint(ring[index + 1]);
+        intervals.push(...segmentCapsuleIntervals(start, direction, first, second, FRONT_EDGE_BOUNDARY_EPS_PX));
       }
     }
   }
@@ -354,23 +399,31 @@ export function assertFrontEdgeOnBoundary(result, geometry) {
   const [percentStart, percentEnd] = vectorEndpoints(result);
   const width = result.original_width;
   const height = result.original_height;
-  if (!(width > 0 && height > 0)) throw new Error("front_edge 缺少原图尺寸");
+  if (!(Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0))
+    throw new Error("front_edge 缺少原图尺寸");
   const start = pixelPoint(percentStart, width, height);
   const end = pixelPoint(percentEnd, width, height);
   const edge = sub(end, start);
   const edgeLength = length(edge);
   if (!(edgeLength > VECTOR_EPS)) throw new Error("front_edge 的两个端点不能重合");
   const direction = { x: edge.x / edgeLength, y: edge.y / edgeLength };
-  const intervals = boundaryIntervals(geometry, start, direction, width, height)
+  const validationGeometry = union(validationMultiGeometry(geometry, width, height));
+  const intervals = boundaryIntervals(validationGeometry, start, direction)
     .map(([low, high]) => [Math.max(0, low), Math.min(edgeLength, high)])
-    .filter(([low, high]) => high - low > BOUNDARY_PIXEL_EPS)
+    .filter(([low, high]) => high >= low)
     .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
-  let covered = 0;
+  let covered = null;
   for (const [low, high] of intervals) {
-    if (low > covered + BOUNDARY_PIXEL_EPS) break;
-    covered = Math.max(covered, high);
+    if (covered === null) {
+      if (low > INTERVAL_NUMERIC_EPS) break;
+      covered = high;
+    } else {
+      if (low > covered + INTERVAL_NUMERIC_EPS) break;
+      covered = Math.max(covered, high);
+    }
   }
-  if (covered < edgeLength - BOUNDARY_PIXEL_EPS) throw new Error("front_edge 必须完整落在家具实例的真实边界上");
+  if (covered === null || covered < edgeLength - INTERVAL_NUMERIC_EPS)
+    throw new Error("front_edge 必须完整落在家具实例的真实边界上");
   return [percentStart, percentEnd];
 }
 

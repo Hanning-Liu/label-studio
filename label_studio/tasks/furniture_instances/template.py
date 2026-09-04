@@ -87,12 +87,20 @@ def build_template(source_config):
     for value, chinese_name in FURNITURE_TYPE_CHOICES:
         ET.SubElement(choices, 'Choice', {'value': chinese_name, 'alias': value})
 
+    orientation_controls = ET.SubElement(
+        root,
+        'View',
+        {
+            'className': 'furniture-instance-orientation-controls',
+            'style': 'display: none;',
+        },
+    )
     for control_name, english_value, chinese_name, color in (
         (FRONT_DIRECTION_CONTROL, 'front_direction', '正面方向', '#2563eb'),
         (FRONT_EDGE_CONTROL, 'front_edge', '正面边', '#dc2626'),
     ):
         control = ET.SubElement(
-            root,
+            orientation_controls,
             'VectorLabels',
             {
                 'name': control_name,
@@ -102,7 +110,10 @@ def build_template(source_config):
                 'curves': 'false',
                 'minPoints': '2',
                 'maxPoints': '2',
-                'snap': 'pixel',
+                # FurnitureInstances performs source-pixel snapping itself.
+                # A second canvas-level round can move a point off a diagonal
+                # or hole boundary and is therefore deliberately disabled.
+                'snap': 'none',
                 'strokeWidth': '4',
                 'pointSize': 'medium',
                 'showInline': 'true',

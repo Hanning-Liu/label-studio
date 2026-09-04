@@ -26,7 +26,9 @@ ORIENTATION_CONTROLS = {FRONT_DIRECTION_CONTROL, FRONT_EDGE_CONTROL}
 MANUAL_CONTROLS = GEOMETRY_CONTROLS | {CATEGORY_CONTROL} | ORIENTATION_CONTROLS
 
 VECTOR_LENGTH_EPS = 1e-7
-BOUNDARY_LENGTH_EPS_PX = 1e-5
+FRONT_EDGE_BOUNDARY_EPS_PX = 1e-5
+INTERVAL_NUMERIC_EPS = 1e-9
+CAPSULE_DEGENERATE_EPS = 1e-14
 
 
 def _finite_number(value):
@@ -185,6 +187,123 @@ def validation_vector(result, expected_label):
     return LineString([(pixel(x * width / 100), pixel(y * height / 100)) for x, y in points])
 
 
+def _subtract(left, right):
+    return left[0] - right[0], left[1] - right[1]
+
+
+def _dot(left, right):
+    return left[0] * right[0] + left[1] * right[1]
+
+
+def _cross(left, right):
+    return left[0] * right[1] - left[1] * right[0]
+
+
+def _intersect_intervals(left, right):
+    if left is None or right is None:
+        return None
+    interval = max(left[0], right[0]), min(left[1], right[1])
+    return interval if interval[0] <= interval[1] else None
+
+
+def _linear_interval(offset, slope, low, high):
+    if abs(slope) <= CAPSULE_DEGENERATE_EPS:
+        return (-math.inf, math.inf) if low <= offset <= high else None
+    first = (low - offset) / slope
+    second = (high - offset) / slope
+    return min(first, second), max(first, second)
+
+
+def _circle_interval(start, direction, center, tolerance):
+    relative = _subtract(center, start)
+    projection = _dot(relative, direction)
+    perpendicular_squared = max(0, _dot(relative, relative) - projection * projection)
+    if perpendicular_squared > tolerance * tolerance:
+        return None
+    extent = math.sqrt(max(0, tolerance * tolerance - perpendicular_squared))
+    return projection - extent, projection + extent
+
+
+def _segment_capsule_intervals(start, direction, boundary_start, boundary_end, tolerance):
+    """Return line intervals inside one exact source-pixel segment capsule."""
+    segment = _subtract(boundary_end, boundary_start)
+    size = math.hypot(*segment)
+    intervals = [
+        interval
+        for interval in (
+            _circle_interval(start, direction, boundary_start, tolerance),
+            _circle_interval(start, direction, boundary_end, tolerance),
+        )
+        if interval is not None
+    ]
+    if size <= CAPSULE_DEGENERATE_EPS:
+        return intervals
+
+    unit_segment = segment[0] / size, segment[1] / size
+    relative = _subtract(start, boundary_start)
+    along = _linear_interval(_dot(relative, unit_segment), _dot(direction, unit_segment), 0, size)
+    across = _linear_interval(
+        _cross(unit_segment, relative),
+        _cross(unit_segment, direction),
+        -tolerance,
+        tolerance,
+    )
+    strip = _intersect_intervals(along, across)
+    if strip is not None:
+        intervals.append(strip)
+    return intervals
+
+
+def _boundary_segments(boundary):
+    if hasattr(boundary, 'geoms'):
+        for part in boundary.geoms:
+            yield from _boundary_segments(part)
+        return
+    coordinates = list(boundary.coords)
+    yield from zip(coordinates, coordinates[1:])
+
+
+def _front_edge_covers_boundary(edge, boundary):
+    """Validate an edge against exact source-pixel segment capsules.
+
+    This intentionally mirrors the frontend interval-union implementation.
+    Shapely's default buffer approximates round caps with polygons and can
+    disagree in the narrow tolerance shell around a corner.
+    """
+    start, end = edge.coords[0], edge.coords[-1]
+    edge_delta = _subtract(end, start)
+    edge_length = math.hypot(*edge_delta)
+    if not edge_length > VECTOR_LENGTH_EPS:
+        return False
+    direction = edge_delta[0] / edge_length, edge_delta[1] / edge_length
+    intervals = sorted(
+        (
+            (max(0, low), min(edge_length, high))
+            for boundary_start, boundary_end in _boundary_segments(boundary)
+            for low, high in _segment_capsule_intervals(
+                start,
+                direction,
+                boundary_start,
+                boundary_end,
+                FRONT_EDGE_BOUNDARY_EPS_PX,
+            )
+            if min(edge_length, high) >= max(0, low)
+        ),
+        key=lambda interval: (interval[0], interval[1]),
+    )
+    covered = None
+    for low, high in intervals:
+        if covered is None:
+            if low > INTERVAL_NUMERIC_EPS:
+                break
+            covered = high
+        else:
+            if low > covered + INTERVAL_NUMERIC_EPS:
+                break
+            covered = max(covered, high)
+    return covered is not None and covered >= edge_length - INTERVAL_NUMERIC_EPS
+
+
 def direction_orientation(result, geometry):
     start, end = _vector_vertices(result, 'front_direction')
     if not geometry.covers(Point(start)):
@@ -217,8 +336,10 @@ def _edge_outward_normal(start, end, geometry):
 def edge_orientation(result, geometry):
     start, end = _vector_vertices(result, 'front_edge')
     edge = validation_vector(result, 'front_edge')
+    if not edge.length > VECTOR_LENGTH_EPS:
+        raise ValueError('front_edge 的两个端点在源图像像素校验后不能重合')
     boundary = validation_shape(geometry, result.get('original_width'), result.get('original_height')).boundary
-    if edge.difference(boundary).length > BOUNDARY_LENGTH_EPS_PX:
+    if not _front_edge_covers_boundary(edge, boundary):
         raise ValueError('front_edge 必须完整位于家具实例精确边界')
     return {
         'status': 'front_edge',

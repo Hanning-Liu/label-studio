@@ -11,10 +11,12 @@ import {
   furnitureGroups,
   furnitureInstances,
   GEOMETRY_CONTROLS,
+  ORIENTATION_CONTROLS,
   resultContext,
   sameFurnitureResultKeys,
 } from "../furnitureInstances/domain";
 import {
+  assertFrontEdgeOnBoundary,
   confirmFurnitureInstances,
   constrainFurniturePolygon,
   constrainFurnitureRectangle,
@@ -23,6 +25,7 @@ import {
   pointInGeometry,
   snapFurniturePoint,
   validateFurnitureInstances,
+  VECTOR_EPS,
 } from "../furnitureInstances/constraints";
 import { area, clone, difference, EPS_AREA, fingerprint, resultGeometry } from "../occupancy/geometry";
 import { GEOMETRY as OCCUPANCY_GEOMETRY, REFERENCES as OCCUPANCY_REFERENCES } from "../occupancy/domain";
@@ -97,6 +100,16 @@ export const FurnitureInstances = types
     furnitureInstanceIsReference(name) {
       return self.furnitureInstancesEnabled && REFERENCE_CONTROLS.has(name);
     },
+    furnitureInstanceTransientOrientationRegion(region) {
+      const activeControl = self.furnitureInstanceDrawingControl;
+      return Boolean(
+        self.furnitureInstancesEnabled &&
+          ORIENTATION_CONTROLS.has(activeControl) &&
+          region?.isDrawing &&
+          region?.incomplete &&
+          region.results?.some((result) => controlName(result) === activeControl),
+      );
+    },
     furnitureInstanceConstrains(region) {
       return (
         self.furnitureInstancesEnabled &&
@@ -151,6 +164,24 @@ export const FurnitureInstances = types
         return "请先保存、备份并手动应用最新 L3 参考";
       return "";
     },
+    furnitureInstanceOrientationResetBlockReason(id) {
+      if (!self.furnitureInstancesEnabled || self.annotation.isReadOnly()) return "此标注不可编辑";
+      if (self.annotation.submissionStarted) return "请等待提交结束";
+      const orientationDrawing = ORIENTATION_CONTROLS.has(self.furnitureInstanceDrawingControl);
+      if ((self.annotation.isDrawing || self.annotation.hasIncompletePolygons) && !orientationDrawing)
+        return "请先完成或取消当前几何绘制";
+      const status = self.annotation.store.referenceSyncController?.state?.status;
+      if (
+        status?.enabled &&
+        (status.sync_type !== "occupancy_to_furniture_instances" ||
+          status.source_version !== self.annotation.referenceVersion ||
+          status.reference_version !== self.annotation.referenceVersion ||
+          status.error)
+      )
+        return "请先保存、备份并手动应用最新 L3 参考";
+      if (!self.furnitureInstanceLogicals.some((candidate) => candidate.id === id)) return "家具实例不存在";
+      return "";
+    },
   }))
   .actions((self) => ({
     setFurnitureInstanceEditNotice(message) {
@@ -203,11 +234,50 @@ export const FurnitureInstances = types
       if (move) self.getToolsManager().selectTool(move, true);
       self.updateRoomConstraintTools?.();
     },
+    finishFurnitureInstanceOrientationDrawing(name = "", selectMove = false) {
+      const control = ORIENTATION_CONTROLS.has(name) ? name : self.furnitureInstanceDrawingControl;
+      if (!ORIENTATION_CONTROLS.has(control)) return;
+      self.annotation.names.get(control)?.unselectAll?.();
+      if (self.furnitureInstanceDrawingControl === control) self.furnitureInstanceDrawingControl = "";
+      if (selectMove) {
+        const manager = self.getToolsManager();
+        const move = manager.allTools().find((tool) => tool.fullName === "MoveTool");
+        if (move) manager.selectTool(move, true);
+      }
+      self.updateRoomConstraintTools?.();
+    },
+    cancelFurnitureInstanceOrientationDrawing({ selectMove = true } = {}) {
+      const control = self.furnitureInstanceDrawingControl;
+      if (!ORIENTATION_CONTROLS.has(control)) return false;
+      const manager = self.getToolsManager();
+      const tool = manager.allTools().find((candidate) => candidate.control?.name === control);
+      const ownArea = tool?.currentArea;
+      const area = self.furnitureInstanceTransientOrientationRegion(ownArea)
+        ? ownArea
+        : self.regs.find((region) => self.furnitureInstanceTransientOrientationRegion(region));
+      const hadDraft = Boolean(area);
+      if (hadDraft) {
+        if (tool.cancelDrawing) tool.cancelDrawing(area);
+        else tool.deleteRegion?.();
+      } else if (self.annotation.isDrawing) {
+        self.annotation.setIsDrawing(false);
+        self.annotation.history.unfreeze();
+      }
+      self.finishFurnitureInstanceOrientationDrawing(control, selectMove);
+      return hadDraft;
+    },
     startFurnitureInstanceTool(name) {
+      if (ORIENTATION_CONTROLS.has(name) && ORIENTATION_CONTROLS.has(self.furnitureInstanceDrawingControl)) {
+        if (
+          self.furnitureInstanceDrawingControl === name &&
+          self.getToolsManager().findSelectedTool()?.control?.name === name
+        )
+          return;
+        self.cancelFurnitureInstanceOrientationDrawing({ selectMove: false });
+      }
       const reason = self.furnitureInstanceDrawBlockReason(name);
       if (reason) throw new Error(reason);
-      if ([CONTROLS.frontDirection, CONTROLS.frontEdge].includes(name))
-        self.furnitureInstanceSelectedId = self.furnitureInstanceEffectiveSelectedId;
+      if (ORIENTATION_CONTROLS.has(name)) self.furnitureInstanceSelectedId = self.furnitureInstanceEffectiveSelectedId;
       self.annotation.unselectAreas();
       const stateName = GEOMETRY_CONTROLS.has(name) ? CONTROLS.type : name;
       const state = self.annotation.names.get(stateName);
@@ -241,16 +311,25 @@ export const FurnitureInstances = types
           (candidate) => candidate.id === self.furnitureInstanceEffectiveSelectedId,
         );
         if (!instance) throw new Error("朝向目标实例不存在");
+        const source = instance.parts[0];
+        const width = source?.original_width;
+        const height = source?.original_height;
+        if (!(width > 0 && height > 0)) throw new Error("家具实例缺少有效原图尺寸");
+        const toPixel = (candidate) => ({ x: (candidate.x * width) / 100, y: (candidate.y * height) / 100 });
+        const fromPixel = (candidate) => ({ x: (candidate.x * 100) / width, y: (candidate.y * 100) / height });
+        let accepted = point;
         if (control === CONTROLS.frontDirection) {
-          if (starting && !pointInGeometry(point, instance.geometry, true))
+          if (self.furnitureInstancePixelSnap) {
+            const pixel = toPixel(point);
+            const rounded = fromPixel({ x: Math.round(pixel.x), y: Math.round(pixel.y) });
+            accepted = starting && !pointInGeometry(rounded, instance.geometry, true) ? point : rounded;
+          }
+          if (starting && !pointInGeometry(accepted, instance.geometry, true))
             throw new Error("front_direction 起点必须位于所选实例内部或边界");
-          return point;
-        }
-        if (control === CONTROLS.frontEdge) {
-          const source = instance.parts[0];
+        } else if (control === CONTROLS.frontEdge) {
           const space = furnitureConstraintSpace(instance.geometry, {
-            width: source.original_width,
-            height: source.original_height,
+            width,
+            height,
             screenWidth: (self.stageWidth || self.naturalWidth) * self.zoomScale,
             screenHeight: (self.stageHeight || self.naturalHeight) * self.zoomScale,
             boundary: true,
@@ -258,9 +337,27 @@ export const FurnitureInstances = types
           });
           const snapped = space.boundaryPoints(space.toPixel(point))[0];
           if (!snapped) throw new Error("front_edge 端点必须吸附在所选实例的真实边界");
-          return space.fromPixel(snapped);
+          accepted = space.fromPixel(snapped);
+        } else {
+          return point;
         }
-        return point;
+        const first = region?.vertices?.[0];
+        if (first) {
+          const previous = fromPixel(first);
+          if (Math.hypot(previous.x - accepted.x, previous.y - accepted.y) <= VECTOR_EPS)
+            throw new Error("朝向证据的两个端点不能重合");
+          if (control === CONTROLS.frontEdge)
+            assertFrontEdgeOnBoundary(
+              {
+                original_width: width,
+                original_height: height,
+                value: { closed: false, vertices: [previous, accepted] },
+              },
+              instance.geometry,
+            );
+        }
+        self.furnitureInstanceEditNotice = "";
+        return accepted;
       } catch (error) {
         self.furnitureInstanceEditNotice = error.message;
         return null;
@@ -385,20 +482,45 @@ export const FurnitureInstances = types
     },
     finalizeFurnitureInstanceRegion(region) {
       if (!self.furnitureInstancesEnabled) return;
-      const value = context(contextResult(region));
+      const result = contextResult(region);
+      const value = context(result);
       if (!value.instance_id) return;
+      const orientationEdit = ORIENTATION_CONTROLS.has(controlName(result));
+      const wasReviewed = orientationEdit && value.review_status === "reviewed";
       self.furnitureInstanceSelectedId = value.instance_id;
       self.furnitureInstanceFocusId = value.group_id;
-      self.furnitureInstanceDrawingControl = "";
-      self.refreshFurnitureInstanceReviews();
+      if (orientationEdit) self.finishFurnitureInstanceOrientationDrawing(controlName(result), true);
+      else self.furnitureInstanceDrawingControl = "";
+      self.refreshFurnitureInstanceReviews(wasReviewed ? [value.instance_id] : []);
+      if (wasReviewed)
+        self.furnitureInstanceEditNotice =
+          "已修改 reviewed 实例；复核状态已变为 needs_review（保存值 pending），请重新确认复核。";
       self.updateRoomConstraintTools?.();
     },
-    refreshFurnitureInstanceReviews() {
+    refreshFurnitureInstanceReviews(forcePendingIds = []) {
       if (!self.furnitureInstancesEnabled) return;
-      const next = invalidateFurnitureReviews(
+      const forced = new Set(forcePendingIds);
+      let next = invalidateFurnitureReviews(
         self.annotation.serializeAnnotation({ fast: true }),
         self.annotation.serializeAnnotation({ fast: true }),
       );
+      if (forced.size)
+        next = next.map((result) => {
+          const value = context(result);
+          return forced.has(value.instance_id)
+            ? {
+                ...result,
+                meta: {
+                  ...result.meta,
+                  furniture_instance_context: {
+                    ...value,
+                    review_status: "pending",
+                    review_fingerprint: null,
+                  },
+                },
+              }
+            : result;
+        });
       const contexts = new Map(
         next
           .filter((result) => ALL_CONTROLS.has(controlName(result)))
@@ -464,7 +586,7 @@ export const FurnitureInstances = types
       }
     },
     clearFurnitureInstanceOrientation(id) {
-      const reason = self.furnitureInstanceOperationBlockReason();
+      const reason = self.furnitureInstanceOrientationResetBlockReason(id);
       if (reason) {
         self.furnitureInstanceEditNotice = reason;
         throw new Error(reason);
@@ -474,13 +596,49 @@ export const FurnitureInstances = types
       try {
         const instance = self.furnitureInstanceLogicals.find((candidate) => candidate.id === id);
         if (!instance) throw new Error("家具实例不存在");
-        const orientationIds = new Set(instance.orientationResults.map((result) => result.id));
-        const regions = [...self.regs].filter((candidate) => orientationIds.has(candidate.cleanId));
-        if (!regions.length) throw new Error("家具实例没有可删除的显式朝向证据");
-        self.getToolsManager()?.releaseRegionReferences?.(regions);
+        const wasReviewed = instance.context.review_status === "reviewed";
+        const regions = [...self.regs].filter((candidate) =>
+          candidate.results.some(
+            (result) => ORIENTATION_CONTROLS.has(controlName(result)) && context(result).instance_id === id,
+          ),
+        );
+        const manager = self.getToolsManager();
+        const selectedControl = manager.findSelectedTool()?.control?.name;
+        const drawingControl = ORIENTATION_CONTROLS.has(self.furnitureInstanceDrawingControl)
+          ? self.furnitureInstanceDrawingControl
+          : ORIENTATION_CONTROLS.has(selectedControl)
+            ? selectedControl
+            : "";
+        const drawingTool = ORIENTATION_CONTROLS.has(drawingControl)
+          ? manager.allTools().find((candidate) => candidate.control?.name === drawingControl)
+          : null;
+        const ownArea = drawingTool?.currentArea;
+        const drawingArea = self.furnitureInstanceTransientOrientationRegion(ownArea)
+          ? ownArea
+          : self.regs.find((region) => self.furnitureInstanceTransientOrientationRegion(region));
+        const drawingBelongsToInstance =
+          drawingArea &&
+          (regions.includes(drawingArea) || (self.furnitureInstanceSelectedId === id && drawingArea.incomplete));
+        if (drawingBelongsToInstance) {
+          if (drawingTool.cancelDrawing) drawingTool.cancelDrawing(drawingArea);
+          else drawingTool.deleteRegion?.();
+        }
+        const remaining = regions.filter((region) => self.regs.includes(region));
+        self.getToolsManager()?.releaseRegionReferences?.(remaining);
         self.annotation.unselectAreas();
-        for (const region of regions) self.annotation.deleteArea(region);
-        self.refreshFurnitureInstanceReviews();
+        for (const region of remaining) self.annotation.deleteArea(region);
+        self.finishFurnitureInstanceOrientationDrawing(drawingControl, true);
+        const changed = Boolean(regions.length);
+        if (changed) {
+          self.refreshFurnitureInstanceReviews(wasReviewed ? [id] : []);
+          if (wasReviewed)
+            self.furnitureInstanceEditNotice =
+              "朝向已恢复 unknown；reviewed 实例已变为 needs_review（保存值 pending），请重新确认复核。";
+          else self.furnitureInstanceEditNotice = "";
+        } else {
+          self.furnitureInstanceEditNotice = "";
+        }
+        return changed;
       } catch (error) {
         applySnapshot(self.annotation.areas, snapshot);
         self.annotation.updateObjects();

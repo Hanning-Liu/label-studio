@@ -396,6 +396,9 @@ const Model = types
        * @return {VectorRegionResult} The serialized vector region data in Label Studio format
        */
       serialize() {
+        // A one-point L4 orientation path is a transient drawing state, not
+        // formal evidence. Keep it out of autosaved drafts until maxPoints=2.
+        if (self.parent?.furnitureInstanceTransientOrientationRegion?.(self)) return null;
         // Preserve the full KonvaVector format to maintain Bezier curves and point relationships
         const value = {
           vertices: self.imageToRelativeCoords(), // Keep the full point objects with all properties
@@ -525,6 +528,10 @@ const Model = types
         const tm = self.parent.getToolsManager();
         const tool = tm.findSelectedTool();
         if (tool.currentArea) {
+          if (self.parent?.furnitureInstanceTransientOrientationRegion?.(tool.currentArea)) {
+            tool?.complete?.();
+            return;
+          }
           tool?.commitDrawingRegion();
         } else {
           const annotation = self.parent?.annotation;

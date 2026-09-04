@@ -27,7 +27,6 @@ from tasks.occupancy.validation import (
 
 from . import FURNITURE_TYPES
 from .geometry import (
-    BOUNDARY_LENGTH_EPS_PX,
     CATEGORY_CONTROL,
     FRONT_DIRECTION_CONTROL,
     FRONT_EDGE_CONTROL,
@@ -38,7 +37,6 @@ from .geometry import (
     review_fingerprint,
     union_result_geometry,
     validation_union_geometry,
-    validation_vector,
 )
 
 ROOM_CONTROLS = {'room_rectangle', 'room_polygon'}
@@ -321,11 +319,6 @@ def validate(results, source_version, *, partial=False, review=True):
             continue
         try:
             orientation = orientation_from_results(direction_results, edge_results, geometry)
-            if edge_results:
-                edge = validation_vector(edge_results[0], 'front_edge')
-                uncovered = edge.difference(validation_geometry.boundary).length
-                if uncovered > BOUNDARY_LENGTH_EPS_PX:
-                    error('orientation', instance_id, 'front_edge 必须完整位于家具实例精确边界')
         except (ValueError, TypeError, KeyError) as exc:
             error('orientation', instance_id, str(exc))
             orientation = {'status': 'unknown'}
