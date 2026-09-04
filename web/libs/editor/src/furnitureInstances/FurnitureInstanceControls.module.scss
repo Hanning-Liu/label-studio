@@ -35,6 +35,75 @@
   max-width: 300px;
 }
 
+.statusCard {
+  display: grid;
+  min-width: 320px;
+  gap: 3px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 6px;
+  background: var(--color-neutral-surface);
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 6px;
+}
+
+.paletteGroup {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.paletteGroup > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.typeButton,
+.typeSelected {
+  min-height: 26px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--furniture-type-color) 55%, transparent);
+  border-radius: 5px;
+  color: var(--color-neutral-content);
+  background: color-mix(in srgb, var(--furniture-type-color) 9%, transparent);
+  cursor: pointer;
+}
+
+.typeButton:hover,
+.typeButton:focus-visible,
+.typeSelected {
+  border: 2px solid var(--furniture-type-color);
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--furniture-type-color) 20%, transparent);
+  outline: none;
+}
+
+.typeSelected {
+  font-weight: 700;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--furniture-type-color) 20%, transparent);
+}
+
+.typeButton span,
+.typeSelected span {
+  display: inline-block;
+  width: 12px;
+}
+
+@media (max-width: 1100px) {
+  .palette {
+    grid-template-columns: repeat(2, minmax(170px, 1fr));
+  }
+}
+
 .options {
   align-items: center;
 }

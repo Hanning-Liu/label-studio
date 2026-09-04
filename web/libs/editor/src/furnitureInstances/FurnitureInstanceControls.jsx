@@ -3,7 +3,6 @@ import { observer } from "mobx-react";
 import { Modal } from "antd";
 import { Button } from "@humansignal/ui";
 
-import { GROUP_TYPES } from "../occupancy/domain";
 import { downloadJson } from "../occupancy/download";
 import { CONTROLS, FURNITURE_TYPES, ORIENTATION_CONTROLS } from "./domain";
 import { orientationForInstance } from "./constraints";
@@ -16,8 +15,7 @@ import {
   retryFurnitureInstanceSave,
 } from "./operations";
 import styles from "./FurnitureInstanceControls.module.scss";
-
-const short = (value) => (value?.length > 20 ? `${value.slice(0, 10)}…${value.slice(-7)}` : value || "—");
+import { FURNITURE_TYPE_GROUPS, furnitureParentIdentity, shortFurnitureId } from "./presentation";
 
 export const FurnitureInstanceControls = observer(({ item }) => {
   const annotation = item.annotation;
@@ -77,6 +75,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
   const focus = parents.find((parent) => parent.id === item.furnitureInstanceFocusId);
   const effectiveSelectedId = item.furnitureInstanceEffectiveSelectedId;
   const selected = instances.find((instance) => instance.id === effectiveSelectedId);
+  const focusIdentity = furnitureParentIdentity(focus, item.furnitureInstanceData);
   const errors = item.furnitureInstanceErrors;
   const currentErrors = errors.filter((issue) => issue.instanceId === selected?.id);
   const reviewErrors = currentErrors.filter((issue) => issue.code === "review");
@@ -106,17 +105,6 @@ export const FurnitureInstanceControls = observer(({ item }) => {
     commonDisabledReason || (hasUnsavedMutation ? "请先重试保存或导出窗口备份" : drawingDisabledReason);
   const retryDisabled = Boolean(retryDisabledReason);
   const disabled = Boolean(disabledReason);
-
-  const drawDisabledReason = (control) => {
-    if (activeDrawingControl === control) return commonDisabledReason;
-    return (
-      disabledReason ||
-      (!focus ? "请先选择 Focus 家具组团" : "") ||
-      (referenceChanged ? "L3 参考有更新；请先保存、备份并手动应用" : "") ||
-      item.furnitureInstanceDrawBlockReason?.(control) ||
-      ""
-    );
-  };
 
   const orientationDisabledReason = (control) => {
     if (activeOrientationControl) return commonDisabledReason;
@@ -295,137 +283,131 @@ export const FurnitureInstanceControls = observer(({ item }) => {
       </div>
 
       <div className={styles.row}>
-        <label>
-          Focus 家具组团
-          <select
-            value={item.furnitureInstanceFocusId}
-            disabled={disabled}
-            onChange={(event) => item.setFurnitureInstanceFocus(event.target.value)}
-          >
-            <option value="">请选择</option>
-            {parents.map((parent) => (
-              <option key={parent.id} value={parent.id}>
-                {GROUP_TYPES[parent.groupType] || parent.groupType} · {short(parent.id)} · 房间 {short(parent.roomId)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          实例类别
-          <select value={type} disabled={disabled} onChange={(event) => setType(event.target.value)}>
-            {Object.entries(FURNITURE_TYPES).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label} ({value})
-              </option>
-            ))}
-          </select>
-        </label>
+        <section className={styles.statusCard} aria-label="当前 Focus 家具组团">
+          <strong>Focus 家具组团</strong>
+          {focusIdentity ? (
+            <span>
+              {focusIdentity.groupType} · {focusIdentity.note} · 房间 {focusIdentity.room} · 分区 {focusIdentity.zone} ·{" "}
+              {focusIdentity.id}
+            </span>
+          ) : (
+            <span>未选择；请使用 Move 工具在画布点击家具组团</span>
+          )}
+        </section>
         <label>
           说明
           <input
             value={note}
             disabled={disabled}
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              setNote(event.target.value);
+              item.setFurnitureInstanceDraft(type, event.target.value);
+            }}
             placeholder="可选"
           />
         </label>
-        <Button
-          type="button"
-          size="smaller"
-          variant={activeDrawingControl === CONTROLS.rectangle ? "primary" : "neutral"}
-          look={activeDrawingControl === CONTROLS.rectangle ? "filled" : "outlined"}
-          disabled={Boolean(drawDisabledReason(CONTROLS.rectangle))}
-          tooltip={drawDisabledReason(CONTROLS.rectangle) || "在当前 Focus 家具组团内绘制矩形实例"}
-          aria-label="绘制矩形家具实例"
-          aria-pressed={activeDrawingControl === CONTROLS.rectangle}
-          onClick={() => activeDrawingControl === CONTROLS.rectangle || start(CONTROLS.rectangle)}
-        >
-          画矩形实例
-        </Button>
-        <Button
-          type="button"
-          size="smaller"
-          variant={activeDrawingControl === CONTROLS.polygon ? "primary" : "neutral"}
-          look={activeDrawingControl === CONTROLS.polygon ? "filled" : "outlined"}
-          disabled={Boolean(drawDisabledReason(CONTROLS.polygon))}
-          tooltip={drawDisabledReason(CONTROLS.polygon) || "在当前 Focus 家具组团内绘制多边形实例"}
-          aria-label="绘制多边形家具实例"
-          aria-pressed={activeDrawingControl === CONTROLS.polygon}
-          onClick={() => activeDrawingControl === CONTROLS.polygon || start(CONTROLS.polygon)}
-        >
-          画多边形实例
-        </Button>
       </div>
 
+      <fieldset className={styles.palette} disabled={disabled}>
+        <legend>待绘制实例类别</legend>
+        {FURNITURE_TYPE_GROUPS.map((group) => (
+          <section key={group.name} className={styles.paletteGroup} aria-label={group.name}>
+            <strong style={{ color: group.color }}>{group.name}</strong>
+            <div>
+              {group.types.map((value) => {
+                const selectedType = type === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={selectedType ? styles.typeSelected : styles.typeButton}
+                    style={{ "--furniture-type-color": group.color }}
+                    aria-label={`${FURNITURE_TYPES[value]} (${value})`}
+                    aria-pressed={selectedType}
+                    title={`${FURNITURE_TYPES[value]} (${value})`}
+                    onClick={() => {
+                      setType(value);
+                      item.setFurnitureInstanceDraft(value, note);
+                    }}
+                  >
+                    <span aria-hidden="true">{selectedType ? "✓" : ""}</span>
+                    {FURNITURE_TYPES[value]}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </fieldset>
+
       <div className={styles.row}>
-        <label>
-          当前实例
-          <select
-            value={effectiveSelectedId}
-            disabled={disabled}
-            onChange={(event) => item.selectFurnitureInstance(event.target.value)}
-          >
-            <option value="">请选择</option>
-            {instances.map((instance) => (
-              <option key={instance.id} value={instance.id}>
-                {FURNITURE_TYPES[instance.context.instance_type] || instance.context.instance_type} ·{" "}
-                {short(instance.id)} · {effectiveFurnitureInstanceReviewStatus(instance, errors)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <section className={styles.statusCard} aria-label="当前家具实例">
+          <strong>当前实例</strong>
+          {selected ? (
+            <span>
+              {FURNITURE_TYPES[selected.context.instance_type] || selected.context.instance_type} ·{" "}
+              {shortFurnitureId(selected.id)} · 父级 {shortFurnitureId(selected.context.room_id)} →{" "}
+              {shortFurnitureId(selected.context.zone_id)} → {shortFurnitureId(selected.context.group_id)} ·{" "}
+              {reviewStatus}
+            </span>
+          ) : (
+            <span>未选择；请使用 Move 工具在画布点击家具实例</span>
+          )}
+        </section>
         {orientationEnabled && <span>朝向证据：{orientation}</span>}
         <span>复核状态：{reviewStatus}</span>
-        {orientationEnabled && <>
-        <Button
-          type="button"
-          size="smaller"
-          variant={activeOrientationControl === CONTROLS.frontDirection ? "primary" : "neutral"}
-          look={activeOrientationControl === CONTROLS.frontDirection ? "filled" : "outlined"}
-          disabled={Boolean(orientationDisabledReason(CONTROLS.frontDirection))}
-          tooltip={
-            orientationDisabledReason(CONTROLS.frontDirection) ||
-            (activeOrientationControl === CONTROLS.frontDirection
-              ? "当前正在标注正面方向；Esc 取消"
-              : "激活两点式正面方向 Vector")
-          }
-          aria-label="标注家具正面方向"
-          aria-pressed={activeOrientationControl === CONTROLS.frontDirection}
-          onClick={() => activeOrientationControl === CONTROLS.frontDirection || start(CONTROLS.frontDirection)}
-        >
-          标注正面方向
-        </Button>
-        <Button
-          type="button"
-          size="smaller"
-          variant={activeOrientationControl === CONTROLS.frontEdge ? "primary" : "neutral"}
-          look={activeOrientationControl === CONTROLS.frontEdge ? "filled" : "outlined"}
-          disabled={Boolean(orientationDisabledReason(CONTROLS.frontEdge))}
-          tooltip={
-            orientationDisabledReason(CONTROLS.frontEdge) ||
-            (activeOrientationControl === CONTROLS.frontEdge
-              ? "当前正在标注正面边；Esc 取消"
-              : "激活并吸附到真实家具边界的两点 Vector")
-          }
-          aria-label="标注家具正面边"
-          aria-pressed={activeOrientationControl === CONTROLS.frontEdge}
-          onClick={() => activeOrientationControl === CONTROLS.frontEdge || start(CONTROLS.frontEdge)}
-        >
-          标注正面边
-        </Button>
-        <Button
-          type="button"
-          size="smaller"
-          variant="neutral"
-          look="outlined"
-          disabled={Boolean(resetDisabledReason)}
-          tooltip={resetDisabledReason || "只清除当前实例的显式朝向证据和未完成草稿"}
-          aria-label="将当前家具实例朝向恢复为 unknown"
-          onClick={restoreUnknown}
-        >
-          恢复 unknown
-        </Button>
-        </>}
+        {orientationEnabled && (
+          <>
+            <Button
+              type="button"
+              size="smaller"
+              variant={activeOrientationControl === CONTROLS.frontDirection ? "primary" : "neutral"}
+              look={activeOrientationControl === CONTROLS.frontDirection ? "filled" : "outlined"}
+              disabled={Boolean(orientationDisabledReason(CONTROLS.frontDirection))}
+              tooltip={
+                orientationDisabledReason(CONTROLS.frontDirection) ||
+                (activeOrientationControl === CONTROLS.frontDirection
+                  ? "当前正在标注正面方向；Esc 取消"
+                  : "激活两点式正面方向 Vector")
+              }
+              aria-label="标注家具正面方向"
+              aria-pressed={activeOrientationControl === CONTROLS.frontDirection}
+              onClick={() => activeOrientationControl === CONTROLS.frontDirection || start(CONTROLS.frontDirection)}
+            >
+              标注正面方向
+            </Button>
+            <Button
+              type="button"
+              size="smaller"
+              variant={activeOrientationControl === CONTROLS.frontEdge ? "primary" : "neutral"}
+              look={activeOrientationControl === CONTROLS.frontEdge ? "filled" : "outlined"}
+              disabled={Boolean(orientationDisabledReason(CONTROLS.frontEdge))}
+              tooltip={
+                orientationDisabledReason(CONTROLS.frontEdge) ||
+                (activeOrientationControl === CONTROLS.frontEdge
+                  ? "当前正在标注正面边；Esc 取消"
+                  : "激活并吸附到真实家具边界的两点 Vector")
+              }
+              aria-label="标注家具正面边"
+              aria-pressed={activeOrientationControl === CONTROLS.frontEdge}
+              onClick={() => activeOrientationControl === CONTROLS.frontEdge || start(CONTROLS.frontEdge)}
+            >
+              标注正面边
+            </Button>
+            <Button
+              type="button"
+              size="smaller"
+              variant="neutral"
+              look="outlined"
+              disabled={Boolean(resetDisabledReason)}
+              tooltip={resetDisabledReason || "只清除当前实例的显式朝向证据和未完成草稿"}
+              aria-label="将当前家具实例朝向恢复为 unknown"
+              onClick={restoreUnknown}
+            >
+              恢复 unknown
+            </Button>
+          </>
+        )}
         <Button
           type="button"
           size="smaller"
