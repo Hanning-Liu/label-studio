@@ -1,5 +1,7 @@
 import { withAlpha } from "../utils/roomConstraintGeometry";
 
+const FURNITURE_GEOMETRY_CONTROLS = new Set(["furniture_instance_rectangle", "furniture_instance_polygon"]);
+
 const appearance = Object.freeze({
   focused: Object.freeze({ fill: 0.16, stroke: 0.9, width: 2 }),
   sameZone: Object.freeze({ fill: 0.045, stroke: 0.28, width: 1 }),
@@ -11,14 +13,35 @@ export function furnitureInstanceToolbarTools(tools, enabled) {
   if (!enabled) return tools;
   const seen = new Set();
   return tools.filter((tool) => {
-    // L4 drawing has one explicit entry point in FurnitureInstanceControls.
-    // Keep the tools registered so the top buttons can activate them, but do
-    // not expose a second set of ambiguous color/tool buttons below the dock.
-    if (tool.isDrawingTool) return false;
+    if (tool.isDrawingTool && !FURNITURE_GEOMETRY_CONTROLS.has(tool.control?.name)) return false;
     if (seen.has(tool.fullName)) return false;
     seen.add(tool.fullName);
     return true;
   });
+}
+
+export function isFurnitureInstanceGeometryTool(tool) {
+  return Boolean(tool?.obj?.furnitureInstancesEnabled && FURNITURE_GEOMETRY_CONTROLS.has(tool.control?.name));
+}
+
+export function furnitureInstanceToolBlockReason(tool) {
+  if (!isFurnitureInstanceGeometryTool(tool)) return "";
+  const operationReason = tool.obj.furnitureInstanceOperationBlockReason?.();
+  if (operationReason && operationReason !== "请先完成绘制或等待提交结束") return operationReason;
+  if (tool.obj.annotation?.isDrawing || tool.obj.annotation?.hasIncompletePolygons) return "请先完成或取消当前绘制";
+  return tool.obj.furnitureInstanceDrawBlockReason?.(tool.control?.name) || "";
+}
+
+export function furnitureInstanceInteractionLayerListening(item) {
+  if (
+    !item?.furnitureInstancesEnabled ||
+    item?.furnitureInstanceBusy ||
+    item?.annotation?.isDrawing ||
+    item?.annotation?.hasIncompletePolygons
+  )
+    return false;
+  const tool = item.getToolsManager?.().findSelectedTool?.();
+  return tool?.fullName === "MoveTool" || tool?.toolName === "MoveTool";
 }
 
 export const furnitureReferenceContext = (region) => {

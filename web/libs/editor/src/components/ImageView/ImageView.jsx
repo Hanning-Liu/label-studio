@@ -34,6 +34,7 @@ import {
   shouldRenderOccupancyReferenceRegion,
 } from "../../occupancy/referenceDisplay";
 import { FurnitureInstanceControls } from "../../furnitureInstances/FurnitureInstanceControls";
+import { FurnitureInstanceLayer } from "../../furnitureInstances/FurnitureInstanceLayer";
 import {
   furnitureInstanceMultiRegionSelection,
   furnitureInstanceToolbarTools,
@@ -1571,6 +1572,7 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
         );
       })}
       <OccupancyLayer item={item} />
+      <FurnitureInstanceLayer item={item} />
       {foregroundBarrierRegions.length > 0 && (
         <Regions name="occupancy-barriers" regions={foregroundBarrierRegions} smoothing={item.smoothingEnabled} />
       )}
