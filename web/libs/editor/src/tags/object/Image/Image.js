@@ -12,6 +12,7 @@ import { VectorReview } from "../../../mixins/VectorReview";
 import { Occupancy } from "../../../mixins/Occupancy";
 import { FurnitureInstances } from "../../../mixins/FurnitureInstances";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
+import { showFurnitureInstanceValidationWarning } from "../../../furnitureInstances/submitValidation";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
 import { KeyPointRegionModel } from "../../../regions/KeyPointRegion";
@@ -1366,12 +1367,7 @@ const Model = types
       if (self.furnitureInstancesEnabled) {
         const errors = self.furnitureInstanceErrors;
         if (!errors.length) return true;
-        InfoModal.warning(
-          `L4 家具实例校验未通过（${errors.length} 项）：\n${errors
-            .slice(0, 8)
-            .map((error) => `• ${error.message}`)
-            .join("\n")}`,
-        );
+        showFurnitureInstanceValidationWarning(self, errors);
         return false;
       }
       if (self.occupancyEnabled) {
