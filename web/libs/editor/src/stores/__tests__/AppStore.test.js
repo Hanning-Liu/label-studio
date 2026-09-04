@@ -132,16 +132,18 @@ describe("AppStore", () => {
       expect(complete).toHaveBeenCalledTimes(1);
     });
 
-    it("Esc does not run Vector completion for an armed L4 geometry tool before its first point", () => {
+    it("Esc cancels an armed L4 geometry draft and returns through the image action", () => {
       createStore();
       const exitRegistration = Hotkey().addNamed.mock.calls.find(([name]) => name === "region:exit");
       const complete = jest.fn();
+      const cancelFurnitureInstanceGeometryDrawing = jest.fn();
       const tool = {
         isDrawing: false,
         control: { name: "furniture_instance_rectangle" },
         obj: {
           furnitureInstancesEnabled: true,
           furnitureInstanceDrawingControl: "furniture_instance_rectangle",
+          cancelFurnitureInstanceGeometryDrawing,
         },
         complete,
       };
@@ -150,6 +152,7 @@ describe("AppStore", () => {
       exitRegistration[1]({ stopImmediatePropagation: jest.fn() });
 
       expect(complete).not.toHaveBeenCalled();
+      expect(cancelFurnitureInstanceGeometryDrawing).toHaveBeenCalledWith("furniture_instance_rectangle");
     });
 
     it("preProcessSnapshot converts customButtons array to map with _replace", () => {

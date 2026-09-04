@@ -3,6 +3,7 @@ import Modal from "antd/lib/modal";
 
 import { FurnitureInstanceControls } from "../FurnitureInstanceControls";
 import { effectiveFurnitureInstanceReviewStatus } from "../FurnitureInstanceOutliner";
+import { FURNITURE_TYPES } from "../domain";
 
 jest.mock("antd/lib/modal", () => ({ __esModule: true, default: { confirm: jest.fn() } }));
 
@@ -52,6 +53,8 @@ const setup = ({
     id: "instance-i",
     context: {
       instance_type: "desk",
+      room_id: "room-r",
+      zone_id: "zone-z",
       group_id: "group-g",
       review_status: reviewStatus,
       review_fingerprint: reviewStatus === "reviewed" ? "a".repeat(64) : null,
@@ -69,7 +72,13 @@ const setup = ({
     furnitureInstanceNote: "",
     furnitureInstanceDrawingControl: "",
     furnitureInstanceDeleteRequestId: deleteRequestId,
-    furnitureInstanceParents: [{ id: "group-g", groupType: "study_work", roomId: "room-r", zoneId: "zone-z" }],
+    furnitureInstanceParents: [
+      { id: "group-g", groupType: "study_work", groupNote: "窗边", roomId: "room-r", zoneId: "zone-z" },
+    ],
+    furnitureInstanceData: [
+      { id: "room-r", meta: { room_graph_node: { room_type: "书房" } } },
+      { id: "zone-z", from_name: "function_zone", value: { labels: ["学习办公"] } },
+    ],
     furnitureInstanceLogicals: [instance, ...otherInstances],
     furnitureInstanceFocusId: "group-g",
     furnitureInstanceEffectiveSelectedId: instance.id,
@@ -171,6 +180,25 @@ test("orientation controls are absent when a project explicitly disables them", 
   expect(screen.queryByRole("button", { name: "将当前家具实例朝向恢复为 unknown" })).not.toBeInTheDocument();
 });
 
+test("renders canvas-first status cards and all 26 grouped palette choices", () => {
+  const { item } = setup();
+  expect(screen.getByRole("region", { name: "当前 Focus 家具组团" })).toHaveTextContent(
+    "学习办公 · 窗边 · 房间 书房 · 分区 学习办公 · group-g",
+  );
+  expect(screen.getByRole("region", { name: "当前家具实例" })).toHaveTextContent(
+    "书桌 · instance-i · 父级 room-r → zone-z → group-g",
+  );
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "绘制矩形家具实例" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "绘制多边形家具实例" })).not.toBeInTheDocument();
+  for (const [value, label] of Object.entries(FURNITURE_TYPES)) {
+    expect(screen.getByRole("button", { name: `${label} (${value})` })).toBeInTheDocument();
+  }
+  fireEvent.click(screen.getByRole("button", { name: "沙发 (sofa)" }));
+  expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("sofa", "");
+  expect(screen.getByRole("button", { name: "沙发 (sofa)" })).toHaveAttribute("aria-pressed", "true");
+});
+
 test("orientation buttons are explicit controls with pressed feedback and a single active mode", () => {
   const { item, rerender } = setup();
   const direction = screen.getByRole("button", { name: "标注家具正面方向" });
@@ -190,20 +218,6 @@ test("orientation buttons are explicit controls with pressed feedback and a sing
   rerender();
   expect(screen.getByRole("button", { name: "标注家具正面方向" })).toHaveAttribute("aria-pressed", "false");
   expect(screen.getByRole("button", { name: "标注家具正面边" })).toHaveAttribute("aria-pressed", "true");
-});
-
-test("a top drawing button reactivates its tool after Move was selected", () => {
-  const { item, rerender } = setup();
-  fireEvent.click(screen.getByRole("button", { name: "绘制矩形家具实例" }));
-  rerender();
-  expect(screen.getByRole("button", { name: "绘制矩形家具实例" })).toHaveAttribute("aria-pressed", "true");
-
-  item.selectedToolControl = "";
-  rerender();
-  const rectangle = screen.getByRole("button", { name: "绘制矩形家具实例" });
-  expect(rectangle).toHaveAttribute("aria-pressed", "false");
-  fireEvent.click(rectangle);
-  expect(item.startFurnitureInstanceTool).toHaveBeenCalledTimes(2);
 });
 
 test("restore unknown removes only the selected invalid evidence, clears its error, and is idempotent", async () => {
@@ -271,5 +285,7 @@ test("parent fingerprint failures are shown as stale without rewriting saved con
 
   setup({ errors: [{ code: "parent_stale", instanceId: "instance-i", message: "父家具组团已更新" }] });
   expect(screen.getByText("复核状态：stale（父级已过期）")).toBeInTheDocument();
-  expect(screen.getByRole("option", { name: "书桌 · instance-i · stale" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "当前家具实例" })).toHaveTextContent(
+    "书桌 · instance-i · 父级 room-r → zone-z → group-g · stale（父级已过期）",
+  );
 });
