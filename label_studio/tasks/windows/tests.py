@@ -274,14 +274,14 @@ class WindowDomainTests(SimpleTestCase):
         trace = next(item for item in traces if item.result_id == "left-window")
         targets = [
             {"level": "L2", "entity_id": "zone", "room_id": "left", "geometry": Polygon([(0, 0), (480, 0), (480, 1000), (0, 1000)])},
-            {"level": "L3", "entity_id": "group", "room_id": "left", "geometry": Polygon([(430, 240), (470, 240), (470, 310), (430, 310)])},
+            {"level": "L3", "entity_id": "group", "room_id": "left", "geometry": Polygon([(430, 240), (480, 240), (480, 310), (430, 310)])},
             {"level": "L4", "entity_id": "desk", "room_id": "left", "geometry": Polygon([(420, 320), (460, 320), (460, 380), (420, 380)])},
         ]
         projections = derive_window_projections([trace], connections, targets, self.config)
         self.assertEqual({item["target"]["level"] for item in projections}, {"L2", "L3", "L4"})
         l3 = next(item for item in projections if item["target"]["level"] == "L3")
         self.assertFalse(projection_is_stale(l3, trace, targets[1], self.config))
-        changed = {**targets[1], "geometry": Polygon([(400, 240), (450, 240), (450, 310), (400, 310)])}
+        changed = {**targets[1], "geometry": Polygon([(400, 240), (480, 240), (480, 310), (400, 310)])}
         self.assertTrue(projection_is_stale(l3, trace, changed, self.config))
         recomputed = derive_window_projections([trace], connections, [changed], self.config)
         self.assertEqual(len(recomputed), 1)
@@ -316,8 +316,8 @@ class WindowDomainTests(SimpleTestCase):
             "entity_id": "two-pieces",
             "room_id": "left",
             "geometry": MultiPolygon([
-                Polygon([(430, 210), (470, 210), (470, 250), (430, 250)]),
-                Polygon([(430, 350), (470, 350), (470, 390), (430, 390)]),
+                Polygon([(430, 210), (480, 210), (480, 250), (430, 250)]),
+                Polygon([(430, 350), (480, 350), (480, 390), (430, 390)]),
             ]),
         }
         projection = derive_window_projections([trace], connections, [target], self.config)[0]
@@ -325,6 +325,31 @@ class WindowDomainTests(SimpleTestCase):
         self.assertLess(
             projection["path_intervals"][0]["path_parameter_end"],
             projection["path_intervals"][1]["path_parameter_start"],
+        )
+
+    def test_boundary_projection_recovers_roundoff_but_not_real_gap(self):
+        traces, connections = self.prepared_pair()
+        trace = next(item for item in traces if item.result_id == "left-window")
+        targets = [
+            {
+                "level": "L3",
+                "entity_id": "roundoff",
+                "room_id": "left",
+                "geometry": Polygon([(430, 240), (480.0000006, 240), (480.0000006, 310), (430, 310)]),
+            },
+            {
+                "level": "L3",
+                "entity_id": "visible-gap",
+                "room_id": "left",
+                "geometry": Polygon([(430, 240), (479.99, 240), (479.99, 310), (430, 310)]),
+            },
+        ]
+        projections = derive_window_projections([trace], connections, targets, self.config)
+        self.assertEqual([item["target"]["entity_id"] for item in projections], ["roundoff"])
+        self.assertAlmostEqual(projections[0]["relation"]["overlap_length_px"], 70)
+        self.assertEqual(
+            projections[0]["relation"]["boundary_overlap_tolerance_px"],
+            self.config.projection_boundary_tolerance_px,
         )
 
     def test_v3_adapter_is_deep_equal_and_v4_validates_public_schema(self):
@@ -345,7 +370,7 @@ class WindowDomainTests(SimpleTestCase):
                 connections,
                 [
                     {"level": "L2", "entity_id": "schema-zone", "room_id": "left", "geometry": Polygon([(0, 0), (480, 0), (480, 1000), (0, 1000)])},
-                    {"level": "L3", "entity_id": "schema-group", "room_id": "left", "geometry": Polygon([(430, 240), (470, 240), (470, 310), (430, 310)])},
+                    {"level": "L3", "entity_id": "schema-group", "room_id": "left", "geometry": Polygon([(430, 240), (480, 240), (480, 310), (430, 310)])},
                     {"level": "L4", "entity_id": "schema-item", "room_id": "left", "geometry": Polygon([(420, 320), (460, 320), (460, 380), (420, 380)])},
                 ],
                 self.config,
@@ -395,7 +420,7 @@ class WindowDownstreamAdapterTests(SimpleTestCase):
             "original_width": 1000,
             "original_height": 1000,
             "image_rotation": 0,
-            "value": {"x": 43, "y": 25, "width": 4, "height": 10, "rotation": 0},
+            "value": {"x": 43, "y": 25, "width": 5, "height": 10, "rotation": 0},
             "meta": {"occupancy_context": {"group_id": "group-a", "parent_room_id": "left"}},
         }
 

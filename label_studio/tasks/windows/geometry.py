@@ -18,7 +18,7 @@ from shapely.geometry import GeometryCollection, LineString, MultiLineString, Mu
 
 PARENT_ALGORITHM_VERSION = "window-parent-room/1"
 PAIRING_ALGORITHM_VERSION = "window-pairing/1"
-PROJECTION_ALGORITHM_VERSION = "window-projection/1"
+PROJECTION_ALGORITHM_VERSION = "window-projection/2"
 
 
 def _canonical(value):

@@ -1951,32 +1951,58 @@
         },
         "overlap_length_px": {
           "$ref": "#/$defs/positiveNumber"
+        },
+        "boundary_overlap_tolerance_px": {
+          "$ref": "#/$defs/positiveNumber"
         }
       }
     },
     "lowerLevelProjectionRelation": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "evidence",
-        "overlap_area_px2",
-        "inward_projection_limit_px"
-      ],
+      "required": ["kind", "evidence"],
       "properties": {
         "kind": {
           "const": "adjacent_to_window"
         },
         "evidence": {
-          "const": "positive_area_inward_projection_intersection"
+          "type": "string",
+          "enum": [
+            "positive_area_inward_projection_intersection",
+            "positive_length_boundary_overlap"
+          ]
         },
         "overlap_area_px2": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "overlap_length_px": {
+          "$ref": "#/$defs/positiveNumber"
+        },
+        "boundary_overlap_tolerance_px": {
           "$ref": "#/$defs/positiveNumber"
         },
         "inward_projection_limit_px": {
           "$ref": "#/$defs/positiveNumber"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": ["overlap_area_px2", "inward_projection_limit_px"],
+          "properties": {
+            "evidence": {
+              "const": "positive_area_inward_projection_intersection"
+            }
+          }
+        },
+        {
+          "required": ["overlap_length_px"],
+          "properties": {
+            "evidence": {
+              "const": "positive_length_boundary_overlap"
+            }
+          }
+        }
+      ]
     },
     "projectionDerivation": {
       "type": "object",

@@ -51,6 +51,41 @@ def _intervals_for_lines(trace, lines):
     return merge_intervals(intervals)
 
 
+def _boundary_overlap(trace, geometry, tolerance):
+    """Return exact and numerically near-coincident boundary intervals.
+
+    The microscopic buffer recovers coordinate round-off.  Requiring the
+    candidate length to project onto the trace without measurable shortening
+    rejects transverse point crossings introduced by buffering.
+    """
+    boundary = geometry.boundary
+    candidates = _line_parts(trace.line.intersection(boundary))
+    if tolerance > 0:
+        candidates.extend(_line_parts(boundary.intersection(
+            trace.line.buffer(tolerance, cap_style=2, join_style=2)
+        )))
+    intervals = []
+    path_length = trace.line.length
+    for line in candidates:
+        for first, second in zip(line.coords, list(line.coords)[1:]):
+            segment = LineString([first, second])
+            if segment.length <= 1e-9:
+                continue
+            projected = [
+                trace.line.project(Point(point), normalized=True)
+                for point in (first, second)
+            ]
+            start, end = min(projected), max(projected)
+            projected_length = (end - start) * path_length
+            if projected_length <= 1e-9:
+                continue
+            if projected_length + 1e-9 < segment.length * (1 - 1e-9):
+                continue
+            intervals.append((start, end))
+    intervals = merge_intervals(intervals)
+    return intervals, sum((end - start) * path_length for start, end in intervals)
+
+
 def _quad(trace, index, distance):
     start, end = trace.points[index : index + 2]
     normal = inward_normal(trace.room, start, end)
@@ -144,16 +179,31 @@ def derive_window_projections(traces, connections, targets, config):
             if geometry.is_empty or not geometry.is_valid or geometry.area <= 1e-9:
                 raise ValueError(f"投影目标 {target['entity_id']} 的几何无效。")
             if level == "L2":
-                overlap_geometry = trace.line.intersection(geometry.boundary)
-                lines = _line_parts(overlap_geometry)
-                overlap_length = sum(line.length for line in lines)
-                intervals = _intervals_for_lines(trace, lines)
+                intervals, overlap_length = _boundary_overlap(
+                    trace, geometry, config.projection_boundary_tolerance_px
+                )
                 if overlap_length <= 1e-9 or not intervals:
                     continue
                 relation = {
                     "kind": "bounds_zone",
                     "evidence": "positive_length_boundary_overlap",
                     "overlap_length_px": overlap_length,
+                    "boundary_overlap_tolerance_px": config.projection_boundary_tolerance_px,
+                }
+            elif level == "L3":
+                # L3 uses direct positive-length boundary overlap.  No inward
+                # projection band is generated; only the shared boundary line
+                # contributes path intervals and evidence.
+                intervals, overlap_length = _boundary_overlap(
+                    trace, geometry, config.projection_boundary_tolerance_px
+                )
+                if overlap_length <= 1e-9 or not intervals:
+                    continue
+                relation = {
+                    "kind": "adjacent_to_window",
+                    "evidence": "positive_length_boundary_overlap",
+                    "overlap_length_px": overlap_length,
+                    "boundary_overlap_tolerance_px": config.projection_boundary_tolerance_px,
                 }
             else:
                 distance = config.lower_level_inward_projection_limit_px
@@ -215,7 +265,16 @@ def projection_is_stale(projection, trace: WindowTrace, target, config, *, curre
     except (TypeError, ValueError):
         return True
     relation = projection.get("relation", {})
-    if target.get("level") in {"L3", "L4"}:
+    if relation.get("evidence") == "positive_length_boundary_overlap":
+        try:
+            if not math.isclose(
+                float(relation.get("boundary_overlap_tolerance_px")),
+                config.projection_boundary_tolerance_px,
+            ):
+                return True
+        except (TypeError, ValueError):
+            return True
+    elif target.get("level") in {"L3", "L4"}:
         try:
             if not math.isclose(
                 float(relation.get("inward_projection_limit_px")),

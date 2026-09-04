@@ -22,6 +22,9 @@ class WindowConfig:
     maximum_tangent_delta_deg: float = 10.0
     flattening_tolerance_px: float = 0.5
     lower_level_inward_projection_limit_px: float | None = 60.0
+    # Numerical tolerance only; it must remain far below the semantic room
+    # boundary tolerance so it cannot bridge a visible annotation gap.
+    projection_boundary_tolerance_px: float = 1e-6
 
     def matching_policy(self):
         return {
