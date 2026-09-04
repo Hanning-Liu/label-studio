@@ -271,6 +271,27 @@ export const FurnitureInstances = types
       self.finishFurnitureInstanceOrientationDrawing(control, selectMove);
       return hadDraft;
     },
+    cancelFurnitureInstanceGeometryDrawing(name = "") {
+      const control = GEOMETRY_CONTROLS.has(name) ? name : self.furnitureInstanceDrawingControl;
+      if (!GEOMETRY_CONTROLS.has(control)) return false;
+      const manager = self.getToolsManager();
+      const tool = manager.allTools().find((candidate) => candidate.control?.name === control);
+      const area = tool?.currentArea;
+      const hadDraft = Boolean(area);
+      if (area) {
+        if (tool.cancelDrawing) tool.cancelDrawing(area);
+        else tool.deleteRegion?.();
+      } else if (self.annotation.isDrawing) {
+        self.annotation.setIsDrawing(false);
+        self.annotation.history.unfreeze();
+      }
+      self.furnitureInstanceDrawingControl = "";
+      self.annotation.names.get(CONTROLS.type)?.resetSelected?.();
+      const move = manager.allTools().find((candidate) => candidate.fullName === "MoveTool");
+      if (move) manager.selectTool(move, true);
+      self.updateRoomConstraintTools?.();
+      return hadDraft;
+    },
     startFurnitureInstanceTool(name) {
       if (ORIENTATION_CONTROLS.has(name) && ORIENTATION_CONTROLS.has(self.furnitureInstanceDrawingControl)) {
         if (

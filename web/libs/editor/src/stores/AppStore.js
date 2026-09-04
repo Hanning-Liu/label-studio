@@ -5,7 +5,7 @@ import { destroy, detach, flow, getEnv, getParent, getSnapshot, isAlive, isRoot,
 import { uniqBy } from "@humansignal/core/lib/utils/lodash-replacements";
 import InfoModal from "../components/Infomodal/Infomodal";
 import { Hotkey } from "../core/Hotkey";
-import { ORIENTATION_CONTROLS } from "../furnitureInstances/domain";
+import { GEOMETRY_CONTROLS, ORIENTATION_CONTROLS } from "../furnitureInstances/domain";
 import { destroy as destroySharedStore } from "../mixins/SharedChoiceStore/mixin";
 import ToolsManager from "../tools/Manager";
 import Utils from "../utils";
@@ -502,13 +502,23 @@ export default types
             (t) =>
               t.isDrawing ||
               (t.obj?.furnitureInstancesEnabled &&
-                ORIENTATION_CONTROLS.has(t.control?.name) &&
+                (ORIENTATION_CONTROLS.has(t.control?.name) || GEOMETRY_CONTROLS.has(t.control?.name)) &&
                 t.obj.furnitureInstanceDrawingControl &&
                 t.obj.furnitureInstanceDrawingControl === t.control?.name),
           );
 
         if (tools.length > 0) {
-          tools.forEach((t) => t.complete?.());
+          tools.forEach((t) => {
+            if (
+              t.obj?.furnitureInstancesEnabled &&
+              GEOMETRY_CONTROLS.has(t.control?.name) &&
+              t.obj.furnitureInstanceDrawingControl === t.control?.name
+            ) {
+              t.obj.cancelFurnitureInstanceGeometryDrawing?.(t.control.name);
+            } else {
+              t.complete?.();
+            }
+          });
         } else if (c && c.isLinkingMode) {
           c.stopLinkingMode();
         } else if (c && !c.isDrawing) {
