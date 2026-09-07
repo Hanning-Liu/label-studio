@@ -128,6 +128,7 @@ const _Tool = types
         self.currentArea = null;
         self.mode = "viewing";
         self.annotation.afterCreateResult(currentArea, control);
+        self.obj.finalizeFurnitureInstanceRegion?.(currentArea);
       },
 
       setDrawing(drawing) {

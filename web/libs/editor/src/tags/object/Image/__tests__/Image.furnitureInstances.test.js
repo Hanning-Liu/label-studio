@@ -80,7 +80,10 @@ const setup = (occupancy, furniture, config = CONFIG, markReferencesReadonly = t
       settings: {},
     },
   );
-  const readonlyReferences = occupancy.map((result) => ({ ...structuredClone(result), readonly: markReferencesReadonly }));
+  const readonlyReferences = occupancy.map((result) => ({
+    ...structuredClone(result),
+    readonly: markReferencesReadonly,
+  }));
   store.initializeStore({ annotations: [{ result: [...readonlyReferences, ...structuredClone(furniture)] }] });
   const annotation = store.annotationStore.selected;
   const image = annotation.names.get("image");
@@ -148,6 +151,198 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
   ToolsManager.removeAllTools();
+});
+
+const armGeometry = (image, name = CONTROLS.rectangle, threePoint = false, dynamic = false) => {
+  image.setFurnitureInstanceDraft("desk");
+  image.setFurnitureInstanceFocus("group-g");
+  image.startFurnitureInstanceTool(name);
+  if (name === CONTROLS.rectangle) {
+    const manager = image.getToolsManager();
+    manager.selectTool(
+      manager
+        .allTools()
+        .find(
+          (tool) =>
+            tool.control?.name === name &&
+            tool.toolName === (threePoint ? "Rectangle3PointTool" : "RectangleTool") &&
+            tool.dynamic === dynamic,
+        ),
+      true,
+    );
+  }
+  return image.getToolsManager().findSelectedTool();
+};
+
+const drawRectangle = (tool, mode = "drag") => {
+  const event = { offsetX: 200, offsetY: 100 };
+  if (mode === "three-point") {
+    tool.clickEv(event, [20, 20]);
+    tool.mousemoveEv(event, [40, 20]);
+    tool.clickEv(event, [40, 20]);
+    tool.mousemoveEv(event, [40, 40]);
+    tool.clickEv(event, [40, 40]);
+  } else {
+    tool.mousedownEv(event, [20, 20]);
+    if (mode === "two-clicks") {
+      tool.mouseupEv(event, [20, 20]);
+      tool.clickEv(event, [20, 20]);
+    }
+    tool.mousemoveEv(event, [40, 40]);
+    tool.mouseupEv(event, [40, 40]);
+    if (mode === "two-clicks") {
+      expect(tool.annotation.isDrawing).toBe(true);
+      expect(tool.obj.getToolsManager().findSelectedTool()).toBe(tool);
+      tool.clickEv(event, [40, 40]);
+    }
+  }
+  jest.runOnlyPendingTimers();
+};
+
+const expectCompletedGeometry = (image, tool) => {
+  expect(image.furnitureInstanceLogicals).toHaveLength(1);
+  expect(image.getToolsManager().findSelectedTool().fullName).toBe("MoveTool");
+  expect(tool.selected).toBe(false);
+  expect(tool.currentArea).toBeNull();
+  expect(image.annotation.isDrawing).toBe(false);
+  expect(image.annotation.history.isFrozen).toBe(false);
+  expect(image.furnitureInstanceDrawingControl).toBe("");
+  const instance = image.furnitureInstanceLogicals[0];
+  expect(image.furnitureInstanceSelectedId).toBe(instance.id);
+  expect(image.furnitureInstanceFocusId).toBe("group-g");
+  expect(image.furnitureInstanceType).toBe("desk");
+  expect(image.annotation.selectedRegions.map((region) => region.cleanId)).toEqual(
+    instance.parts.map((part) => part.id),
+  );
+  expect(instance.context).toMatchObject({ group_id: "group-g", instance_type: "desk", review_status: "pending" });
+};
+
+test.each(["drag", "two-clicks", "three-point"])(
+  "completed L4 %s rectangle returns to Move and selects the new instance",
+  (mode) => {
+    const { image } = setup(makeOccupancy(), []);
+    const tool = armGeometry(image, CONTROLS.rectangle, mode === "three-point");
+    drawRectangle(tool, mode);
+    expectCompletedGeometry(image, tool);
+  },
+);
+
+test("completed L4 polygon returns to Move only after a valid closure", () => {
+  const { image, annotation } = setup(makeOccupancy(), []);
+  const tool = armGeometry(image, CONTROLS.polygon);
+  tool.startDrawing(20, 20);
+  const region = tool.currentArea;
+  region.addPoint(40, 20);
+  expect(annotation.isDrawing).toBe(true);
+  expect(image.getToolsManager().findSelectedTool()).toBe(tool);
+  region.addPoint(40, 40);
+  tool.finishDrawing();
+  jest.runOnlyPendingTimers();
+  expect(region.closed).toBe(true);
+  expectCompletedGeometry(image, tool);
+});
+
+test.each(Array.from({ length: 8 }, (_, flags) => [Boolean(flags & 1), Boolean(flags & 2), Boolean(flags & 4)]))(
+  "L4 completion overrides tool persistence without changing preferences (select=%s, continuous=%s, preserve=%s)",
+  (selectAfterCreate, continuousLabeling, preserveSelectedTool) => {
+    const { image, store } = setup(makeOccupancy(), []);
+    if (store.settings.selectAfterCreate !== selectAfterCreate) store.settings.toggleSelectAfterCreate();
+    if (store.settings.continuousLabeling !== continuousLabeling) store.settings.toggleContinuousLabeling();
+    if (store.settings.preserveSelectedTool !== preserveSelectedTool) store.settings.togglepreserveSelectedTool();
+    const tool = armGeometry(image);
+    drawRectangle(tool);
+    expectCompletedGeometry(image, tool);
+    expect(store.settings).toMatchObject({ selectAfterCreate, continuousLabeling, preserveSelectedTool });
+  },
+);
+
+test.each([false, true])(
+  "L4 rectangle completion works for dynamic=%s and survives a late completion callback",
+  (dynamic) => {
+    const { image } = setup(makeOccupancy(), []);
+    const tool = armGeometry(image, CONTROLS.rectangle, false, dynamic);
+    drawRectangle(tool);
+    tool._finishDrawing();
+    expectCompletedGeometry(image, tool);
+  },
+);
+
+test("completed geometry can be moved, resized, undone, redone and reloaded without changing parents", () => {
+  const { image, annotation } = setup(makeOccupancy(), []);
+  const refs = image.furnitureInstanceData.filter((result) => result.readonly);
+  const tool = armGeometry(image);
+  drawRectangle(tool);
+  const instance = image.furnitureInstanceLogicals[0];
+  const originalContext = structuredClone(instance.context);
+  const saved = annotation.serializeAnnotation({ fast: true });
+  annotation.history.undo();
+  expect(image.furnitureInstanceLogicals).toHaveLength(0);
+  annotation.history.redo();
+  expect(image.furnitureInstanceLogicals[0].context).toEqual(originalContext);
+  image.selectFurnitureInstance(instance.id);
+  const region = annotation.selectedRegions[0];
+  region.setPositionInternal(25, 25, 25, 25, 0);
+  expect(image.furnitureInstanceLogicals[0].context).toEqual(originalContext);
+  expect(region.x).toBe(25);
+  expect(region.width).toBe(25);
+  expect(image.furnitureInstanceData.filter((result) => result.readonly)).toEqual(refs);
+  const secondTool = armGeometry(image);
+  drawRectangle(secondTool);
+  expect(image.furnitureInstanceLogicals).toHaveLength(2);
+  expect(new Set(image.furnitureInstanceLogicals.map((item) => item.id)).size).toBe(2);
+  const loaded = setup(
+    refs,
+    saved.filter((result) => !result.readonly),
+  );
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(saved);
+});
+
+test.each([CONTROLS.rectangle, CONTROLS.polygon])(
+  "cancelled L4 %s never selects a transient instance or removes existing furniture",
+  (name) => {
+    const refs = makeOccupancy();
+    const furniture = makeInstance(refs);
+    const { image, annotation } = setup(refs, furniture);
+    const before = annotation.serializeAnnotation({ fast: true });
+    const tool = armGeometry(image, name);
+    tool.startDrawing(50, 50);
+    image.cancelFurnitureInstanceGeometryDrawing(name);
+    jest.runOnlyPendingTimers();
+    expect(tool.currentArea).toBeNull();
+    expect(annotation.isDrawing).toBe(false);
+    expect(annotation.history.isFrozen).toBe(false);
+    expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  },
+);
+
+test("a zero-size rectangle does not trigger successful L4 completion", () => {
+  const { image } = setup(makeOccupancy(), []);
+  const tool = armGeometry(image);
+  tool.startDrawing(20, 20);
+  tool.finishDrawing(20, 20);
+  expect(image.furnitureInstanceLogicals).toHaveLength(0);
+  expect(image.annotation.selectedRegions).toHaveLength(0);
+  expect(image.getToolsManager().findSelectedTool()).toBe(tool);
+  expect(image.annotation.isDrawing).toBe(false);
+});
+
+test.each(["drag", "two-clicks", "three-point"])("cancelled %s rectangle can immediately be drawn again", (mode) => {
+  const { image } = setup(makeOccupancy(), []);
+  const tool = armGeometry(image, CONTROLS.rectangle, mode === "three-point");
+  const event = { offsetX: 200, offsetY: 100 };
+  if (mode === "three-point") {
+    tool.clickEv(event, [20, 20]);
+    tool.clickEv(event, [40, 20]);
+  } else {
+    tool.mousedownEv(event, [20, 20]);
+    if (mode === "two-clicks") tool.clickEv(event, [20, 20]);
+    tool.mousemoveEv(event, [40, 40]);
+  }
+  image.cancelFurnitureInstanceGeometryDrawing();
+  expect(image.furnitureInstanceLogicals).toHaveLength(0);
+  const next = armGeometry(image, CONTROLS.rectangle, mode === "three-point");
+  drawRectangle(next, mode);
+  expectCompletedGeometry(image, next);
 });
 
 test("reset removes only the selected orientation, preserves geometry/parents/other instances, and is idempotent", () => {

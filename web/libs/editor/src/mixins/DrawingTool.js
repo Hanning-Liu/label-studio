@@ -266,7 +266,6 @@ const DrawingTool = types
         self.deleteRegion();
         newArea.notifyDrawingFinished();
         obj.finalizeOccupancyRegion?.(newArea);
-        obj.finalizeFurnitureInstanceRegion?.(newArea);
         return newArea;
       },
       createRegion(opts, skipAfterCreate = false) {
@@ -346,8 +345,10 @@ const DrawingTool = types
         }
       },
       _finishDrawing() {
-        self.commitDrawingRegion();
+        const newArea = self.commitDrawingRegion();
         self._resetState();
+        // L4 selection must run after drawing has released its transient state.
+        if (newArea) self.obj.finalizeFurnitureInstanceRegion?.(newArea);
       },
       _resetState() {
         self.annotation.setIsDrawing(false);
@@ -447,11 +448,20 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
         currentMode = DEFAULT_MODE;
         modeAfterMouseMove = DEFAULT_MODE;
       },
+      cancelDrawing() {
+        self.deleteRegion();
+        startPoint = null;
+        endPoint = { x: 0, y: 0 };
+        currentMode = DEFAULT_MODE;
+        modeAfterMouseMove = DEFAULT_MODE;
+        self._resetState();
+      },
 
       mousedownEv(ev, [x, y]) {
         if (!self.canStartDrawing()) return;
         if (!self.isAllowedInteraction(ev)) return;
         startPoint = { x, y };
+        if (isFurnitureInstanceDrawing(self)) endPoint = startPoint;
         if (currentMode === DEFAULT_MODE) {
           modeAfterMouseMove = DRAG_MODE;
         }
@@ -485,7 +495,8 @@ const TwoPointsDrawingTool = DrawingTool.named("TwoPointsDrawingTool")
       },
 
       clickEv(ev, [x, y]) {
-        if (!self.canStartDrawing()) return;
+        const finishingFurniture = isFurnitureInstanceDrawing(self) && self.isDrawing && currentMode === TWO_CLICKS_MODE;
+        if (!finishingFurniture && !self.canStartDrawing()) return;
         if (!self.isAllowedInteraction(ev)) return;
         // @todo: here is a potential problem with endPoint
         // it may be incorrect due to it may be not set at this moment
@@ -721,6 +732,13 @@ const ThreePointsDrawingTool = DrawingTool.named("ThreePointsDrawingTool")
             self._finishDrawing();
           });
         } else return;
+      },
+      cancelDrawing() {
+        self.deleteRegion();
+        points = [];
+        startPoint = null;
+        currentMode = DEFAULT_MODE;
+        self._resetState();
       },
 
       mousemoveEv(_, [x, y]) {

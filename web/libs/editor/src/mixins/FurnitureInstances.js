@@ -275,12 +275,17 @@ export const FurnitureInstances = types
       const control = GEOMETRY_CONTROLS.has(name) ? name : self.furnitureInstanceDrawingControl;
       if (!GEOMETRY_CONTROLS.has(control)) return false;
       const manager = self.getToolsManager();
-      const tool = manager.allTools().find((candidate) => candidate.control?.name === control);
+      // Rectangle controls have standard, three-point and dynamic tools.
+      // Cancel the tool that owns the draft, not the first registered variant.
+      const tool = manager.allTools().find((candidate) => candidate.control?.name === control && candidate.currentArea);
       const area = tool?.currentArea;
       const hadDraft = Boolean(area);
       if (area) {
         if (tool.cancelDrawing) tool.cancelDrawing(area);
-        else tool.deleteRegion?.();
+        else {
+          tool.deleteRegion?.();
+          tool._resetState?.();
+        }
       } else if (self.annotation.isDrawing) {
         self.annotation.setIsDrawing(false);
         self.annotation.history.unfreeze();
@@ -518,6 +523,8 @@ export const FurnitureInstances = types
       if (orientationEdit) self.finishFurnitureInstanceOrientationDrawing(controlName(result), true);
       else self.furnitureInstanceDrawingControl = "";
       self.refreshFurnitureInstanceReviews(wasReviewed ? [value.instance_id] : []);
+      if (region.results.some((item) => GEOMETRY_CONTROLS.has(controlName(item))))
+        self.selectFurnitureInstance(value.instance_id);
       if (wasReviewed)
         self.furnitureInstanceEditNotice =
           "已修改 reviewed 实例；复核状态已变为 needs_review（保存值 pending），请重新确认复核。";
