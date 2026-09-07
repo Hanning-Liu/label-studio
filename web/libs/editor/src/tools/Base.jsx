@@ -2,24 +2,35 @@ import { getEnv, getSnapshot, getType, types } from "mobx-state-tree";
 import { observer } from "mobx-react";
 import { Tool } from "../components/Toolbar/Tool";
 import { kebabCase } from "@humansignal/core/lib/utils/string";
+import {
+  furnitureInstanceToolBlockReason,
+  isFurnitureInstanceGeometryTool,
+} from "../furnitureInstances/referenceDisplay";
 import { occupancyToolBlockReason } from "../occupancy/editing";
 
 const ToolView = observer(({ item }) => {
   const occupancyBlockReason = occupancyToolBlockReason(item);
-  const label = occupancyBlockReason ? `${item.viewTooltip || "绘制工具"}：${occupancyBlockReason}` : item.viewTooltip;
+  const furnitureBlockReason = furnitureInstanceToolBlockReason(item);
+  const blockReason = occupancyBlockReason || furnitureBlockReason;
+  const label = blockReason ? `${item.viewTooltip || "绘制工具"}：${blockReason}` : item.viewTooltip;
 
   return (
     <Tool
       ariaLabel={kebabCase(getType(item).name)}
       active={item.selected}
-      disabled={item.disabled || !!occupancyBlockReason}
+      disabled={item.disabled || !!blockReason}
       icon={item.iconClass}
       label={label}
       shortcut={item.shortcut}
       extraShortcuts={item.extraShortcuts}
       tool={item}
       onClick={() => {
-        item.manager.selectTool(item, true);
+        if (furnitureBlockReason) return;
+        if (isFurnitureInstanceGeometryTool(item) && item.obj.startFurnitureInstanceTool) {
+          item.obj.startFurnitureInstanceTool(item.control?.name);
+        } else {
+          item.manager.selectTool(item, true);
+        }
       }}
     />
   );

@@ -6,7 +6,12 @@
  */
 
 import { destroy, getEnv, isAlive, types } from "mobx-state-tree";
-import { DrawingTool, TwoPointsDrawingTool, MultipleClicksDrawingTool, ThreePointsDrawingTool } from "../DrawingTool";
+import {
+  DrawingTool,
+  TwoPointsDrawingTool,
+  MultipleClicksDrawingTool,
+  ThreePointsDrawingTool,
+} from "../DrawingTool";
 
 jest.mock("../../utils/feature-flags", () => ({
   isFF: jest.fn(() => false),
@@ -343,6 +348,40 @@ describe("DrawingTool mixin", () => {
       tool.mouseupEv = jest.fn();
       tool.event("mouseup", { button: 0 }, [1, 2, 3, 4]);
       expect(tool.mouseupEv).toHaveBeenCalledWith(expect.any(Object), [1, 2], [3, 4]);
+    });
+
+    it("routes L4 orientation coordinates through the shared furniture event guard", () => {
+      const control = createMockControl({ name: "furniture_front_edge" });
+      const obj = createMockObj({
+        furnitureInstancesEnabled: true,
+        furnitureInstanceDrawingPoint: jest.fn(() => ({ x: 9, y: 8 })),
+      });
+      const { tool } = createStore({ control, obj });
+      tool.clickEv = jest.fn();
+
+      tool.event("click", { button: 0, shiftKey: false, timeStamp: 100 }, [1, 2, 3, 4]);
+
+      expect(obj.furnitureInstanceDrawingPoint).toHaveBeenCalledWith(
+        { x: 1, y: 2 },
+        null,
+        true,
+        "furniture_front_edge",
+      );
+      expect(tool.clickEv).toHaveBeenCalledWith(expect.any(Object), [9, 8], [3, 4]);
+    });
+
+    it("does not dispatch a rejected L4 orientation point", () => {
+      const control = createMockControl({ name: "furniture_front_direction" });
+      const obj = createMockObj({
+        furnitureInstancesEnabled: true,
+        furnitureInstanceDrawingPoint: jest.fn(() => null),
+      });
+      const { tool } = createStore({ control, obj });
+      tool.clickEv = jest.fn();
+
+      tool.event("click", { button: 0, shiftKey: false, timeStamp: 100 }, [1, 2, 3, 4]);
+
+      expect(tool.clickEv).not.toHaveBeenCalled();
     });
   });
 

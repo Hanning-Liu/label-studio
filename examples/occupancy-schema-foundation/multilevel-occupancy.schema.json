@@ -1288,6 +1288,22 @@
         }
       }
     },
+    "sourceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "provenance", "raw"],
+      "properties": {
+        "role": {
+          "enum": ["geometry", "category", "front_direction", "front_edge"]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "raw": {
+          "$ref": "#/$defs/rawResult"
+        }
+      }
+    },
     "vectorVertex": {
       "type": "object",
       "additionalProperties": false,
@@ -1852,9 +1868,14 @@
         "id",
         "instance_type",
         "parent",
+        "source_version",
+        "parent_fingerprint",
         "geometry",
         "orientation",
-        "provenance"
+        "review_status",
+        "review_fingerprint",
+        "provenance",
+        "source_results"
       ],
       "properties": {
         "kind": {
@@ -1873,6 +1894,13 @@
         },
         "parent": {
           "$ref": "#/$defs/parentChain"
+        },
+        "source_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_fingerprint": {
+          "$ref": "#/$defs/sha256"
         },
         "geometry": {
           "oneOf": [
@@ -1897,8 +1925,28 @@
             }
           ]
         },
+        "review_status": {
+          "enum": ["pending", "reviewed", "stale"]
+        },
+        "review_fingerprint": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "provenance": {
           "$ref": "#/$defs/provenance"
+        },
+        "source_results": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/sourceResult"
+          }
         },
         "raw": {
           "$ref": "#/$defs/rawResult"

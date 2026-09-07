@@ -26,6 +26,7 @@ import {
   withAlpha,
 } from "../utils/roomConstraintGeometry";
 import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
+import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
 
 const Model = types
   .model({
@@ -49,11 +50,14 @@ const Model = types
   }))
   .views((self) => ({
     get occupancyVertexEditing() {
+      const activePartId = self.parent?.occupancyEnabled
+        ? self.parent.occupancyActivePartId
+        : self.parent?.furnitureInstanceActivePartId;
       return Boolean(
         self.closed &&
-          self.parent?.occupancyEnabled &&
-          self.parent.occupancyActivePartId &&
-          self.parent.occupancyActivePartId === self.cleanId,
+          (self.parent?.occupancyEnabled || self.parent?.furnitureInstancesEnabled) &&
+          activePartId &&
+          activePartId === self.cleanId,
       );
     },
     get store() {
@@ -168,7 +172,7 @@ const Model = types
         }
         if (
           self.closed &&
-          self.parent?.occupancyEnabled &&
+          (self.parent?.occupancyEnabled || self.parent?.furnitureInstancesEnabled) &&
           !self.parent.acceptOccupancyEdit(self, {
             points: self.points.filter((p) => p !== point).map((p) => [p.x, p.y]),
           })
@@ -326,7 +330,7 @@ const Model = types
           index: self.points.length,
         };
 
-        if (self.closed && self.parent?.occupancyEnabled) {
+        if (self.closed && (self.parent?.occupancyEnabled || self.parent?.furnitureInstancesEnabled)) {
           const points = self.points.map((point) => [point.x, point.y]);
           points.splice(insertIdx, 0, [p.x, p.y]);
           if (!self.parent.acceptOccupancyEdit(self, { points })) return;
@@ -678,7 +682,9 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   const isReference = shouldRenderRoomReference(item);
   const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
   const occupancyReferenceStyles = occupancyZoneReferenceStyles(item, regionStyles);
+  const furnitureInstanceReferenceStyles = furnitureReferenceStyles(item, regionStyles);
   const displayStyles =
+    furnitureInstanceReferenceStyles ||
     occupancyReferenceStyles ||
     (isReference
       ? {

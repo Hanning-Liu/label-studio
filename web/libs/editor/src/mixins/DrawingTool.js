@@ -12,22 +12,50 @@ const OCCUPANCY_DRAWING_CONTROLS = new Set([
   "occupancy_polygon",
   "occupancy_barrier_vector",
 ]);
+const FURNITURE_INSTANCE_DRAWING_CONTROLS = new Set([
+  "furniture_instance_rectangle",
+  "furniture_instance_polygon",
+  "furniture_front_direction",
+  "furniture_front_edge",
+]);
 const resultControlName = (result) => result?.from_name?.name || result?.from_name || "";
 const stateControlName = (state) =>
   state?.parent?.name || state?.from_name?.name || state?.from_name || state?.name || "";
 const isOccupancyDrawing = (tool) => tool.obj?.occupancyEnabled && OCCUPANCY_DRAWING_CONTROLS.has(tool.control?.name);
+const isFurnitureInstanceDrawing = (tool) =>
+  tool.obj?.furnitureInstancesEnabled && FURNITURE_INSTANCE_DRAWING_CONTROLS.has(tool.control?.name);
+export const constrainFurnitureInstanceEventPoint = (tool, eventName, candidate, currentArea = null) => {
+  if (!isFurnitureInstanceDrawing(tool)) return candidate;
+  return tool.obj.furnitureInstanceDrawingPoint(
+    candidate,
+    currentArea,
+    !currentArea && ["mousedown", "click", "dblclick"].includes(eventName),
+    tool.control.name,
+  );
+};
 const occupancyAllowsControl = (name, drawingControl) =>
   name === drawingControl || (drawingControl !== "occupancy_barrier_vector" && name === "occupancy_type");
+const furnitureInstanceAllowsControl = (name, drawingControl) =>
+  name === drawingControl ||
+  (["furniture_instance_rectangle", "furniture_instance_polygon"].includes(drawingControl) &&
+    name === "furniture_instance_type");
+const guardedDrawingAllowsControl = (tool, name) =>
+  isOccupancyDrawing(tool)
+    ? occupancyAllowsControl(name, tool.control.name)
+    : isFurnitureInstanceDrawing(tool)
+      ? furnitureInstanceAllowsControl(name, tool.control.name)
+      : true;
+const isGuardedDrawing = (tool) => isOccupancyDrawing(tool) || isFurnitureInstanceDrawing(tool);
 const usableCurrentArea = (area) => !area || !isStateTreeNode(area) || isAlive(area);
 const drawingActiveStates = (tool) => {
   const activeStates = tool.obj.activeStates();
 
-  if (!isOccupancyDrawing(tool)) return activeStates;
+  if (!isGuardedDrawing(tool)) return activeStates;
 
   // L2 references can remain selected after locating a parent zone. Never let
   // those readonly labels leak into a new L3 region: one readonly result makes
   // the whole region readonly and hides its resize/vertex handles.
-  return activeStates.filter((state) => occupancyAllowsControl(stateControlName(state), tool.control.name));
+  return activeStates.filter((state) => guardedDrawingAllowsControl(tool, stateControlName(state)));
 };
 
 const DrawingTool = types
@@ -127,6 +155,11 @@ const DrawingTool = types
           if (!point) return;
           [x, y] = [point.x, point.y];
         }
+        if (isFurnitureInstanceDrawing(self)) {
+          const point = constrainFurnitureInstanceEventPoint(self, name, { x, y }, currentArea);
+          if (!point) return;
+          [x, y] = [point.x, point.y];
+        }
         let fn = `${name}Ev`;
 
         if (typeof self[fn] !== "undefined") self[fn].call(self, ev, [x, y], [canvasX, canvasY]);
@@ -156,13 +189,16 @@ const DrawingTool = types
         const control = self.control;
         const resultValue = control.getResultValue();
 
-        const drawingOptions =
-          self.obj.occupancyEnabled && control.name === "occupancy_rectangle" ? { ...opts, width: 0, height: 0 } : opts;
+        const zeroSizeRectangle =
+          (self.obj.occupancyEnabled && control.name === "occupancy_rectangle") ||
+          (self.obj.furnitureInstancesEnabled && control.name === "furniture_instance_rectangle");
+        const drawingOptions = zeroSizeRectangle ? { ...opts, width: 0, height: 0 } : opts;
         self.currentArea = self.obj.createDrawingRegion(drawingOptions, resultValue, control, false);
         self.currentArea.setDrawing(true);
 
         self.applyActiveStates(self.currentArea);
         self.obj.initializeOccupancyRegion?.(self.currentArea);
+        self.obj.initializeFurnitureInstanceRegion?.(self.currentArea);
         self.annotation.setIsDrawing(true);
         return self.currentArea;
       },
@@ -193,18 +229,20 @@ const DrawingTool = types
 
         const currentResults = [...currentArea.results];
         const main = currentResults.find((result) => resultControlName(result) === control.name) || currentResults[0];
+        const furnitureInstanceContext = currentResults.find((result) => result.meta?.furniture_instance_context)?.meta
+          ?.furniture_instance_context;
         const rest = currentResults.filter(
           (result) =>
             result !== main &&
-            (!isOccupancyDrawing(self) || occupancyAllowsControl(resultControlName(result), control.name)),
+            guardedDrawingAllowsControl(self, resultControlName(result)),
         );
         const newArea = self.annotation.createResult(value, main.value.toJSON(), control, obj);
 
-        if (isOccupancyDrawing(self)) {
+        if (isGuardedDrawing(self)) {
           // createResult can attach currently selected per-region labels. Strip
           // any non-L3 result as a final guard before the region is committed.
           newArea.results
-            ?.filter((result) => !occupancyAllowsControl(resultControlName(result), control.name))
+            ?.filter((result) => !guardedDrawingAllowsControl(self, resultControlName(result)))
             .slice()
             .forEach((result) => newArea.removeResult(result));
         }
@@ -213,16 +251,22 @@ const DrawingTool = types
         rest.forEach((r) => {
           // createResult may already attach active per-region labels. Avoid a
           // duplicate occupancy_type when committing a transient L3 drawing.
-          if (obj.occupancyEnabled && newArea.results.some((existing) => existing.from_name === r.from_name)) return;
+          if (
+            (obj.occupancyEnabled || obj.furnitureInstancesEnabled) &&
+            newArea.results.some((existing) => existing.from_name === r.from_name)
+          )
+            return;
           newArea.addResult(r.toJSON());
         });
         newArea.initializeRoomConstraint?.(obj.focusedRoom?.cleanId);
         obj.initializeOccupancyRegion?.(newArea);
+        obj.initializeFurnitureInstanceRegion?.(newArea, furnitureInstanceContext);
 
         currentArea.setDrawing(false);
         self.deleteRegion();
         newArea.notifyDrawingFinished();
         obj.finalizeOccupancyRegion?.(newArea);
+        obj.finalizeFurnitureInstanceRegion?.(newArea);
         return newArea;
       },
       createRegion(opts, skipAfterCreate = false) {
@@ -247,6 +291,7 @@ const DrawingTool = types
         }
         self.currentArea.initializeRoomConstraint?.(self.obj.focusedRoom?.cleanId);
         self.obj.initializeOccupancyRegion?.(self.currentArea);
+        self.obj.initializeFurnitureInstanceRegion?.(self.currentArea);
         return self.currentArea;
       },
       deleteRegion() {
@@ -269,6 +314,12 @@ const DrawingTool = types
         if (
           self.obj?.occupancyEnabled &&
           (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason(self.control?.name))
+        )
+          return false;
+        if (
+          self.obj?.furnitureInstancesEnabled &&
+          (self.obj.furnitureInstanceIsReference(self.control?.name) ||
+            self.obj.furnitureInstanceDrawBlockReason(self.control?.name))
         )
           return false;
         return (
@@ -513,6 +564,13 @@ const MultipleClicksDrawingTool = DrawingTool.named("MultipleClicksMixin")
         self.closeCurrent();
         if (self.obj?.occupancyEnabled && self.currentArea?.type === "polygonregion" && !self.currentArea.closed)
           return;
+        if (
+          self.obj?.furnitureInstancesEnabled &&
+          self.control?.name === "furniture_instance_polygon" &&
+          self.currentArea?.type === "polygonregion" &&
+          !self.currentArea.closed
+        )
+          return;
         pointsCount = 0;
         setTimeout(() => {
           self._finishDrawing();
@@ -616,6 +674,13 @@ const ThreePointsDrawingTool = DrawingTool.named("ThreePointsDrawingTool")
           self.obj?.occupancyEnabled &&
           !self.currentArea &&
           (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason(self.control?.name))
+        )
+          return false;
+        if (
+          self.obj?.furnitureInstancesEnabled &&
+          !self.currentArea &&
+          (self.obj.furnitureInstanceIsReference(self.control?.name) ||
+            self.obj.furnitureInstanceDrawBlockReason(self.control?.name))
         )
           return false;
         return !self.isIncorrectControl();

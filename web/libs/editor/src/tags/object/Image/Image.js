@@ -11,7 +11,9 @@ import { WholeRoomInheritance } from "../../../mixins/WholeRoomInheritance";
 import { VectorReview } from "../../../mixins/VectorReview";
 import { Occupancy } from "../../../mixins/Occupancy";
 import { RoomWindows } from "../../../windows/RoomWindows";
+import { FurnitureInstances } from "../../../mixins/FurnitureInstances";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
+import { showFurnitureInstanceValidationWarning } from "../../../furnitureInstances/submitValidation";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
 import { KeyPointRegionModel } from "../../../regions/KeyPointRegion";
@@ -1048,6 +1050,19 @@ const Model = types
     return {
       views: {
         getSkipInteractions() {
+          if (self.furnitureInstancesEnabled) {
+            const tool = self.getToolsManager().findSelectedTool();
+            if (
+              tool?.isDrawingTool &&
+              [
+                "furniture_instance_rectangle",
+                "furniture_instance_polygon",
+                "furniture_front_direction",
+                "furniture_front_edge",
+              ].includes(tool.control?.name)
+            )
+              return true;
+          }
           if (self.occupancyEnabled && !self.occupancyActivePartId) {
             const tool = self.getToolsManager().findSelectedTool();
             if (tool?.isDrawingTool && ["occupancy_rectangle", "occupancy_polygon"].includes(tool.control?.name)) return true;
@@ -1334,6 +1349,10 @@ const Model = types
     },
 
     beforeSend() {
+      if (self.furnitureInstancesEnabled) {
+        self.refreshFurnitureInstanceReviews();
+        return;
+      }
       if (self.occupancyEnabled) {
         self.refreshAllOccupancyBarriers({ snap: false, threshold: 1e-5, refreshReview: false });
         self.refreshOccupancyReviews();
@@ -1347,6 +1366,12 @@ const Model = types
     },
 
     validate() {
+      if (self.furnitureInstancesEnabled) {
+        const errors = self.furnitureInstanceErrors;
+        if (!errors.length) return true;
+        showFurnitureInstanceValidationWarning(self, errors);
+        return false;
+      }
       if (self.occupancyEnabled) {
         const errors = self.occupancyErrors;
         if (!errors.length) return true;
@@ -1397,6 +1422,20 @@ const Model = types
         .getToolsManager()
         .allTools()
         .forEach((tool) => {
+          if (self.furnitureInstancesEnabled) {
+            if (isAlive(tool) && self.furnitureInstanceIsReference(tool.control?.name)) tool.disable();
+            else if (
+              isAlive(tool) &&
+              [
+                "furniture_instance_rectangle",
+                "furniture_instance_polygon",
+                "furniture_front_direction",
+                "furniture_front_edge",
+              ].includes(tool.control?.name)
+            )
+              self.furnitureInstanceDrawBlockReason(tool.control?.name) ? tool.disable() : tool.enable();
+            return;
+          }
           if (self.occupancyEnabled) {
             if (isAlive(tool) && self.occupancyIsReference(tool.control?.name)) tool.disable();
             return;
@@ -2019,6 +2058,7 @@ const ImageModel = types.compose(
   VectorReview,
   Occupancy,
   RoomWindows,
+  FurnitureInstances,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),

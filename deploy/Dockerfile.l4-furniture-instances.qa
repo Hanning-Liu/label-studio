@@ -1,0 +1,168 @@
+# syntax=docker/dockerfile:1
+# Isolated Apple Silicon QA image. The repository production Dockerfile remains unchanged.
+ARG NODE_VERSION=22
+ARG PYTHON_VERSION=3.13
+ARG POETRY_VERSION=2.3.2
+ARG BASE_IMAGE_REGISTRY=docker.io/library
+ARG VERSION_OVERRIDE
+ARG BRANCH_OVERRIDE
+
+################################ Stage: frontend-builder (build frontend assets)
+FROM --platform=${BUILDPLATFORM} ${BASE_IMAGE_REGISTRY}/node:${NODE_VERSION}-bookworm-slim AS frontend-builder
+ENV BUILD_NO_SERVER=true \
+    BUILD_NO_HASH=true \
+    BUILD_NO_CHUNKS=true \
+    BUILD_MODULE=true \
+    YARN_CACHE_FOLDER=/root/web/.yarn \
+    NX_CACHE_DIRECTORY=/root/web/.nx \
+    NODE_ENV=production \
+    NODE_OPTIONS="--max-old-space-size=4096"
+
+WORKDIR /label-studio/web
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends --yes \
+        build-essential \
+        pkg-config \
+        libcairo2-dev \
+        libgif-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev \
+        libpango1.0-dev \
+        git \
+        python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY web/package.json .
+COPY web/yarn.lock .
+COPY web/tools tools
+RUN --mount=type=cache,target=/root/web/.yarn,id=yarn-cache-l4-qa-debian,sharing=locked \
+    --mount=type=cache,target=/root/web/.nx,id=nx-cache-l4-qa-debian,sharing=locked \
+    yarn install --prefer-offline --no-progress --pure-lockfile --frozen-lockfile --ignore-engines --non-interactive --production=false
+
+COPY web/ .
+COPY pyproject.toml ../pyproject.toml
+RUN --mount=type=cache,target=/root/web/.yarn,id=yarn-cache-l4-qa-debian,sharing=locked \
+    --mount=type=cache,target=/root/web/.nx,id=nx-cache-l4-qa-debian,sharing=locked \
+    yarn run build
+
+################################ Stage: frontend-version-generator
+FROM frontend-builder AS frontend-version-generator
+RUN --mount=type=cache,target=/root/web/.yarn,id=yarn-cache-l4-qa-debian,sharing=locked \
+    --mount=type=cache,target=/root/web/.nx,id=nx-cache-l4-qa-debian,sharing=locked \
+    --mount=type=bind,source=.git,target=../.git \
+    yarn version:libs
+
+################################ Stage: venv-builder (prepare the virtualenv)
+FROM ${BASE_IMAGE_REGISTRY}/python:${PYTHON_VERSION}-slim-bookworm AS venv-builder
+ARG POETRY_VERSION
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    PIP_CACHE_DIR="/.cache" \
+    POETRY_CACHE_DIR="/.poetry-cache" \
+    POETRY_HOME="/opt/poetry" \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_VIRTUALENVS_PREFER_ACTIVE_PYTHON=true \
+    PATH="/opt/poetry/bin:$PATH"
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends --yes \
+        build-essential \
+        git \
+        libpcre2-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+ADD https://install.python-poetry.org /tmp/install-poetry.py
+RUN python /tmp/install-poetry.py --version "$POETRY_VERSION" && poetry --version
+
+WORKDIR /label-studio
+
+ENV VENV_PATH="/label-studio/.venv"
+ENV PATH="$VENV_PATH/bin:$PATH"
+
+# Copy the repository-declared dependency inputs without regenerating the lock.
+COPY pyproject.toml poetry.lock README.md ./
+
+ARG INCLUDE_DEV=false
+ENV POETRY_INSTALLER_PARALLEL=false
+
+RUN --mount=type=cache,target=/.poetry-cache,id=poetry-cache-l4-qa-debian,sharing=locked \
+    poetry check --lock && \
+    if [ "$INCLUDE_DEV" = "true" ]; then \
+        poetry install --no-root --extras uwsgi --with test; \
+    else \
+        poetry install --no-root --without test --extras uwsgi; \
+    fi
+
+COPY label_studio label_studio
+RUN --mount=type=cache,target=/.poetry-cache,id=poetry-cache-l4-qa-debian,sharing=locked \
+    poetry install --only-root --extras uwsgi && \
+    python3 label_studio/manage.py collectstatic --no-input
+
+################################ Stage: py-version-generator
+FROM venv-builder AS py-version-generator
+ARG VERSION_OVERRIDE
+ARG BRANCH_OVERRIDE
+
+RUN --mount=type=bind,source=.git,target=./.git \
+    VERSION_OVERRIDE=${VERSION_OVERRIDE} BRANCH_OVERRIDE=${BRANCH_OVERRIDE} poetry run python label_studio/core/version.py
+
+################################ Stage: production
+FROM ${BASE_IMAGE_REGISTRY}/python:${PYTHON_VERSION}-slim-bookworm AS production
+
+LABEL org.opencontainers.image.title="Label Studio L4 furniture-instance Mac QA"
+
+ENV LS_DIR=/label-studio \
+    HOME=/label-studio \
+    LABEL_STUDIO_BASE_DATA_DIR=/label-studio/data \
+    OPT_DIR=/opt/heartex/instance-data/etc \
+    PATH="/label-studio/.venv/bin:$PATH" \
+    DJANGO_SETTINGS_MODULE=core.settings.label_studio \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR $LS_DIR
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends --yes \
+        bash \
+        curl \
+        libexpat1 \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        libpcre2-8-0 \
+        nginx \
+        procps && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    mkdir -p $LS_DIR $LABEL_STUDIO_BASE_DATA_DIR $OPT_DIR && \
+    chown -R 1001:0 $LS_DIR $LABEL_STUDIO_BASE_DATA_DIR $OPT_DIR /var/log/nginx /etc/nginx
+
+COPY --chown=1001:0 deploy/default.conf /etc/nginx/nginx.conf
+
+COPY --chown=1001:0 pyproject.toml .
+COPY --chown=1001:0 poetry.lock .
+COPY --chown=1001:0 README.md .
+COPY --chown=1001:0 LICENSE LICENSE
+COPY --chown=1001:0 licenses licenses
+COPY --chown=1001:0 deploy deploy
+
+COPY --chown=1001:0 --from=venv-builder               $LS_DIR                                           $LS_DIR
+COPY --chown=1001:0 --from=py-version-generator       $LS_DIR/label_studio/core/version_.py             $LS_DIR/label_studio/core/version_.py
+COPY --chown=1001:0 --from=frontend-builder           $LS_DIR/web/dist                                  $LS_DIR/web/dist
+COPY --chown=1001:0 --from=frontend-version-generator $LS_DIR/web/dist/apps/labelstudio/version.json    $LS_DIR/web/dist/apps/labelstudio/version.json
+COPY --chown=1001:0 --from=frontend-version-generator $LS_DIR/web/dist/libs/editor/version.json         $LS_DIR/web/dist/libs/editor/version.json
+COPY --chown=1001:0 --from=frontend-version-generator $LS_DIR/web/dist/libs/datamanager/version.json    $LS_DIR/web/dist/libs/datamanager/version.json
+
+USER 1001
+
+EXPOSE 8080
+
+ENTRYPOINT ["./deploy/docker-entrypoint.sh"]
+CMD ["label-studio"]

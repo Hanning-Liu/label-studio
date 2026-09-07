@@ -27,6 +27,7 @@ from rest_framework.response import Response
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task
 from tasks.reference_sync.service import (
     SyncConflict,
+    finalize_saved_result,
     prepare_source_annotation_result,
     prepare_write,
     snapshot,
@@ -670,6 +671,7 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
         if binding:
             serializer.validated_data['result'] = merged
         super().perform_update(serializer)
+        finalize_saved_result(annotation)
         if binding:
             ReferenceSyncAudit.objects.create(binding=binding,source_hash=binding.applied_hash,operation='user_submit',
                 before=before,after=snapshot(annotation.task),summary={'annotation_id':annotation.id,'user_id':self.request.user.id})
@@ -876,6 +878,7 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         # create annotation
         logger.debug(f'User={self.request.user}: save annotation')
         annotation = ser.save(**extra_args)
+        finalize_saved_result(annotation)
 
         logger.debug(f'Save activity for user={self.request.user}')
         self.request.user.activity_at = timezone.now()

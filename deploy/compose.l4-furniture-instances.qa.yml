@@ -1,0 +1,38 @@
+name: graph-label-l4-qa
+
+services:
+  app:
+    image: graph-label-l4-qa:${L4_QA_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.l4-furniture-instances.qa
+      args:
+        BASE_IMAGE_REGISTRY: ${L4_QA_BASE_IMAGE_REGISTRY:-docker.io/library}
+        INCLUDE_DEV: "false"
+        NODE_VERSION: "22"
+        POETRY_VERSION: "2.3.2"
+        PYTHON_VERSION: "3.13"
+    container_name: graph-label-l4-qa-app
+    ports:
+      - "127.0.0.1:${L4_QA_PORT:-18080}:8080"
+    environment:
+      DJANGO_DB: sqlite
+      LABEL_STUDIO_BASE_DATA_DIR: /label-studio/data
+      LOG_LEVEL: INFO
+    volumes:
+      - graph-label-l4-qa-data:/label-studio/data
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://127.0.0.1:8080/health/
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  graph-label-l4-qa-data:
+    name: graph-label-l4-qa-data

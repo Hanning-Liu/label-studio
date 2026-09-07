@@ -22,6 +22,12 @@ The contract extends the existing unified format instead of replacing it:
 - `floorplan-unified/4` adds the required window and L4 collections while
   preserving all existing node, connection, relation, occupancy, barrier,
   provenance and raw-result fields.
+- This revision tightens only the `floorplan-unified/4` furniture-instance
+  record: every instance now requires its L3 source version, parent-chain
+  fingerprint, review state and fingerprint, plus at least two per-result
+  source records. Earlier draft `/4` furniture instances without those fields
+  no longer validate and must be regenerated; the `/1`-`/3` conditions and
+  records are unchanged.
 - Existing IDs, Label Studio control names, source annotation records and
   Polygon/MultiPolygon components and holes are not rewritten.
 
@@ -82,11 +88,29 @@ description-only.
 
 - Every instance has the complete `room_id` -> `zone_id` -> `group_id` parent
   chain.
+- `source_version` identifies the accepted L3 reference snapshot.
+  `parent_fingerprint` is the canonical SHA-256 of the referenced room, zone
+  and complete furniture-group semantics, including all group geometry parts,
+  rings and holes. It is deliberately scoped to that chain so an unrelated
+  group change does not invalidate every L4 instance.
+- `review_status` is `pending`, `reviewed` or `stale`. A new or edited instance
+  is pending; a reviewed instance carries the matching `review_fingerprint`;
+  and a changed or missing parent chain makes the instance stale. Staleness
+  retains the saved parent IDs, geometry and fingerprints and never silently
+  reassigns the instance to the current Focus group.
+- `source_results` contains at least the geometry and stable-English category
+  Label Studio results. Every entry keeps its role, raw result and complete
+  project, task, annotation and result provenance. The instance-level
+  `provenance` identifies the primary geometry result and must match its
+  corresponding source entry.
 - Geometry is Polygon or MultiPolygon in image-percent coordinates and retains
-  rings and holes.
+  rings and holes. If a logical instance uses multiple Label Studio geometry
+  results, all of them remain separate `geometry` source entries even though
+  the unified geometry is normalized into one Polygon or MultiPolygon.
 - Orientation is `unknown` unless an explicit front direction or front edge is
-  annotated. Category, location or rectangle rotation must not be used to
-  invent a front side.
+  annotated. A non-unknown orientation requires the matching
+  `front_direction` or `front_edge` source result. Category, location or
+  rectangle rotation must not be used to invent a front side.
 
 ### Window propagation
 
@@ -111,12 +135,20 @@ that require comparing multiple geometries or IDs:
 5. A completed pairing search with zero valid opposite candidates before
    automatic exterior classification.
 6. Closed rings, valid polygons, preserved MultiPolygon parts and holes.
-7. Ordered, non-overlapping path intervals and real overlap evidence for all
+7. Furniture source records whose raw IDs agree with their result provenance,
+   with at least one geometry and one category result and orientation evidence
+   only when explicitly annotated.
+8. Furniture parent and review fingerprints computed identically by frontend
+   and backend; a source-version or parent-chain mismatch is pending or stale
+   and blocks formal submission without changing ownership.
+9. Ordered, non-overlapping path intervals and real overlap evidence for all
    derived window projections.
-8. Fingerprint freshness and source-version/concurrency checks.
+10. Fingerprint freshness and source-version/concurrency checks.
 
-This branch contains the schema foundation only. It does not migrate projects,
-modify annotations, change the running 8080 service, or alter viewer data.
+These contract files do not migrate projects, modify existing annotations,
+change a running 8080 service, or alter viewer data. The L4 feature consumes
+the contract only through an explicitly created project and the isolated QA
+workflow documented under `deploy/`.
 
 ## Local checks
 
@@ -125,4 +157,5 @@ mode. In addition to `example.json`, validate a current
 `floorplan-unified/3` aggregate to guard backward compatibility. Negative tests
 should cover missing window parents, one-sided internal windows, invalid
 automatic-exterior evidence, incomplete Bezier controls, incomplete L4 parent
-chains and invalid L2-L4 projection evidence.
+chains, missing or incomplete L4 source records, stale L4 parent fingerprints
+and invalid L2-L4 projection evidence.

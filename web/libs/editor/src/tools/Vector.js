@@ -2,9 +2,18 @@ import { isAlive, types } from "mobx-state-tree";
 
 import BaseTool, { DEFAULT_DIMENSIONS } from "./Base";
 import ToolMixin from "../mixins/Tool";
-import { MultipleClicksDrawingTool } from "../mixins/DrawingTool";
+import { constrainFurnitureInstanceEventPoint, MultipleClicksDrawingTool } from "../mixins/DrawingTool";
 import { NodeViews } from "../components/Node/Node";
 import { observe } from "mobx";
+
+const FURNITURE_ORIENTATION_CONTROLS = new Set(["furniture_front_direction", "furniture_front_edge"]);
+
+export const isFurnitureOrientationVector = (tool) =>
+  Boolean(
+    tool?.obj?.furnitureInstancesEnabled &&
+      FURNITURE_ORIENTATION_CONTROLS.has(tool?.control?.name) &&
+      tool.obj.furnitureInstanceDrawingControl === tool.control.name,
+  );
 
 const _Tool = types
   .model("VectorTool", {
@@ -157,6 +166,11 @@ const _Tool = types
         // This enables shift-click for inserting points on segments
         if (ev.button > 0) return; // Still filter right clicks and middle clicks
 
+        const currentArea = self.releaseStaleCurrentArea();
+        const point = constrainFurnitureInstanceEventPoint(self, name, { x, y }, currentArea);
+        if (!point) return;
+        [x, y] = [point.x, point.y];
+
         let fn = `${name}Ev`;
 
         if (typeof self[fn] !== "undefined") self[fn].call(self, ev, [x, y], [canvasX, canvasY]);
@@ -304,7 +318,7 @@ const _Tool = types
           // we must skip one frame before starting a line
           // to make sure KonvaVector was fully initialized
           setTimeout(() => {
-            self.currentArea.startPoint(rx, ry);
+            self.currentArea?.startPoint(rx, ry);
           });
         }
       },
@@ -360,6 +374,7 @@ const _Tool = types
         if (!currentArea.incomplete) {
           self.obj.finalizeOccupancyRegion?.(currentArea);
           self.obj.finalizeWindowRegion?.(currentArea);
+          self.obj.finalizeFurnitureInstanceRegion?.(currentArea);
           self.annotation.afterCreateResult(currentArea, control);
         }
       },
@@ -371,13 +386,29 @@ const _Tool = types
 
       deleteRegion() {
         const { currentArea } = self;
+        const furnitureOrientation = isFurnitureOrientationVector(self);
 
-        self.setDrawing(false);
-        self.currentArea = null;
-        self.stopListening();
-        if (currentArea) {
-          currentArea.deleteRegion();
+        try {
+          // Keep annotation.isDrawing true while deleting the transient area.
+          // Otherwise protected L4 deletion interprets cancelling orientation
+          // drawing as a request to delete the complete furniture instance.
+          if (currentArea) currentArea.deleteRegion();
+        } finally {
+          self.annotation.setIsDrawing(false);
+          if (furnitureOrientation) {
+            self.annotation.history.unfreeze();
+            self.mode = "viewing";
+          }
+          self.currentArea = null;
+          self.stopListening();
+          if (furnitureOrientation) self.obj.finishFurnitureInstanceOrientationDrawing?.(self.control?.name, false);
         }
+      },
+
+      cancelDrawing(explicitArea = null) {
+        const area = explicitArea || (isFurnitureOrientationVector(self) ? self.currentArea : self.getCurrentArea());
+        if (area) self.currentArea = area;
+        self.deleteRegion();
       },
 
       // Add point to current vector
@@ -415,13 +446,26 @@ const _Tool = types
       },
 
       complete() {
+        const furnitureOrientation = isFurnitureOrientationVector(self);
+        const area = furnitureOrientation ? self.currentArea : self.getCurrentArea();
+        if (furnitureOrientation && (!area || area.incomplete)) {
+          if (area) self.cancelDrawing(area);
+          else {
+            self.annotation.setIsDrawing(false);
+            self.annotation.history.unfreeze();
+            self.mode = "viewing";
+            self.stopListening();
+          }
+          self.obj.finishFurnitureInstanceOrientationDrawing?.(self.control?.name, true);
+          return;
+        }
         self._finishDrawing();
       },
 
       // Clean up uncloseable shape
       cleanupUncloseableShape() {
         if (self.currentArea?.incomplete) {
-          self.deleteRegion();
+          self.cancelDrawing();
         }
       },
     };

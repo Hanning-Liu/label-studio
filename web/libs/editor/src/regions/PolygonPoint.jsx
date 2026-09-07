@@ -65,7 +65,12 @@ const PolygonPointModel = types
         y: self.stage.canvasToInternalY(canvasY),
       });
 
-      if (self.parent.control?.constrainto || self.parent.parent?.occupancyEnabled) self.parent.moveVertex(self, point);
+      if (
+        self.parent.control?.constrainto ||
+        self.parent.parent?.occupancyEnabled ||
+        self.parent.parent?.furnitureInstancesEnabled
+      )
+        self.parent.moveVertex(self, point);
       else self._setPos(point.x, point.y);
     },
 

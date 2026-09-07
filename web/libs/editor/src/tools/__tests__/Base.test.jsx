@@ -15,12 +15,14 @@ import ToolMixin from "../../mixins/Tool";
 jest.mock("../../components/Toolbar/Tool", () => {
   const React = require("react");
   return {
-    Tool: ({ ariaLabel, active, onClick }) =>
+    Tool: ({ ariaLabel, active, disabled, label, onClick }) =>
       React.createElement(
         "button",
         {
           "data-testid": "tool-button",
           "aria-label": ariaLabel,
+          disabled,
+          title: label,
           onClick,
         },
         active ? "active" : "inactive",
@@ -258,6 +260,50 @@ describe("Base tool", () => {
       expect(btn).toHaveAttribute("aria-label", "composed-base");
       btn.click();
       expect(tool.manager.selectTool).toHaveBeenCalledWith(tool, true);
+    });
+
+    it("routes an enabled native L4 geometry tool through the constrained furniture action", () => {
+      const startFurnitureInstanceTool = jest.fn();
+      const object = {
+        furnitureInstancesEnabled: true,
+        annotation: { isDrawing: false, hasIncompletePolygons: false },
+        furnitureInstanceOperationBlockReason: () => "",
+        furnitureInstanceDrawBlockReason: () => "",
+        startFurnitureInstanceTool,
+      };
+      const tool = createTool(
+        ComposedBase,
+        { selected: false },
+        {
+          object,
+          control: createControl({ isSeparated: true, name: "furniture_instance_rectangle" }),
+        },
+      );
+      render(tool.viewClass());
+      screen.getByTestId("tool-button").click();
+      expect(startFurnitureInstanceTool).toHaveBeenCalledWith("furniture_instance_rectangle");
+      expect(tool.manager.selectTool).not.toHaveBeenCalled();
+    });
+
+    it("disables a native L4 geometry tool and exposes the exact blocker", () => {
+      const object = {
+        furnitureInstancesEnabled: true,
+        annotation: { isDrawing: false, hasIncompletePolygons: false },
+        furnitureInstanceOperationBlockReason: () => "",
+        furnitureInstanceDrawBlockReason: () => "请先选择 Focus 家具组团",
+        startFurnitureInstanceTool: jest.fn(),
+      };
+      const tool = createTool(
+        ComposedBase,
+        {},
+        {
+          object,
+          control: createControl({ isSeparated: true, name: "furniture_instance_polygon" }),
+        },
+      );
+      render(tool.viewClass());
+      expect(screen.getByTestId("tool-button")).toBeDisabled();
+      expect(screen.getByTestId("tool-button")).toHaveAttribute("title", expect.stringContaining("请先选择 Focus"));
     });
 
     it("Tool receives active from item.selected", () => {

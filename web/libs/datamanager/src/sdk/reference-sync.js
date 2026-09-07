@@ -18,9 +18,20 @@ export function hasReferenceEdits(annotation) {
   return false;
 }
 
-const derivedState = (results) => JSON.stringify((results || []).filter((result) => result.meta?.reference_review || result.meta?.partition_context)
-  .map((result) => ({ id: result.id, from_name: result.from_name, review: result.meta?.reference_review, context: result.meta?.partition_context }))
+const derivedState = (results) => JSON.stringify((results || []).filter((result) =>
+  result.meta?.reference_review || result.meta?.partition_context || result.meta?.occupancy_context)
+  .map((result) => ({
+    id: result.id,
+    from_name: result.from_name,
+    review: result.meta?.reference_review,
+    context: result.meta?.partition_context || result.meta?.occupancy_context,
+  }))
   .sort((a, b) => `${a.id}:${a.from_name}`.localeCompare(`${b.id}:${b.from_name}`)));
+
+const MANUAL_REFERENCE_PROFILES = {
+  function_zone_to_occupancy: { source: "L2", target: "L3" },
+  occupancy_to_furniture_instances: { source: "L3", target: "L4" },
+};
 
 export class ReferenceSyncController {
   constructor(wrapper) {
@@ -172,7 +183,7 @@ export class ReferenceSyncController {
   async apply(explicit = true, enterReview = false) {
     if (this.state.status?.apply_policy === "manual") {
       if (!explicit) return;
-      return this.applyOccupancyReference();
+      return this.applyManualReference();
     }
     const annotation = this.annotation;
     if (this.busy(annotation, explicit)) throw new Error("请先完成绘制或等待保存完成；当前画面已保留");
@@ -212,8 +223,15 @@ export class ReferenceSyncController {
     } finally { this.applying = false; this.emit({ busy: false }); }
   }
   replace(annotation, raw, isDraft) {
-    const views = annotation.objects.map((object) => ({ object, zoom: object.currentZoom,
-      x: object.zoomingPositionX, y: object.zoomingPositionY, focus: object.focusedRoomId, occupancyFocus: object.occupancyFocusId }));
+    const views = annotation.objects.map((object) => ({
+      object,
+      zoom: object.currentZoom,
+      x: object.zoomingPositionX,
+      y: object.zoomingPositionY,
+      focus: object.focusedRoomId,
+      occupancyFocus: object.occupancyFocusId,
+      furnitureInstanceFocus: object.furnitureInstanceFocusId,
+    }));
     const recovery = annotation.serializeAnnotation({ fast: true });
     annotation.pauseAutosave();
     annotation.history.freeze();
@@ -238,6 +256,11 @@ export class ReferenceSyncController {
       for (const view of views) {
         if (view.zoom !== undefined) view.object.setZoom?.(view.zoom);
         if (view.x !== undefined) view.object.setZoomPosition?.(view.x, view.y);
+        if (view.furnitureInstanceFocus) {
+          const exists = view.object.furnitureInstanceParents?.some((parent) => parent.id === view.furnitureInstanceFocus);
+          view.object.setFurnitureInstanceFocus?.(exists ? view.furnitureInstanceFocus : "");
+          if (!exists) this.emit({ focusNotice: "原 Focus 家具组团已在来源中删除，已清空选择；实例仍保留为待复核/过期" });
+        }
         if (view.occupancyFocus) view.object.setOccupancyFocus?.(view.object.occupancyParents?.some((p) => p.id === view.occupancyFocus) ? view.occupancyFocus : "");
         if (view.focus) {
           const exists = view.object.roomReferenceRegions?.some((room) => room.cleanId === view.focus);
@@ -274,9 +297,19 @@ export class ReferenceSyncController {
   }
 
   async applyOccupancyReference() {
+    return this.applyManualReference("function_zone_to_occupancy");
+  }
+
+  async applyFurnitureInstancesReference() {
+    return this.applyManualReference("occupancy_to_furniture_instances");
+  }
+
+  async applyManualReference(expectedSyncType = this.state.status?.sync_type) {
     const annotation = this.annotation;
     if (this.busy(annotation, true)) throw new Error("请先完成绘制或等待保存");
-    if (this.state.status?.sync_type !== "function_zone_to_occupancy") throw new Error("不是 L3 手动参考配置");
+    const profile = MANUAL_REFERENCE_PROFILES[this.state.status?.sync_type];
+    if (!profile || this.state.status?.sync_type !== expectedSyncType)
+      throw new Error("不是受支持的手动参考配置");
     const sourceVersion = this.state.status.source_version;
     this.applying = true;
     this.emit({ busy: true, error: "" });
@@ -292,20 +325,29 @@ export class ReferenceSyncController {
       if (this.stopped || annotation !== this.annotation || fingerprint !== annotation.draftResultFingerprint || isReferenceBusy(annotation, this.pointerDown))
         throw new Error("应用期间本地继续编辑，已保留现场；服务器已保存参考更新，请导出本地后处理版本冲突");
       this.replace(annotation, raw, true);
-      this.emit({ notice: "已手动应用最新 L2 参考；L3 几何、类别和原归属保持不变" });
+      this.emit({ notice: `已手动应用最新 ${profile.source} 参考；${profile.target} 人工几何、类别和原归属保持不变` });
     } catch (error) { this.emit({ error: error.message }); throw error; }
     finally { this.applying = false; this.emit({ busy: false }); }
     await this.poll();
   }
 
   async checkOccupancyReference(expectedVersion) {
+    return this.checkManualReference(expectedVersion, "function_zone_to_occupancy");
+  }
+
+  async checkFurnitureInstancesReference(expectedVersion) {
+    return this.checkManualReference(expectedVersion, "occupancy_to_furniture_instances");
+  }
+
+  async checkManualReference(expectedVersion, syncType) {
     // Explicit safety checks must await their own fresh response, even if the
     // periodic poll is in flight. Never treat an old cached status as verified.
     const status = await this.request(`/api/tasks/${this.taskId}/reference-sync/`);
     this.emit({ status, error: "" });
-    if (!status.enabled || status.sync_type !== "function_zone_to_occupancy" || status.error ||
+    const profile = MANUAL_REFERENCE_PROFILES[syncType];
+    if (!profile || !status.enabled || status.sync_type !== syncType || status.error ||
         status.source_version !== expectedVersion || status.reference_version !== expectedVersion)
-      throw new Error(status.error || "L2 参考已变化，请先保存、备份并手动应用参考");
+      throw new Error(status.error || `${profile?.source || "上级"} 参考已变化，请先保存、备份并手动应用参考`);
     return status;
   }
 }

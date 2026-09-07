@@ -410,7 +410,7 @@ const Result = types
         } else if (data.meta.occupancy_context) {
           delete data.meta.occupancy_context;
         }
-        // Downstream window relations are server-owned geometry metadata. An
+          // Downstream window relations are server-owned geometry metadata. An
         // area's shared snapshot must never copy them onto paired Labels.
         for (const key of ["window_projections", "window_projection_state"]) {
           if (meta?.[key] && (type === "rectangle" || type === "polygon")) data.meta[key] = meta[key];
@@ -423,7 +423,22 @@ const Result = types
           data.meta.window_context = meta.window_context;
         } else if (self.to_name.windowEnabled && data.meta.window_context) {
           delete data.meta.window_context;
-        }
+          }
+          // L4 identity belongs to every explicit instance result (geometry,
+        // category, or orientation evidence). Never let another result's
+        // area-level metadata overwrite its role/provenance during a refresh.
+        if (
+          meta?.furniture_instance_context &&
+          ["rectangle", "polygon", "choices", "vectorlabels"].includes(type)
+        ) {
+          data.meta.furniture_instance_context = meta.furniture_instance_context;
+          if (meta.furniture_instance_provenance)
+            data.meta.furniture_instance_provenance = meta.furniture_instance_provenance;
+          else delete data.meta.furniture_instance_provenance;
+        } else {
+          delete data.meta.furniture_instance_context;
+          delete data.meta.furniture_instance_provenance;
+          }
         if (!Object.keys(data.meta).length && !meta) delete data.meta;
       }
 
