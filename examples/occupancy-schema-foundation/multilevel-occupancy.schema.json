@@ -2037,6 +2037,12 @@
         {
           "required": ["overlap_area_px2", "inward_projection_limit_px"],
           "properties": {
+            "overlap_area_px2": {
+              "$ref": "#/$defs/positiveNumber"
+            },
+            "inward_projection_limit_px": {
+              "$ref": "#/$defs/positiveNumber"
+            },
             "evidence": {
               "const": "positive_area_inward_projection_intersection"
             }
@@ -2045,6 +2051,9 @@
         {
           "required": ["overlap_length_px"],
           "properties": {
+            "overlap_length_px": {
+              "$ref": "#/$defs/positiveNumber"
+            },
             "evidence": {
               "const": "positive_length_boundary_overlap"
             }

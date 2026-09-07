@@ -30,6 +30,11 @@ from .validation import validate
 
 
 class FurnitureInstanceSyncTests(TransactionTestCase):
+    source_config = SOURCE_CONFIG
+
+    def source_results(self):
+        return reference_results()
+
     def setUp(self):
         self.user = User.objects.create(email='furniture-l4-qa@example.invalid')
         self.org = Organization.create_organization(created_by=self.user, title='L4 isolated tests')
@@ -37,13 +42,13 @@ class FurnitureInstanceSyncTests(TransactionTestCase):
         self.user.save()
         self.source_project = Project.objects.create(
             title='source L3',
-            label_config=SOURCE_CONFIG,
+            label_config=self.source_config,
             organization=self.org,
             created_by=self.user,
         )
         self.target_project = Project.objects.create(
             title='target L4',
-            label_config=build_template(SOURCE_CONFIG),
+            label_config=build_template(self.source_config),
             organization=self.org,
             created_by=self.user,
             maximum_annotations=1,
@@ -57,7 +62,7 @@ class FurnitureInstanceSyncTests(TransactionTestCase):
             task=self.source_task,
             project=self.source_project,
             completed_by=self.user,
-            result=reference_results(),
+            result=self.source_results(),
         )
         self.mapping = ReferenceSyncMapping.objects.create(
             source_project=self.source_project,
@@ -315,4 +320,52 @@ class FurnitureInstanceSyncTests(TransactionTestCase):
         self.assertEqual(submitted.result, original_formal)
 
 
-__all__ = ['FurnitureInstanceSyncTests']
+class FurnitureInstanceWindowSyncTests(FurnitureInstanceSyncTests):
+    """Run the complete save/apply/submit lifecycle with optional window references."""
+
+    source_config = SOURCE_CONFIG.replace(
+        '</View>',
+        '<VectorLabels name="window_vector" toName="image" closable="false" curves="true">'
+        '<Label value="Window" /></VectorLabels></View>',
+    )
+
+    def source_results(self):
+        from tasks.windows.service import prepare_formal_results
+
+        refs = reference_results()
+        raw_window = {
+            'id': 'inherited-window',
+            'from_name': 'window_vector',
+            'to_name': 'image',
+            'type': 'vectorlabels',
+            'original_width': 100,
+            'original_height': 100,
+            'value': {
+                'closed': False,
+                'vectorlabels': ['Window'],
+                'vertices': [
+                    {'id': 'wa', 'x': 10, 'y': 0, 'isBezier': False},
+                    {'id': 'wb', 'prevPointId': 'wa', 'x': 40, 'y': 0, 'isBezier': False},
+                ],
+            },
+        }
+        enabled = self.source_config.replace(
+            'occupancyV1="true"',
+            'roomWindowV1="true" roomV3Controls="room_rectangle,room_polygon" windowControls="window_vector"',
+        )
+        prepared, _ = prepare_formal_results(enabled, [copy.deepcopy(refs[0]), raw_window])
+        return refs + [prepared[-1]]
+
+    def test_window_reference_geometry_and_metadata_survive_draft_save(self):
+        original = self.source_results()[-1]
+        prediction = Prediction.objects.get(pk=self.binding.prediction_id)
+        copied = next(result for result in prediction.result if result['from_name'] == 'window_vector')
+        self.assertEqual(copied, {**original, 'readonly': True})
+        draft = self.draft()
+        response = self.client.patch(f'/api/drafts/{draft.id}/', self.payload(draft), format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        draft.refresh_from_db()
+        self.assertEqual(next(result for result in draft.result if result['from_name'] == 'window_vector'), copied)
+
+
+__all__ = ['FurnitureInstanceSyncTests', 'FurnitureInstanceWindowSyncTests']

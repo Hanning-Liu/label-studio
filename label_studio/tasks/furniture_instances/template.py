@@ -10,7 +10,7 @@ from .geometry import (
     FRONT_EDGE_CONTROL,
     MANUAL_CONTROLS,
 )
-from .validation import BARRIER_CONTROL, REFERENCE_CONTROLS
+from .validation import REFERENCE_CONTROLS, REQUIRED_REFERENCE_CONTROLS
 
 
 def _copy_reference_controls(source, container):
@@ -27,9 +27,8 @@ def _copy_reference_controls(source, container):
             node.attrib.pop('hotkey', None)
             node.attrib.pop('required', None)
         container.append(copied)
-    required = REFERENCE_CONTROLS - {BARRIER_CONTROL}
-    if not required <= found:
-        raise ValueError(f'L3 来源缺少控件: {required - found}')
+    if not REQUIRED_REFERENCE_CONTROLS <= found:
+        raise ValueError(f'L3 来源缺少控件: {REQUIRED_REFERENCE_CONTROLS - found}')
 
 
 def build_template(source_config):

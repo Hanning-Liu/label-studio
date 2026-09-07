@@ -8,7 +8,12 @@ import {
   resetIds,
   SOURCE,
   square,
+  stampProvenance,
 } from "../../../../furnitureInstances/__tests__/helpers";
+import {
+  furnitureInstanceToolbarTools,
+  partitionFurnitureReferenceRegions,
+} from "../../../../furnitureInstances/referenceDisplay";
 
 global.TextEncoder = TextEncoder;
 if (!globalThis.structuredClone) globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));
@@ -61,11 +66,11 @@ const CONFIG = `<View>
   </View>
 </View>`;
 
-const setup = (occupancy, furniture) => {
+const setup = (occupancy, furniture, config = CONFIG, markReferencesReadonly = true) => {
   ToolsManager.removeAllTools();
   const store = AppStore.create(
     {
-      config: CONFIG,
+      config,
       task: { id: 1, data: JSON.stringify({ image: "https://example.com/plan.png" }) },
       interfaces: ["basic"],
     },
@@ -75,7 +80,7 @@ const setup = (occupancy, furniture) => {
       settings: {},
     },
   );
-  const readonlyReferences = occupancy.map((result) => ({ ...structuredClone(result), readonly: true }));
+  const readonlyReferences = occupancy.map((result) => ({ ...structuredClone(result), readonly: markReferencesReadonly }));
   store.initializeStore({ annotations: [{ result: [...readonlyReferences, ...structuredClone(furniture)] }] });
   const annotation = store.annotationStore.selected;
   const image = annotation.names.get("image");
@@ -384,4 +389,81 @@ test("front_edge points snap to the real boundary in source pixels at different 
     end: { x: 40, y: 20 },
   });
   expect(image.furnitureInstanceErrors.filter(({ code }) => code === "orientation")).toEqual([]);
+});
+
+const inheritedWindow = () => ({
+  ...SOURCE,
+  id: "inherited-window",
+  from_name: "window_vector",
+  type: "vectorlabels",
+  value: {
+    closed: false,
+    vectorlabels: ["Window"],
+    vertices: [
+      { id: "wa", x: 10, y: 0, isBezier: false },
+      { id: "wb", prevPointId: "wa", x: 40, y: 0, isBezier: false },
+    ],
+  },
+  meta: { window_context: { schema_version: 1, parent_room_id: "room-r", pairing_status: "exterior" } },
+});
+
+test.each(["L3", "L4"])("%s recognizes inherited windows as readonly without relying on the imported readonly flag", (level) => {
+  let config = CONFIG.replace(
+    "</View>",
+    '<VectorLabels name="window_vector" toName="image"><Label value="Window" /></VectorLabels></View>',
+  );
+  if (level === "L3") config = config.replace('furnitureInstancesV1="true"', 'occupancyV1="true"');
+  const refs = [...makeOccupancy(), inheritedWindow()];
+  const { annotation, image } = setup(refs, [], config, false);
+  const window = [...annotation.areas.values()].find((region) => region.cleanId === "inherited-window");
+  expect(window.readonly).toBe(false);
+  expect(window.isReadOnly()).toBe(true);
+  expect(image.windowEnabled).toBe(false);
+  expect(level === "L4" ? image.furnitureInstanceIsReference("window_vector") : image.occupancyIsReference("window_vector")).toBe(true);
+  image.updateRoomConstraintTools();
+  const tools = image.getToolsManager().allTools();
+  const windowTool = tools.find((tool) => tool.control?.name === "window_vector");
+  expect(windowTool).toBeDefined();
+  expect(windowTool.disabled).toBe(true);
+  if (level === "L4") {
+    expect(partitionFurnitureReferenceRegions([window], image)).toEqual({ references: [window], interactive: [] });
+    expect(furnitureInstanceToolbarTools(tools, true)).not.toContain(windowTool);
+    expect(image.furnitureInstanceLogicals).toEqual([]);
+  }
+  const before = annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId);
+  image.beforeSend();
+  const after = annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId);
+  expect(after).toEqual(before);
+  const reloaded = setup(refs.filter((result) => result.id !== window.cleanId).concat(after), [], config, false);
+  expect(reloaded.annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId)).toEqual(after);
+});
+
+test("L4 geometry, category and direction keep their own metadata through save and reload alongside window references", () => {
+  const refs = [...makeOccupancy(), inheritedWindow()];
+  const furniture = stampProvenance(makeInstance(refs, {
+    orientation: { status: "front_direction", vertices: [{ x: 25, y: 30 }, { x: 35, y: 30 }] },
+  }));
+  const config = CONFIG.replace(
+    "</View>",
+    '<VectorLabels name="window_vector" toName="image"><Label value="Window" /></VectorLabels></View>',
+  );
+  const { annotation, image } = setup(refs, furniture, config);
+  image.beforeSend();
+  const saved = annotation.serializeAnnotation({ fast: true });
+  for (const original of furniture) {
+    const result = saved.find((item) => item.id === original.id && item.from_name === original.from_name);
+    expect(result.meta.furniture_instance_context).toEqual(original.meta.furniture_instance_context);
+    expect(result.meta.furniture_instance_provenance).toEqual(original.meta.furniture_instance_provenance);
+    expect(result.meta).not.toHaveProperty("window_context");
+    expect(result.meta).not.toHaveProperty("window_projections");
+  }
+  const sourceWindow = saved.find((result) => result.id === "inherited-window");
+  expect(sourceWindow.meta.window_context).toEqual(inheritedWindow().meta.window_context);
+  expect(sourceWindow.meta).not.toHaveProperty("furniture_instance_context");
+  const loaded = setup(
+    saved.filter((result) => !result.from_name.startsWith("furniture_")),
+    saved.filter((result) => result.from_name.startsWith("furniture_")),
+    config,
+  );
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(saved);
 });

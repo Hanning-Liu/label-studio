@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 from . import FURNITURE_TYPE_CHOICES
 from .template import build_template
-from .validation import REFERENCE_CONTROLS
+from .validation import REFERENCE_CONTROLS, REQUIRED_REFERENCE_CONTROLS
 
 SOURCE_CONFIG = '''<View>
   <Image name="image" value="$image" occupancyV1="true" />
@@ -38,10 +38,42 @@ class FurnitureInstanceTemplateTests(unittest.TestCase):
             if element.get('className') == 'furniture-instance-reference-controls'
         )
         copied = {element.get('name') for element in hidden if element.get('name')}
-        self.assertEqual(copied, REFERENCE_CONTROLS)
+        self.assertEqual(copied, REFERENCE_CONTROLS - {'window_vector'})
         self.assertTrue(all(element.get('toName') == 'image' for element in hidden if element.get('name')))
         self.assertEqual(root.find("Rectangle[@name='furniture_instance_rectangle']").get('canRotate'), 'true')
         self.assertIsNotNone(root.find("Polygon[@name='furniture_instance_polygon']"))
+
+    def test_optional_windows_and_barriers_are_copied_only_when_present(self):
+        for has_window, has_barrier in ((False, False), (False, True), (True, False), (True, True)):
+            with self.subTest(window=has_window, barrier=has_barrier):
+                source = ET.fromstring(SOURCE_CONFIG)
+                if not has_barrier:
+                    source.remove(source.find("VectorLabels[@name='occupancy_barrier_vector']"))
+                if has_window:
+                    window = ET.SubElement(source, 'VectorLabels', {
+                        'name': 'window_vector', 'toName': 'image', 'closable': 'false', 'curves': 'true',
+                    })
+                    ET.SubElement(window, 'Label', {'value': 'Window'})
+                target = ET.fromstring(build_template(ET.tostring(source, encoding='unicode')))
+                hidden = target.find("View[@className='furniture-instance-reference-controls']")
+                expected = REQUIRED_REFERENCE_CONTROLS | ({'window_vector'} if has_window else set())
+                expected |= {'occupancy_barrier_vector'} if has_barrier else set()
+                self.assertEqual({element.get('name') for element in hidden}, expected)
+                for name in expected:
+                    original = source.find(f"*[@name='{name}']")
+                    copied = hidden.find(f"*[@name='{name}']")
+                    self.assertEqual(copied.attrib, original.attrib)
+                    self.assertEqual(
+                        [(child.tag, child.attrib) for child in copied],
+                        [(child.tag, child.attrib) for child in original],
+                    )
+                self.assertIsNone(target.find('Image').get('roomWindowV1'))
+
+    def test_duplicate_optional_window_controls_are_rejected(self):
+        window = '<VectorLabels name="window_vector" toName="image"><Label value="Window" /></VectorLabels>'
+        config = SOURCE_CONFIG.replace('</View>', window + window + '</View>')
+        with self.assertRaisesRegex(ValueError, '重复'):
+            build_template(config)
 
     def test_uses_chinese_display_and_exact_26_stable_english_aliases(self):
         root = ET.fromstring(build_template(SOURCE_CONFIG))

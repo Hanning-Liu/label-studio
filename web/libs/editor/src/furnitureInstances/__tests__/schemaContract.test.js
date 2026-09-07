@@ -87,3 +87,23 @@ test("the frontend's formally reviewed aggregate satisfies floorplan-unified/4",
   expect(validate(actual)).toBe(true);
   expect(validate.errors).toBeNull();
 });
+
+test.each(["L3", "L4"])("%s window projection evidence requires its matching positive measurement", (level) => {
+  for (const relation of [
+    { kind: "adjacent_to_window", evidence: "positive_area_inward_projection_intersection", overlap_area_px2: 20, inward_projection_limit_px: 60 },
+    { kind: "adjacent_to_window", evidence: "positive_length_boundary_overlap", overlap_length_px: 2, boundary_overlap_tolerance_px: 0.01 },
+  ]) {
+    const actual = clone(example);
+    const projection = actual.window_projections.find((item) => item.target.level === level);
+    expect(projection).toBeDefined();
+    projection.relation = relation;
+    expect(validate(actual)).toBe(true);
+    const measurement = relation.evidence === "positive_length_boundary_overlap" ? "overlap_length_px" : "overlap_area_px2";
+    const missing = clone(actual);
+    delete missing.window_projections.find((item) => item.target.level === level).relation[measurement];
+    expect(validate(missing)).toBe(false);
+    const zero = clone(actual);
+    zero.window_projections.find((item) => item.target.level === level).relation[measurement] = 0;
+    expect(validate(zero)).toBe(false);
+  }
+});

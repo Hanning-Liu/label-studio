@@ -37,6 +37,7 @@ export const REFERENCES = new Set([
   "visual_connection_vector",
   "connection_review",
   "visual_connection_review",
+  "window_vector",
 ]);
 export const TYPES = {
   furniture_group: "家具组团占用",
