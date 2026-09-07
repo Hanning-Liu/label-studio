@@ -1049,9 +1049,16 @@ const Model = types
 
     return {
       views: {
-        getSkipInteractions() {
+        getSkipInteractions(region = null) {
           if (self.furnitureInstancesEnabled) {
             const tool = self.getToolsManager().findSelectedTool();
+            // KonvaVector's imperative point creation honors its disabled prop.
+            // Keep the active direction draft writable while other shapes stay
+            // out of the drawing tool's hit-testing path.
+            if (
+              region?.isDrawing && tool?.currentArea === region &&
+              ["furniture_front_direction", "furniture_front_edge"].includes(tool.control?.name)
+            ) return false;
             if (
               tool?.isDrawingTool &&
               [

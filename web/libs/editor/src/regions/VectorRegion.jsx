@@ -637,7 +637,7 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const disabled = item.disabled || suggestion || store.annotationStore.selected.isLinkingMode;
   const selected = !disabled; // Invert disabled to selected for KonvaVector
   // Completely disable all interactions when readonly (includes locked, e.g., in View All mode), or Pan tool is active
-  const isDisabled = item.isReadOnly() || item.parent?.getSkipInteractions();
+  const isDisabled = item.isReadOnly() || item.parent?.getSkipInteractions(item);
   const isReference = item.isOpeningReference;
   const isFocusedOpening = isReference && item.roomGraphEdge?.room_ids?.includes(item.parent?.focusedRoom?.cleanId);
   const referenceOpacity = isFocusedOpening ? 0.9 : 0.4;

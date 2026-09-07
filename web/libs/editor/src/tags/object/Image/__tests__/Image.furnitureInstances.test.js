@@ -244,6 +244,26 @@ test("finishing a one-point orientation draft cancels it without committing null
   expect(image.furnitureInstanceLogicals[0].context.review_status).toBe("reviewed");
 });
 
+test.each([CONTROLS.frontDirection, CONTROLS.frontEdge])(
+  "active %s accepts Konva points while reference regions remain protected",
+  (control) => {
+    const occupancy = makeOccupancy();
+    const { image } = setup(occupancy, makeInstance(occupancy));
+    image.selectFurnitureInstance("instance-i");
+    const { region, tool } = beginOnePoint(image, control, { x: 25, y: 30 });
+    expect(image.getSkipInteractions()).toBe(true);
+    expect(image.getSkipInteractions(region)).toBe(false);
+    expect(image.getSkipInteractions(image.regs.find((candidate) => candidate !== region))).toBe(true);
+    expect(region.isReadOnly()).toBeFalsy();
+    const reference = image.regs.find((candidate) => candidate.isReadOnly());
+    expect(reference).toBeDefined();
+    expect(image.getSkipInteractions(reference)).toBe(true);
+    tool.complete();
+    expect(tool.currentArea).toBeNull();
+    expect(image.furnitureInstanceLogicals).toHaveLength(1);
+  },
+);
+
 test("a persisted malformed orientation remains visible to validation instead of being silently dropped", () => {
   const occupancy = makeOccupancy();
   const malformed = makeInstance(occupancy, {
