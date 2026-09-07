@@ -89,6 +89,38 @@ class FurnitureInstanceSyncTests(TransactionTestCase):
         mark_reviewed(manual)
         return refs + manual
 
+    def test_labeling_stream_loads_bound_references_without_ml_model_selection(self):
+        from rest_framework.request import Request
+        from rest_framework.test import APIRequestFactory
+        from tasks.serializers import NextTaskSerializer
+
+        request = Request(APIRequestFactory().get('/'))
+        request.user = self.user
+        self.target_project.show_collab_predictions = True
+        self.target_project.save(update_fields=['show_collab_predictions'])
+        unrelated = Prediction.objects.create(
+            task=self.task, project=self.target_project, result=[], model_version='unrelated-ml-model',
+        )
+        for model_version in ('', unrelated.model_version):
+            with self.subTest(model_version=model_version):
+                self.task.project.model_version = model_version
+                data = NextTaskSerializer(self.task, context={'request': request, 'resolve_uri': False}).data
+                self.assertEqual([item['id'] for item in data['predictions']], [self.binding.prediction_id])
+                prediction = data['predictions'][0]
+                self.assertEqual(prediction['reference_version'], self.binding.applied_hash)
+                self.assertTrue(prediction['base_manual_hash'])
+                self.assertEqual(prediction['result'], Prediction.objects.get(pk=self.binding.prediction_id).result)
+
+    def test_disabled_binding_does_not_override_normal_prelabeling_selection(self):
+        self.mapping.enabled = False
+        self.mapping.save(update_fields=['enabled'])
+        self.task.project.show_collab_predictions = True
+        self.task.project.model_version = 'unrelated-ml-model'
+        unrelated = Prediction.objects.create(
+            task=self.task, project=self.target_project, result=[], model_version='unrelated-ml-model',
+        )
+        self.assertEqual(list(self.task.get_predictions_for_prelabeling()), [unrelated])
+
     def draft(self, *, result=None, annotation=None):
         return AnnotationDraft.objects.create(
             task=self.task,

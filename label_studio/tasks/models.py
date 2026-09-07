@@ -232,6 +232,17 @@ class Task(TaskMixin, FsmHistoryStateModel):
         project = self.project
         predictions = self.predictions
 
+        # Synchronized references belong to this task's explicit binding, not
+        # the project's ML model selection. Their per-task model version must
+        # not make a fresh labeling-stream annotation lose its reference tokens.
+        from tasks.reference_sync.models import ReferenceSyncBinding
+
+        reference = ReferenceSyncBinding.objects.filter(
+            target_task=self, mapping__enabled=True,
+        ).values_list('prediction_id', flat=True).first()
+        if reference is not None:
+            return predictions.filter(pk=reference)
+
         # TODO if we use live_model on project then we will need to check for it here
         if project.show_collab_predictions and project.model_version is not None:
             if project.ml_backend_in_model_version:
