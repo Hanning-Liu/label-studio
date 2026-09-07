@@ -153,6 +153,22 @@ COPY --chown=1001:0 LICENSE LICENSE
 COPY --chown=1001:0 licenses licenses
 COPY --chown=1001:0 deploy deploy
 
+# Windows Git checkouts can materialize these tracked symlinks as plain text.
+# Restore the known entrypoint links inside the QA image on either host OS.
+RUN set -eux; \
+    for script in \
+        app-docker/05-check-data-permissions.sh \
+        app-init/11-configure-custom-cabundle.sh \
+        app-init/20-wait-for-db.sh \
+        app/11-configure-custom-cabundle.sh \
+        app/20-wait-for-db.sh \
+        app/30-run-db-migrations.sh \
+        nginx/10-configure-nginx.sh; do \
+      target="../common/$(basename "$script")"; \
+      test -f "/label-studio/deploy/docker-entrypoint.d/$(dirname "$script")/$target"; \
+      ln -sf "$target" "/label-studio/deploy/docker-entrypoint.d/$script"; \
+    done
+
 COPY --chown=1001:0 --from=venv-builder               $LS_DIR                                           $LS_DIR
 COPY --chown=1001:0 --from=py-version-generator       $LS_DIR/label_studio/core/version_.py             $LS_DIR/label_studio/core/version_.py
 COPY --chown=1001:0 --from=frontend-builder           $LS_DIR/web/dist                                  $LS_DIR/web/dist
