@@ -6,11 +6,11 @@ import {
   furnitureTypeColor,
 } from "../presentation";
 
-test("palette contains all and only the 26 stable furniture values exactly once", () => {
+test("palette contains all and only the 28 stable furniture values exactly once", () => {
   const values = FURNITURE_TYPE_GROUPS.flatMap((group) => group.types);
-  expect(values).toHaveLength(26);
+  expect(values).toHaveLength(28);
   expect(new Set(values)).toEqual(new Set(Object.keys(FURNITURE_TYPES)));
-  expect(new Set(values)).toHaveProperty("size", 26);
+  expect(new Set(values)).toHaveProperty("size", 28);
   expect(assertFurniturePaletteCoverage()).toBe(true);
 });
 

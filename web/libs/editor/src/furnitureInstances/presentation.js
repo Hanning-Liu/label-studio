@@ -2,12 +2,12 @@ import { GROUP_TYPES } from "../occupancy/domain";
 import { FURNITURE_TYPES } from "./domain";
 
 export const FURNITURE_TYPE_GROUPS = Object.freeze([
-  { name: "睡眠与更衣", color: "#7C3AED", types: ["bed", "bedside_table", "wardrobe"] },
+  { name: "睡眠与更衣", color: "#7C3AED", types: ["bed", "bedside_table", "wardrobe", "dressing_table"] },
   { name: "工作学习", color: "#2563EB", types: ["desk", "office_chair"] },
   {
     name: "会客与用餐",
     color: "#16A34A",
-    types: ["sofa", "armchair", "coffee_table", "dining_table", "dining_chair"],
+    types: ["sofa", "armchair", "coffee_table", "dining_table", "dining_chair", "bar_counter"],
   },
   { name: "收纳与展示", color: "#475569", types: ["cabinet", "bookshelf", "tv_stand", "shoe_cabinet"] },
   { name: "厨房设施", color: "#EA580C", types: ["refrigerator", "stove", "kitchen_cabinet", "sink"] },

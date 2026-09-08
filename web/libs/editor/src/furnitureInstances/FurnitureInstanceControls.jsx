@@ -21,12 +21,17 @@ export const FurnitureInstanceControls = observer(({ item }) => {
   const annotation = item.annotation;
   const controller = annotation.store.referenceSyncController;
   const [state, setState] = useState(controller?.state || {});
-  const [type, setType] = useState(item.furnitureInstanceType);
+  const type = item.furnitureInstanceDraftType;
+  const availableTypes = item.furnitureInstanceAvailableTypes;
+  const [editType, setEditType] = useState("");
   const [note, setNote] = useState(item.furnitureInstanceNote);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [hasUnsavedMutation, setHasUnsavedMutation] = useState(false);
   const file = useRef(null);
+  const selectedId = item.furnitureInstanceEffectiveSelectedId;
+  const selectedType = item.furnitureInstanceLogicals.find((instance) => instance.id === selectedId)?.context.instance_type;
+  useEffect(() => setEditType(selectedType || ""), [selectedId, selectedType]);
 
   useEffect(() => {
     setState(controller?.state || {});
@@ -146,6 +151,12 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         return `实例 ${selected.id} 已记录人工复核并保存；仍需正式提交任务。`;
       });
     });
+
+  const applyCategory = () => run(() => applyFurnitureInstanceOperation(item, () => {
+    if (!selected) throw new Error("请先选择家具实例");
+    item.setFurnitureInstanceCategory(selected.id, editType);
+    return "当前实例类别已保存，请重新确认复核后提交。";
+  }));
 
   const restoreUnknown = () =>
     run(() =>
@@ -324,9 +335,9 @@ export const FurnitureInstanceControls = observer(({ item }) => {
                     style={{ "--furniture-type-color": group.color }}
                     aria-label={`${FURNITURE_TYPES[value]} (${value})`}
                     aria-pressed={selectedType}
-                    title={`${FURNITURE_TYPES[value]} (${value})`}
+                    disabled={!availableTypes.includes(value)}
+                    title={!availableTypes.includes(value) ? "当前项目尚未启用此类别，请先升级配置" : `${FURNITURE_TYPES[value]} (${value})`}
                     onClick={() => {
-                      setType(value);
                       item.setFurnitureInstanceDraft(value, note);
                     }}
                   >
@@ -355,6 +366,17 @@ export const FurnitureInstanceControls = observer(({ item }) => {
           )}
         </section>
         {orientationEnabled && <span>朝向证据：{orientation}</span>}
+        <label>
+          当前实例类别
+          <select aria-label="当前实例类别" value={editType} disabled={disabled || !selected || referenceChanged}
+            onChange={(event) => setEditType(event.target.value)}>
+            {!availableTypes.includes(editType) && <option value={editType}>{FURNITURE_TYPES[editType] || editType || "请选择实例"}</option>}
+            {availableTypes.map((value) => <option key={value} value={value}>{FURNITURE_TYPES[value]}</option>)}
+          </select>
+        </label>
+        <Button type="button" size="smaller" aria-label="应用当前实例类别"
+          disabled={disabled || !selected || referenceChanged || editType === selected?.context.instance_type || !availableTypes.includes(editType)}
+          onClick={applyCategory}>应用类别</Button>
         <span>复核状态：{reviewStatus}</span>
         {orientationEnabled && (
           <>

@@ -71,6 +71,47 @@ const CONFIG = `<View>
   </View>
 </View>`;
 
+const CATALOG_CONFIG = CONFIG.replace('</Choices>', '<Choice value="梳妆台" alias="dressing_table" /><Choice value="吧台/餐吧台" alias="bar_counter" /></Choices>');
+
+test("project choices constrain draft selection, import and category edits before mutation", () => {
+  const refs = makeOccupancy();
+  const { image, annotation } = setup(refs, makeInstance(refs));
+  expect(image.furnitureInstanceAvailableTypes).toEqual(["desk", "office_chair"]);
+  expect(image.furnitureInstanceDraftType).toBe("desk");
+  const before = annotation.serializeAnnotation({ fast: true });
+  expect(() => image.setFurnitureInstanceDraft("dressing_table")).toThrow("尚未启用");
+  expect(() => image.setFurnitureInstanceCategory("instance-i", "dressing_table")).toThrow("尚未启用");
+  expect(() => image.importFurnitureInstanceResults(makeInstance(refs, { instanceType: "bar_counter" }))).toThrow("尚未启用");
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+});
+
+test.each(["dressing_table", "bar_counter"])("reclassify a multipart reviewed instance to %s, retaining geometry, provenance and evidence", (type) => {
+  const refs = makeOccupancy();
+  const furniture = stampProvenance(makeInstance(refs, {
+    geometry: [square(20, 20, 40, 40), square(50, 20, 65, 40)],
+    orientation: { status: "front_direction", vertices: [{ x: 25, y: 30 }, { x: 35, y: 30 }] },
+  }));
+  const reviewed = confirmFurnitureInstances([...refs, ...furniture], [...refs, ...furniture], ["instance-i"]);
+  const { image, annotation } = setup(refs, reviewed.filter((result) => result.from_name.startsWith("furniture_")), CATALOG_CONFIG);
+  const before = annotation.serializeAnnotation({ fast: true });
+  image.setFurnitureInstanceDraft(type);
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  expect(image.setFurnitureInstanceCategory("instance-i", type)).toBe(true);
+  const after = annotation.serializeAnnotation({ fast: true });
+  for (const result of after) {
+    const original = before.find((value) => value.id === result.id && value.from_name === result.from_name);
+    if (!context(result).instance_id) { expect(result).toEqual(original); continue; }
+    expect(result.meta.furniture_instance_context).toEqual({ ...context(original), instance_type: type, review_status: "pending", review_fingerprint: null });
+    expect(result.meta.furniture_instance_provenance).toEqual(original.meta.furniture_instance_provenance);
+    expect(result.value).toEqual(result.from_name === CONTROLS.type ? { ...original.value, choices: [type] } : original.value);
+  }
+  expect(image.setFurnitureInstanceCategory("instance-i", type)).toBe(false);
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(after);
+  const loaded = setup(after.filter((result) => !context(result).instance_id), after.filter((result) => context(result).instance_id), CATALOG_CONFIG);
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
+  expect(() => loaded.image.confirmFurnitureInstanceReviews(["instance-i"])).not.toThrow();
+});
+
 const setup = (occupancy, furniture, config = CONFIG, markReferencesReadonly = true) => {
   ToolsManager.removeAllTools();
   const store = AppStore.create(

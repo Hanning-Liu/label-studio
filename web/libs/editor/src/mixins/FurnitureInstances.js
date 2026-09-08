@@ -61,6 +61,18 @@ export const FurnitureInstances = types
     get furnitureInstancesEnabled() {
       return self.furnitureinstancesv1;
     },
+    get furnitureInstanceAvailableTypes() {
+      const control = self.annotation.names.get(CONTROLS.type);
+      if (!control?.perregion || !["single", "single-radio"].includes(control.choice) || control.toNameTag !== self)
+        return [];
+      const configured = new Set(control.tiedChildren.map((choice) => choice.resultValue));
+      return Object.keys(FURNITURE_TYPES).filter((type) => configured.has(type));
+    },
+    get furnitureInstanceDraftType() {
+      return self.furnitureInstanceAvailableTypes.includes(self.furnitureInstanceType)
+        ? self.furnitureInstanceType
+        : self.furnitureInstanceAvailableTypes[0] || "";
+    },
     get furnitureInstanceOrientationEnabled() {
       return self.furnitureInstancesEnabled && self.furnitureinstanceorientation;
     },
@@ -141,7 +153,7 @@ export const FurnitureInstances = types
       if (GEOMETRY_CONTROLS.has(control)) {
         if (!self.furnitureInstanceParents.some((parent) => parent.id === self.furnitureInstanceFocusId))
           return "请先选择 Focus 家具组团";
-        if (!Object.hasOwn(FURNITURE_TYPES, self.furnitureInstanceType)) return "请选择家具实例类别";
+        if (!self.furnitureInstanceDraftType) return "当前项目未配置可用的家具实例类别";
       }
       if ([CONTROLS.frontDirection, CONTROLS.frontEdge].includes(control)) {
         if (!self.furnitureInstanceOrientationEnabled) return "当前项目未启用家具朝向标注";
@@ -201,8 +213,42 @@ export const FurnitureInstances = types
     },
     setFurnitureInstanceDraft(type, note = "") {
       if (!Object.hasOwn(FURNITURE_TYPES, type)) throw new Error("家具实例类别无效");
+      if (!self.furnitureInstanceAvailableTypes.includes(type)) throw new Error("当前项目尚未启用该家具类别，请先升级配置");
       self.furnitureInstanceType = type;
       self.furnitureInstanceNote = note || "";
+    },
+    setFurnitureInstanceCategory(id, type) {
+      const reason = self.furnitureInstanceOperationBlockReason();
+      if (reason) throw new Error(reason);
+      if (!self.furnitureInstanceAvailableTypes.includes(type)) throw new Error("当前项目尚未启用该家具类别");
+      const instance = self.furnitureInstanceLogicals.find((candidate) => candidate.id === id);
+      if (!instance) throw new Error("家具实例不存在");
+      if (instance.context.instance_type === type && instance.instanceType === type) return false;
+      const snapshot = getSnapshot(self.annotation.areas);
+      self.annotation.history.freeze("furniture-instance-category");
+      try {
+        for (const region of self.regs) {
+          for (const result of region.results) {
+            const value = context(result);
+            if (value.instance_id !== id) continue;
+            if (controlName(result) === CONTROLS.type) result.setValue([type]);
+            result.setMetaValue("furniture_instance_context", {
+              ...value, instance_type: type, review_status: "pending", review_fingerprint: null,
+            });
+          }
+        }
+        const current = self.annotation.serializeAnnotation({ fast: true });
+        const errors = validateFurnitureInstances(current, current, { review: false }).filter((issue) => issue.instanceId === id);
+        if (errors.length) throw new Error(errors.map((issue) => issue.message).join("；"));
+        self.furnitureInstanceEditNotice = "已修改当前实例类别，请重新确认复核。";
+        return true;
+      } catch (error) {
+        applySnapshot(self.annotation.areas, snapshot);
+        self.annotation.updateObjects();
+        throw error;
+      } finally {
+        self.annotation.history.unfreeze("furniture-instance-category");
+      }
     },
     setFurnitureInstanceFocus(id) {
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons) throw new Error("请先完成或取消绘制");
@@ -321,7 +367,7 @@ export const FurnitureInstances = types
       if (GEOMETRY_CONTROLS.has(name)) state?.resetSelected?.();
       else state?.unselectAll?.();
       const value = GEOMETRY_CONTROLS.has(name)
-        ? self.furnitureInstanceType
+        ? self.furnitureInstanceDraftType
         : name === CONTROLS.frontDirection
           ? "front_direction"
           : "front_edge";
@@ -471,7 +517,7 @@ export const FurnitureInstances = types
           value = baseContext(
             parent,
             self.annotation.referenceVersion,
-            self.furnitureInstanceType,
+            self.furnitureInstanceDraftType,
             self.furnitureInstanceNote,
           );
         } else {
@@ -685,6 +731,8 @@ export const FurnitureInstances = types
       const reason = self.furnitureInstanceOperationBlockReason();
       if (reason) throw new Error(reason);
       if (!Array.isArray(results)) throw new Error("导入结果必须为列表");
+      if (results.some((result) => !self.furnitureInstanceAvailableTypes.includes(context(result).instance_type)))
+        throw new Error("导入包含当前项目尚未启用的家具类别，请先升级项目配置");
       const current = self.annotation.serializeAnnotation({ fast: true });
       const references = current.filter((result) => !ALL_CONTROLS.has(controlName(result)));
       const checked = [...references, ...clone(results)];

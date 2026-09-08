@@ -292,6 +292,9 @@ const ChoicesSelectLayout = observer(({ item }) => {
 });
 
 const HtxChoices = observer(({ item, vectorReviewDock = false }) => {
+  // L4 category edits must update every part and evidence context atomically.
+  // Keep the control for serialization; the dedicated dock owns its editor.
+  if (item.name === "furniture_instance_type" && item.toNameTag?.furnitureInstancesEnabled) return null;
   if (!vectorReviewDock && dockedVectorReviewImage(item)) return null;
   return (
     <div

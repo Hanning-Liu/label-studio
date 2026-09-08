@@ -69,6 +69,8 @@ const setup = ({
     furnitureInstanceOrientationEnabled: true,
     furnitureInstanceBusy: false,
     furnitureInstanceType: "desk",
+    furnitureInstanceDraftType: "desk",
+    furnitureInstanceAvailableTypes: Object.keys(FURNITURE_TYPES),
     furnitureInstanceNote: "",
     furnitureInstanceDrawingControl: "",
     furnitureInstanceDeleteRequestId: deleteRequestId,
@@ -95,7 +97,8 @@ const setup = ({
     setFurnitureInstanceBusy: jest.fn((value) => {
       item.furnitureInstanceBusy = value;
     }),
-    setFurnitureInstanceDraft: jest.fn(),
+    setFurnitureInstanceDraft: jest.fn((value) => { item.furnitureInstanceDraftType = value; }),
+    setFurnitureInstanceCategory: jest.fn(),
     startFurnitureInstanceTool: jest.fn((control) => {
       item.furnitureInstanceDrawingControl = control;
       item.selectedToolControl = control;
@@ -180,15 +183,15 @@ test("orientation controls are absent when a project explicitly disables them", 
   expect(screen.queryByRole("button", { name: "将当前家具实例朝向恢复为 unknown" })).not.toBeInTheDocument();
 });
 
-test("renders canvas-first status cards and all 26 grouped palette choices", () => {
-  const { item } = setup();
+test("renders canvas-first status cards and all 28 grouped palette choices", () => {
+  const { item, rerender } = setup();
   expect(screen.getByRole("region", { name: "当前 Focus 家具组团" })).toHaveTextContent(
     "学习办公 · 窗边 · 房间 书房 · 分区 学习办公 · group-g",
   );
   expect(screen.getByRole("region", { name: "当前家具实例" })).toHaveTextContent(
     "书桌 · instance-i · 父级 room-r → zone-z → group-g",
   );
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("desk");
   expect(screen.queryByRole("button", { name: "绘制矩形家具实例" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "绘制多边形家具实例" })).not.toBeInTheDocument();
   for (const [value, label] of Object.entries(FURNITURE_TYPES)) {
@@ -196,6 +199,8 @@ test("renders canvas-first status cards and all 26 grouped palette choices", () 
   }
   fireEvent.click(screen.getByRole("button", { name: "沙发 (sofa)" }));
   expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("sofa", "");
+  rerender(<FurnitureInstanceControls item={item} />);
+  expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "沙发 (sofa)" })).toHaveAttribute("aria-pressed", "true");
 });
 
