@@ -32,8 +32,15 @@
   gap: 3px;
 }
 
-.row select {
+.row select,
+.row input {
   max-width: 300px;
+  min-width: 0;
+  color: var(--color-neutral-content);
+  background: var(--color-neutral-surface);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 4px;
+  padding: 4px 6px;
 }
 
 .statusCard {

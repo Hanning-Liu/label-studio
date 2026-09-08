@@ -638,6 +638,7 @@ export const FurnitureInstances = types
           const value = contexts.get(`${region.cleanId}\u0000${controlName(result)}`);
           if (value?.instance_id) result.setMetaValue("furniture_instance_context", value);
         }
+      self.furnitureInstanceEditNotice = "";
     },
     requestFurnitureInstanceDelete(region) {
       const value = typeof region === "string" ? { instance_id: region } : context(contextResult(region));

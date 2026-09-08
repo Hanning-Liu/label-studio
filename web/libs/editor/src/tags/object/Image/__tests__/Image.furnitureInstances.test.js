@@ -147,6 +147,9 @@ test.each(["dressing_table", "bar_counter"])(
     );
     expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
     expect(() => loaded.image.confirmFurnitureInstanceReviews(["instance-i"])).not.toThrow();
+    expect(image.furnitureInstanceEditNotice).toContain("重新确认复核");
+    image.confirmFurnitureInstanceReviews(["instance-i"]);
+    expect(image.furnitureInstanceEditNotice).toBe("");
   },
 );
 
