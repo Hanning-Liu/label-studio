@@ -3,9 +3,9 @@ import { withAlpha } from "../utils/roomConstraintGeometry";
 const FURNITURE_GEOMETRY_CONTROLS = new Set(["furniture_instance_rectangle", "furniture_instance_polygon"]);
 
 const appearance = Object.freeze({
-  focused: Object.freeze({ fill: 0.16, stroke: 0.9, width: 2 }),
-  sameZone: Object.freeze({ fill: 0.045, stroke: 0.28, width: 1 }),
-  context: Object.freeze({ fill: 0.02, stroke: 0.16, width: 1 }),
+  focused: Object.freeze({ fill: 0, stroke: 0, width: 0 }),
+  sameZone: Object.freeze({ fill: 0, stroke: 0.28, width: 1 }),
+  context: Object.freeze({ fill: 0, stroke: 0.16, width: 1 }),
 });
 
 const resultName = (result) => result?.from_name?.name || result?.from_name;
@@ -76,11 +76,14 @@ export function furnitureReferenceStyles(region, baseStyles) {
   const level = furnitureReferenceLevel(region);
   if (!level) return null;
   const selected = appearance[level];
+  // Logical L3 furniture groups are drawn once by FurnitureInstanceLayer.
+  const groupId = furnitureReferenceContext(region)?.occupancy?.group_id;
+  const logicalParent = groupId && region.parent.furnitureInstanceParents?.some((parent) => parent.id === groupId);
   const fill = baseStyles.fillColor || baseStyles.strokeColor;
   return {
     ...baseStyles,
     fillColor: withAlpha(fill, selected.fill),
-    strokeColor: withAlpha(baseStyles.strokeColor, selected.stroke),
+    strokeColor: withAlpha(baseStyles.strokeColor, logicalParent ? 0 : selected.stroke),
     labelColor: withAlpha(baseStyles.strokeColor, selected.stroke),
     strokeWidth: selected.width,
   };

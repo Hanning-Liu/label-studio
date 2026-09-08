@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { ImageViewContext } from "../components/ImageView/ImageViewContext";
 import Constants, { defaultStyle } from "../core/Constants";
 import { isDefined } from "../utils/utilities";
+import { furnitureGeometryStyles } from "../furnitureInstances/appearance";
 
 const defaultStyles = {
   defaultOpacity: defaultStyle.opacity,
@@ -66,11 +67,12 @@ export const getRegionStyles = ({
     return +(style?.strokewidth ?? defaultStrokeWidth);
   })();
 
-  return {
+  const base = {
     strokeColor,
     fillColor,
     strokeWidth,
   };
+  return furnitureGeometryStyles(region, base) || base;
 };
 
 export const useRegionStyles = (region: any, options: Partial<StyleOptions> = {}) => {
@@ -105,7 +107,7 @@ export const useRegionStyles = (region: any, options: Partial<StyleOptions> = {}
           },
           true,
         );
-      } catch (e) {
+      } catch (_e) {
         return () => {};
       }
     });

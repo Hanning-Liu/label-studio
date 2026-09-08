@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { FurnitureInstanceLayer } from "../FurnitureInstanceLayer";
+import { FurnitureInstanceLayer, FurnitureInstanceLabels } from "../FurnitureInstanceLayer";
 
 jest.mock("react-konva", () => ({
   Layer: ({ children, listening }) => (
@@ -13,8 +13,19 @@ jest.mock("react-konva", () => ({
       {children}
     </button>
   ),
-  Path: ({ data, fillRule }) => <span data-testid="geometry-path" data-path={data} data-fill-rule={fillRule} />,
+  Path: ({ data, fillRule, fill, stroke, opacity }) => (
+    <span
+      data-testid={fillRule ? "geometry-path" : "halo-path"}
+      data-path={data}
+      data-fill-rule={fillRule}
+      data-fill={fill}
+      data-stroke={stroke}
+      data-opacity={opacity}
+    />
+  ),
   Text: ({ text }) => <span>{text}</span>,
+  Rect: () => null,
+  Line: () => null,
 }));
 
 const polygon = (left, top, right, bottom, hole = null) => [
@@ -59,22 +70,28 @@ const setup = ({ activePartId = "", tool = { fullName: "MoveTool" } } = {}) => {
     getToolsManager: () => ({ findSelectedTool: () => tool }),
     setFurnitureInstanceFocus: jest.fn(),
     selectFurnitureInstance: jest.fn(),
+    setFurnitureInstanceHoveredId: jest.fn(),
     stageWidth: 1000,
     stageHeight: 500,
     zoomScale: 1,
   };
-  render(<FurnitureInstanceLayer item={item} />);
+  render(
+    <>
+      <FurnitureInstanceLayer item={item} />
+      <FurnitureInstanceLabels item={item} />
+    </>,
+  );
   return item;
 };
 
 test("renders parent below logical instances with even-odd multi-part paths", () => {
   setup();
-  const groups = screen.getAllByRole("button");
+  const groups = screen.getAllByRole("button").filter((group) => !group.dataset.testid.startsWith("furniture-label:"));
   expect(groups.map((group) => group.dataset.testid)).toEqual([
     "furniture-parent:group-a",
     "furniture-instance:instance-a",
   ]);
-  expect(screen.getByText("学习办公 · 窗边")).toBeInTheDocument();
+  expect(screen.getByText("Focus · 学习办公 · 窗边")).toBeInTheDocument();
   expect(screen.getAllByTestId("geometry-path").every((path) => path.dataset.fillRule === "evenodd")).toBe(true);
   expect(screen.getAllByTestId("geometry-path")[1].dataset.path.match(/M/g)).toHaveLength(2);
 });
@@ -93,6 +110,6 @@ test("selected editable part removes its logical hit overlay and drawing tools d
   const item = setup({ activePartId: "part-a", tool: { toolName: "PolygonTool", isDrawingTool: true } });
   expect(screen.getByTestId("furniture-instance:instance-a")).toBeInTheDocument();
   expect(screen.getAllByTestId("geometry-path")[1].dataset.path.match(/M/g)).toHaveLength(1);
-  expect(screen.getByTestId("logical-layer")).toHaveAttribute("data-listening", "false");
+  expect(screen.getAllByTestId("logical-layer")[0]).toHaveAttribute("data-listening", "false");
   expect(item.selectFurnitureInstance).not.toHaveBeenCalled();
 });

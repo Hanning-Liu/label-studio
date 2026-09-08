@@ -136,6 +136,10 @@ const Model = types
     toggleSelected() {
       if (self.parent?.readonly || self.annotation?.isReadOnly()) return;
       const choices = self.parent;
+      if (choices?.name === "furniture_instance_type" && choices.toNameTag?.furnitureInstancesEnabled) {
+        choices.toNameTag.setFurnitureInstanceEditNotice("请在当前实例类别中选择类别，然后点击应用类别。");
+        return;
+      }
       const selected = self.sel;
 
       choices.shouldBeUnselected && choices.resetSelected?.();

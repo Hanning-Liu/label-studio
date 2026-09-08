@@ -71,7 +71,10 @@ const CONFIG = `<View>
   </View>
 </View>`;
 
-const CATALOG_CONFIG = CONFIG.replace('</Choices>', '<Choice value="梳妆台" alias="dressing_table" /><Choice value="吧台/餐吧台" alias="bar_counter" /></Choices>');
+const CATALOG_CONFIG = CONFIG.replace(
+  "</Choices>",
+  '<Choice value="梳妆台" alias="dressing_table" /><Choice value="吧台/餐吧台" alias="bar_counter" /></Choices>',
+);
 
 test("project choices constrain draft selection, import and category edits before mutation", () => {
   const refs = makeOccupancy();
@@ -81,36 +84,71 @@ test("project choices constrain draft selection, import and category edits befor
   const before = annotation.serializeAnnotation({ fast: true });
   expect(() => image.setFurnitureInstanceDraft("dressing_table")).toThrow("尚未启用");
   expect(() => image.setFurnitureInstanceCategory("instance-i", "dressing_table")).toThrow("尚未启用");
-  expect(() => image.importFurnitureInstanceResults(makeInstance(refs, { instanceType: "bar_counter" }))).toThrow("尚未启用");
+  expect(() => image.importFurnitureInstanceResults(makeInstance(refs, { instanceType: "bar_counter" }))).toThrow(
+    "尚未启用",
+  );
   expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  image.selectFurnitureInstance("instance-i");
+  annotation.names.get(CONTROLS.type).findLabel("办公椅").onHotKey();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  expect(image.furnitureInstanceEditNotice).toContain("应用类别");
 });
 
-test.each(["dressing_table", "bar_counter"])("reclassify a multipart reviewed instance to %s, retaining geometry, provenance and evidence", (type) => {
-  const refs = makeOccupancy();
-  const furniture = stampProvenance(makeInstance(refs, {
-    geometry: [square(20, 20, 40, 40), square(50, 20, 65, 40)],
-    orientation: { status: "front_direction", vertices: [{ x: 25, y: 30 }, { x: 35, y: 30 }] },
-  }));
-  const reviewed = confirmFurnitureInstances([...refs, ...furniture], [...refs, ...furniture], ["instance-i"]);
-  const { image, annotation } = setup(refs, reviewed.filter((result) => result.from_name.startsWith("furniture_")), CATALOG_CONFIG);
-  const before = annotation.serializeAnnotation({ fast: true });
-  image.setFurnitureInstanceDraft(type);
-  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
-  expect(image.setFurnitureInstanceCategory("instance-i", type)).toBe(true);
-  const after = annotation.serializeAnnotation({ fast: true });
-  for (const result of after) {
-    const original = before.find((value) => value.id === result.id && value.from_name === result.from_name);
-    if (!context(result).instance_id) { expect(result).toEqual(original); continue; }
-    expect(result.meta.furniture_instance_context).toEqual({ ...context(original), instance_type: type, review_status: "pending", review_fingerprint: null });
-    expect(result.meta.furniture_instance_provenance).toEqual(original.meta.furniture_instance_provenance);
-    expect(result.value).toEqual(result.from_name === CONTROLS.type ? { ...original.value, choices: [type] } : original.value);
-  }
-  expect(image.setFurnitureInstanceCategory("instance-i", type)).toBe(false);
-  expect(annotation.serializeAnnotation({ fast: true })).toEqual(after);
-  const loaded = setup(after.filter((result) => !context(result).instance_id), after.filter((result) => context(result).instance_id), CATALOG_CONFIG);
-  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
-  expect(() => loaded.image.confirmFurnitureInstanceReviews(["instance-i"])).not.toThrow();
-});
+test.each(["dressing_table", "bar_counter"])(
+  "reclassify a multipart reviewed instance to %s, retaining geometry, provenance and evidence",
+  (type) => {
+    const refs = makeOccupancy();
+    const furniture = stampProvenance(
+      makeInstance(refs, {
+        geometry: [square(20, 20, 40, 40), square(50, 20, 65, 40)],
+        orientation: {
+          status: "front_direction",
+          vertices: [
+            { x: 25, y: 30 },
+            { x: 35, y: 30 },
+          ],
+        },
+      }),
+    );
+    const reviewed = confirmFurnitureInstances([...refs, ...furniture], [...refs, ...furniture], ["instance-i"]);
+    const { image, annotation } = setup(
+      refs,
+      reviewed.filter((result) => result.from_name.startsWith("furniture_")),
+      CATALOG_CONFIG,
+    );
+    const before = annotation.serializeAnnotation({ fast: true });
+    image.setFurnitureInstanceDraft(type);
+    expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+    expect(image.setFurnitureInstanceCategory("instance-i", type)).toBe(true);
+    const after = annotation.serializeAnnotation({ fast: true });
+    for (const result of after) {
+      const original = before.find((value) => value.id === result.id && value.from_name === result.from_name);
+      if (!context(result).instance_id) {
+        expect(result).toEqual(original);
+        continue;
+      }
+      expect(result.meta.furniture_instance_context).toEqual({
+        ...context(original),
+        instance_type: type,
+        review_status: "pending",
+        review_fingerprint: null,
+      });
+      expect(result.meta.furniture_instance_provenance).toEqual(original.meta.furniture_instance_provenance);
+      expect(result.value).toEqual(
+        result.from_name === CONTROLS.type ? { ...original.value, choices: [type] } : original.value,
+      );
+    }
+    expect(image.setFurnitureInstanceCategory("instance-i", type)).toBe(false);
+    expect(annotation.serializeAnnotation({ fast: true })).toEqual(after);
+    const loaded = setup(
+      after.filter((result) => !context(result).instance_id),
+      after.filter((result) => context(result).instance_id),
+      CATALOG_CONFIG,
+    );
+    expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
+    expect(() => loaded.image.confirmFurnitureInstanceReviews(["instance-i"])).not.toThrow();
+  },
+);
 
 const setup = (occupancy, furniture, config = CONFIG, markReferencesReadonly = true) => {
   ToolsManager.removeAllTools();
@@ -206,12 +244,15 @@ const armGeometry = (image, name = CONTROLS.rectangle, threePoint = false, dynam
   image.setFurnitureInstanceFocus("group-g");
   const tool =
     name === CONTROLS.rectangle
-      ? image.getToolsManager().allTools().find(
-          (candidate) =>
-            candidate.control?.name === name &&
-            candidate.toolName === (threePoint ? "Rectangle3PointTool" : "RectangleTool") &&
-            candidate.dynamic === dynamic,
-        )
+      ? image
+          .getToolsManager()
+          .allTools()
+          .find(
+            (candidate) =>
+              candidate.control?.name === name &&
+              candidate.toolName === (threePoint ? "Rectangle3PointTool" : "RectangleTool") &&
+              candidate.dynamic === dynamic,
+          )
       : null;
   image.startFurnitureInstanceTool(name, tool);
   return image.getToolsManager().findSelectedTool();
@@ -283,9 +324,9 @@ describe("L4 geometry toolbar entry points", () => {
       image.setFurnitureInstanceDraft("desk");
       image.setFurnitureInstanceFocus("group-g");
       const manager = image.getToolsManager();
-      const tool = manager.allTools().find(
-        (item) => item.control?.name === control && item.toolName === toolName && !item.dynamic,
-      );
+      const tool = manager
+        .allTools()
+        .find((item) => item.control?.name === control && item.toolName === toolName && !item.dynamic);
       const before = annotation.serializeAnnotation({ fast: true });
       keymaster.mockClear();
       const view = render(createElement(tool.viewClass));
@@ -327,9 +368,9 @@ describe("L4 geometry toolbar entry points", () => {
     const { image } = setup(makeOccupancy(), []);
     image.setFurnitureInstanceDraft("desk");
     const manager = image.getToolsManager();
-    const tool = manager.allTools().find(
-      (item) => item.control?.name === control && item.toolName === toolName && !item.dynamic,
-    );
+    const tool = manager
+      .allTools()
+      .find((item) => item.control?.name === control && item.toolName === toolName && !item.dynamic);
     const selected = manager.findSelectedTool();
     const view = render(createElement(tool.viewClass));
     expect(view.getByRole("button")).toHaveClass(disabledClass);
@@ -768,42 +809,59 @@ const inheritedWindow = () => ({
   meta: { window_context: { schema_version: 1, parent_room_id: "room-r", pairing_status: "exterior" } },
 });
 
-test.each(["L3", "L4"])("%s recognizes inherited windows as readonly without relying on the imported readonly flag", (level) => {
-  let config = CONFIG.replace(
-    "</View>",
-    '<VectorLabels name="window_vector" toName="image"><Label value="Window" /></VectorLabels></View>',
-  );
-  if (level === "L3") config = config.replace('furnitureInstancesV1="true"', 'occupancyV1="true"');
-  const refs = [...makeOccupancy(), inheritedWindow()];
-  const { annotation, image } = setup(refs, [], config, false);
-  const window = [...annotation.areas.values()].find((region) => region.cleanId === "inherited-window");
-  expect(window.readonly).toBe(false);
-  expect(window.isReadOnly()).toBe(true);
-  expect(image.windowEnabled).toBe(false);
-  expect(level === "L4" ? image.furnitureInstanceIsReference("window_vector") : image.occupancyIsReference("window_vector")).toBe(true);
-  image.updateRoomConstraintTools();
-  const tools = image.getToolsManager().allTools();
-  const windowTool = tools.find((tool) => tool.control?.name === "window_vector");
-  expect(windowTool).toBeDefined();
-  expect(windowTool.disabled).toBe(true);
-  if (level === "L4") {
-    expect(partitionFurnitureReferenceRegions([window], image)).toEqual({ references: [window], interactive: [] });
-    expect(furnitureInstanceToolbarTools(tools, true)).not.toContain(windowTool);
-    expect(image.furnitureInstanceLogicals).toEqual([]);
-  }
-  const before = annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId);
-  image.beforeSend();
-  const after = annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId);
-  expect(after).toEqual(before);
-  const reloaded = setup(refs.filter((result) => result.id !== window.cleanId).concat(after), [], config, false);
-  expect(reloaded.annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId)).toEqual(after);
-});
+test.each(["L3", "L4"])(
+  "%s recognizes inherited windows as readonly without relying on the imported readonly flag",
+  (level) => {
+    let config = CONFIG.replace(
+      "</View>",
+      '<VectorLabels name="window_vector" toName="image"><Label value="Window" /></VectorLabels></View>',
+    );
+    if (level === "L3") config = config.replace('furnitureInstancesV1="true"', 'occupancyV1="true"');
+    const refs = [...makeOccupancy(), inheritedWindow()];
+    const { annotation, image } = setup(refs, [], config, false);
+    const window = [...annotation.areas.values()].find((region) => region.cleanId === "inherited-window");
+    expect(window.readonly).toBe(false);
+    expect(window.isReadOnly()).toBe(true);
+    expect(image.windowEnabled).toBe(false);
+    expect(
+      level === "L4"
+        ? image.furnitureInstanceIsReference("window_vector")
+        : image.occupancyIsReference("window_vector"),
+    ).toBe(true);
+    image.updateRoomConstraintTools();
+    const tools = image.getToolsManager().allTools();
+    const windowTool = tools.find((tool) => tool.control?.name === "window_vector");
+    expect(windowTool).toBeDefined();
+    expect(windowTool.disabled).toBe(true);
+    if (level === "L4") {
+      expect(partitionFurnitureReferenceRegions([window], image)).toEqual({ references: [window], interactive: [] });
+      expect(furnitureInstanceToolbarTools(tools, true)).not.toContain(windowTool);
+      expect(image.furnitureInstanceLogicals).toEqual([]);
+    }
+    const before = annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId);
+    image.beforeSend();
+    const after = annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId);
+    expect(after).toEqual(before);
+    const reloaded = setup(refs.filter((result) => result.id !== window.cleanId).concat(after), [], config, false);
+    expect(
+      reloaded.annotation.serializeAnnotation({ fast: true }).find((result) => result.id === window.cleanId),
+    ).toEqual(after);
+  },
+);
 
 test("L4 geometry, category and direction keep their own metadata through save and reload alongside window references", () => {
   const refs = [...makeOccupancy(), inheritedWindow()];
-  const furniture = stampProvenance(makeInstance(refs, {
-    orientation: { status: "front_direction", vertices: [{ x: 25, y: 30 }, { x: 35, y: 30 }] },
-  }));
+  const furniture = stampProvenance(
+    makeInstance(refs, {
+      orientation: {
+        status: "front_direction",
+        vertices: [
+          { x: 25, y: 30 },
+          { x: 35, y: 30 },
+        ],
+      },
+    }),
+  );
   const config = CONFIG.replace(
     "</View>",
     '<VectorLabels name="window_vector" toName="image"><Label value="Window" /></VectorLabels></View>',

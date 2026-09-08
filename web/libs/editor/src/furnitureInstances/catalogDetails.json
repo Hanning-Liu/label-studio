@@ -1,284 +1,142 @@
 {
   "bed": {
     "definition": "用于睡眠的床体。",
-    "aliases": [
-      "床铺"
-    ],
-    "confusable": [
-      "sofa"
-    ]
+    "aliases": ["床铺"],
+    "confusable": ["sofa"]
   },
   "bedside_table": {
     "definition": "床旁放置日用品的独立小柜。",
-    "aliases": [
-      "床边柜"
-    ],
-    "confusable": [
-      "cabinet"
-    ]
+    "aliases": ["床边柜"],
+    "confusable": ["cabinet"]
   },
   "wardrobe": {
     "definition": "用于悬挂或收纳衣物的柜体。",
-    "aliases": [
-      "衣橱"
-    ],
-    "confusable": [
-      "cabinet",
-      "dressing_table"
-    ]
+    "aliases": ["衣橱"],
+    "confusable": ["cabinet", "dressing_table"]
   },
   "dressing_table": {
     "definition": "用于梳妆的家具台体；镜面与衣柜不能代替台体。",
-    "aliases": [
-      "梳妆桌",
-      "化妆台"
-    ],
-    "confusable": [
-      "desk",
-      "wardrobe"
-    ]
+    "aliases": ["梳妆桌", "化妆台"],
+    "confusable": ["desk", "wardrobe"]
   },
   "desk": {
     "definition": "用于书写、阅读或办公的工作台。",
-    "aliases": [
-      "写字台",
-      "办公桌"
-    ],
-    "confusable": [
-      "dressing_table",
-      "bar_counter"
-    ]
+    "aliases": ["写字台", "办公桌"],
+    "confusable": ["dressing_table", "bar_counter"]
   },
   "office_chair": {
     "definition": "用于桌前办公或学习的单人座椅。",
-    "aliases": [
-      "工作椅"
-    ],
-    "confusable": [
-      "dining_chair",
-      "armchair"
-    ]
+    "aliases": ["工作椅"],
+    "confusable": ["dining_chair", "armchair"]
   },
   "sofa": {
     "definition": "可供多人就座的软座家具。",
-    "aliases": [
-      "长沙发"
-    ],
-    "confusable": [
-      "armchair",
-      "bed"
-    ]
+    "aliases": ["长沙发"],
+    "confusable": ["armchair", "bed"]
   },
   "armchair": {
     "definition": "带扶手的单人休闲座椅。",
-    "aliases": [
-      "单人沙发",
-      "休闲椅"
-    ],
-    "confusable": [
-      "sofa",
-      "office_chair"
-    ]
+    "aliases": ["单人沙发", "休闲椅"],
+    "confusable": ["sofa", "office_chair"]
   },
   "coffee_table": {
     "definition": "会客座位旁或前方放置饮品、杂物的矮桌。",
-    "aliases": [
-      "咖啡桌"
-    ],
-    "confusable": [
-      "dining_table",
-      "bedside_table"
-    ]
+    "aliases": ["咖啡桌"],
+    "confusable": ["dining_table", "bedside_table"]
   },
   "dining_table": {
     "definition": "以就餐为主要用途的桌体。",
-    "aliases": [
-      "饭桌"
-    ],
-    "confusable": [
-      "bar_counter",
-      "desk"
-    ]
+    "aliases": ["饭桌"],
+    "confusable": ["bar_counter", "desk"]
   },
   "dining_chair": {
     "definition": "配合餐桌使用的单人椅。",
-    "aliases": [
-      "饭椅"
-    ],
-    "confusable": [
-      "office_chair",
-      "armchair"
-    ]
+    "aliases": ["饭椅"],
+    "confusable": ["office_chair", "armchair"]
   },
   "bar_counter": {
     "definition": "用于饮用、简餐或就座交流的台体；备餐橱柜另标。",
-    "aliases": [
-      "餐吧",
-      "吧桌"
-    ],
-    "confusable": [
-      "kitchen_cabinet",
-      "dining_table",
-      "desk"
-    ]
+    "aliases": ["餐吧", "吧桌"],
+    "confusable": ["kitchen_cabinet", "dining_table", "desk"]
   },
   "cabinet": {
     "definition": "无法归入专用柜类的收纳柜体。",
-    "aliases": [
-      "储物柜",
-      "收纳柜"
-    ],
-    "confusable": [
-      "wardrobe",
-      "kitchen_cabinet",
-      "shoe_cabinet"
-    ]
+    "aliases": ["储物柜", "收纳柜"],
+    "confusable": ["wardrobe", "kitchen_cabinet", "shoe_cabinet"]
   },
   "bookshelf": {
     "definition": "用于存放书籍或展示物品的层架。",
-    "aliases": [
-      "书柜",
-      "置物架"
-    ],
-    "confusable": [
-      "cabinet"
-    ]
+    "aliases": ["书柜", "置物架"],
+    "confusable": ["cabinet"]
   },
   "tv_stand": {
     "definition": "承托电视及附属设备的柜体。",
-    "aliases": [
-      "地柜"
-    ],
-    "confusable": [
-      "television",
-      "cabinet"
-    ]
+    "aliases": ["地柜"],
+    "confusable": ["television", "cabinet"]
   },
   "television": {
     "definition": "用于显示视听内容的电视设备。",
-    "aliases": [
-      "电视机"
-    ],
-    "confusable": [
-      "tv_stand"
-    ]
+    "aliases": ["电视机"],
+    "confusable": ["tv_stand"]
   },
   "refrigerator": {
     "definition": "用于低温储存食物的冷藏设备。",
-    "aliases": [
-      "电冰箱"
-    ],
-    "confusable": [
-      "cabinet"
-    ]
+    "aliases": ["电冰箱"],
+    "confusable": ["cabinet"]
   },
   "stove": {
     "definition": "用于烹饪的灶面或炉灶设备。",
-    "aliases": [
-      "灶台",
-      "炉灶"
-    ],
-    "confusable": [
-      "kitchen_cabinet"
-    ]
+    "aliases": ["灶台", "炉灶"],
+    "confusable": ["kitchen_cabinet"]
   },
   "kitchen_cabinet": {
     "definition": "厨房备餐或收纳柜体，可包含其工作台面轮廓。",
-    "aliases": [
-      "厨柜",
-      "备餐台"
-    ],
-    "confusable": [
-      "bar_counter",
-      "cabinet",
-      "sink"
-    ]
+    "aliases": ["厨柜", "备餐台"],
+    "confusable": ["bar_counter", "cabinet", "sink"]
   },
   "sink": {
     "definition": "接收厨房等清洗用水的槽体。",
-    "aliases": [
-      "洗菜盆",
-      "洗涤槽"
-    ],
-    "confusable": [
-      "washbasin",
-      "kitchen_cabinet"
-    ]
+    "aliases": ["洗菜盆", "洗涤槽"],
+    "confusable": ["washbasin", "kitchen_cabinet"]
   },
   "toilet": {
     "definition": "用于排泄的坐便器主体。",
-    "aliases": [
-      "马桶"
-    ],
-    "confusable": [
-      "cabinet"
-    ]
+    "aliases": ["马桶"],
+    "confusable": ["cabinet"]
   },
   "washbasin": {
     "definition": "用于洗手、洗脸等个人清洁的盆体。",
-    "aliases": [
-      "洗脸盆",
-      "面盆"
-    ],
-    "confusable": [
-      "sink",
-      "cabinet"
-    ]
+    "aliases": ["洗脸盆", "面盆"],
+    "confusable": ["sink", "cabinet"]
   },
   "bathtub": {
     "definition": "可容纳人体浸浴的缸体。",
-    "aliases": [
-      "浴盆"
-    ],
-    "confusable": [
-      "shower"
-    ]
+    "aliases": ["浴盆"],
+    "confusable": ["shower"]
   },
   "shower": {
     "definition": "可识别的淋浴装置或其设施轮廓。",
-    "aliases": [
-      "淋浴",
-      "花洒设施"
-    ],
-    "confusable": [
-      "bathtub"
-    ]
+    "aliases": ["淋浴", "花洒设施"],
+    "confusable": ["bathtub"]
   },
   "washing_machine": {
     "definition": "用于洗涤衣物的设备。",
-    "aliases": [
-      "洗衣设备"
-    ],
-    "confusable": [
-      "dryer"
-    ]
+    "aliases": ["洗衣设备"],
+    "confusable": ["dryer"]
   },
   "dryer": {
     "definition": "用于干燥衣物的设备。",
-    "aliases": [
-      "干衣机"
-    ],
-    "confusable": [
-      "washing_machine"
-    ]
+    "aliases": ["干衣机"],
+    "confusable": ["washing_machine"]
   },
   "shoe_cabinet": {
     "definition": "用于收纳鞋类的柜体。",
-    "aliases": [
-      "鞋橱"
-    ],
-    "confusable": [
-      "cabinet",
-      "wardrobe"
-    ]
+    "aliases": ["鞋橱"],
+    "confusable": ["cabinet", "wardrobe"]
   },
   "other": {
     "definition": "已辨识为家具或设施但当前类别表无法覆盖的对象。",
-    "aliases": [
-      "其他家具"
-    ],
-    "confusable": [
-      "cabinet"
-    ]
+    "aliases": ["其他家具"],
+    "confusable": ["cabinet"]
   }
 }

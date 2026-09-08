@@ -23,6 +23,11 @@ import { withAlpha } from "../utils/roomConstraintGeometry";
 import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
 import { lockRectangleToActiveAnchor } from "../occupancy/transform";
 import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
+import {
+  furnitureGeometryRegion,
+  furnitureNativePartActive,
+  syncFurnitureHalo,
+} from "../furnitureInstances/appearance";
 
 /**
  * Rectangle object for Bounding Box
@@ -489,6 +494,7 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
       // resetting the skew makes transformations weird but predictable
       target.setAttr("skewX", 0);
       target.setAttr("skewY", 0);
+      if (furnitureGeometryRegion(item)) syncFurnitureHalo(target);
     };
     eventHandlers.onTransformEnd = (e) => {
       const t = e.target;
@@ -579,6 +585,22 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
 
   return (
     <RegionWrapper item={item}>
+      {displayStyles.haloColor && (
+        <Rect
+          name={`furniture-halo:${item.id}`}
+          x={item.canvasX}
+          y={item.canvasY}
+          width={item.canvasWidth}
+          height={item.canvasHeight}
+          rotation={item.rotation}
+          scaleX={item.scaleX}
+          scaleY={item.scaleY}
+          stroke={displayStyles.haloColor}
+          strokeWidth={displayStyles.strokeWidth + 2}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      )}
       <Rect
         x={item.canvasX}
         y={item.canvasY}
@@ -600,13 +622,22 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
         draggable={!item.isReadOnly()}
         name={`${item.id} _transformable`}
         {...eventHandlers}
+        onDragMove={(event) => {
+          if (furnitureGeometryRegion(item)) syncFurnitureHalo(event.target);
+        }}
         onMouseOver={() => {
+          if (furnitureGeometryRegion(item))
+            item.parent.setFurnitureInstanceHoveredId(
+              item.results.find((result) => result.meta?.furniture_instance_context)?.meta.furniture_instance_context
+                .instance_id,
+            );
           if (store.annotationStore.selected.isLinkingMode) {
             item.setHighlight(true);
           }
           item.updateCursor(true);
         }}
         onMouseOut={() => {
+          if (furnitureGeometryRegion(item)) item.parent.setFurnitureInstanceHoveredId("");
           if (store.annotationStore.selected.isLinkingMode) {
             item.setHighlight(false);
           }
@@ -621,13 +652,20 @@ const HtxRectangleView = ({ item, setShapeRef }) => {
           item.setHighlight(false);
           item.onClickRegion(e);
         }}
-        listening={!suggestion && !isReference && !item.annotation?.isDrawing}
+        listening={
+          !suggestion &&
+          !isReference &&
+          !item.annotation?.isDrawing &&
+          (!furnitureGeometryRegion(item) || furnitureNativePartActive(item))
+        }
       />
-      <LabelOnRect
-        item={item}
-        color={displayStyles.labelColor || displayStyles.strokeColor}
-        strokewidth={displayStyles.strokeWidth}
-      />
+      {!item.parent?.furnitureInstancesEnabled && (
+        <LabelOnRect
+          item={item}
+          color={displayStyles.labelColor || displayStyles.strokeColor}
+          strokewidth={displayStyles.strokeWidth}
+        />
+      )}
     </RegionWrapper>
   );
 };

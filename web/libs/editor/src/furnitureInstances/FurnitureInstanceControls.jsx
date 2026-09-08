@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal } from "antd";
-import { Button } from "@humansignal/ui";
+import { Button, Tooltip } from "@humansignal/ui";
+import catalogDetails from "./catalogDetails.json";
 
 import { downloadJson } from "../occupancy/download";
 import { CONTROLS, FURNITURE_TYPES, ORIENTATION_CONTROLS } from "./domain";
@@ -30,7 +31,8 @@ export const FurnitureInstanceControls = observer(({ item }) => {
   const [hasUnsavedMutation, setHasUnsavedMutation] = useState(false);
   const file = useRef(null);
   const selectedId = item.furnitureInstanceEffectiveSelectedId;
-  const selectedType = item.furnitureInstanceLogicals.find((instance) => instance.id === selectedId)?.context.instance_type;
+  const selectedType = item.furnitureInstanceLogicals.find((instance) => instance.id === selectedId)?.context
+    .instance_type;
   useEffect(() => setEditType(selectedType || ""), [selectedId, selectedType]);
 
   useEffect(() => {
@@ -152,11 +154,14 @@ export const FurnitureInstanceControls = observer(({ item }) => {
       });
     });
 
-  const applyCategory = () => run(() => applyFurnitureInstanceOperation(item, () => {
-    if (!selected) throw new Error("请先选择家具实例");
-    item.setFurnitureInstanceCategory(selected.id, editType);
-    return "当前实例类别已保存，请重新确认复核后提交。";
-  }));
+  const applyCategory = () =>
+    run(() =>
+      applyFurnitureInstanceOperation(item, () => {
+        if (!selected) throw new Error("请先选择家具实例");
+        item.setFurnitureInstanceCategory(selected.id, editType);
+        return "当前实例类别已保存，请重新确认复核后提交。";
+      }),
+    );
 
   const restoreUnknown = () =>
     run(() =>
@@ -306,10 +311,10 @@ export const FurnitureInstanceControls = observer(({ item }) => {
           )}
         </section>
         <label>
-          说明
+          待绘制实例说明
           <input
             value={note}
-            disabled={disabled}
+            disabled={disabled || !type}
             onChange={(event) => {
               setNote(event.target.value);
               item.setFurnitureInstanceDraft(type, event.target.value);
@@ -323,27 +328,40 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         <legend>待绘制实例类别</legend>
         {FURNITURE_TYPE_GROUPS.map((group) => (
           <section key={group.name} className={styles.paletteGroup} aria-label={group.name}>
-            <strong style={{ color: group.color }}>{group.name}</strong>
+            <strong style={{ "--furniture-type-color": group.color }}>{group.name}</strong>
             <div>
               {group.types.map((value) => {
                 const selectedType = type === value;
                 return (
-                  <button
+                  <Tooltip
                     key={value}
-                    type="button"
-                    className={selectedType ? styles.typeSelected : styles.typeButton}
-                    style={{ "--furniture-type-color": group.color }}
-                    aria-label={`${FURNITURE_TYPES[value]} (${value})`}
-                    aria-pressed={selectedType}
-                    disabled={!availableTypes.includes(value)}
-                    title={!availableTypes.includes(value) ? "当前项目尚未启用此类别，请先升级配置" : `${FURNITURE_TYPES[value]} (${value})`}
-                    onClick={() => {
-                      item.setFurnitureInstanceDraft(value, note);
-                    }}
+                    title={
+                      !availableTypes.includes(value)
+                        ? "当前项目尚未启用此类别，请先升级配置"
+                        : `${catalogDetails[value].definition} 别称：${catalogDetails[value].aliases.join("、")}；易混淆：${catalogDetails[value].confusable.map((type) => FURNITURE_TYPES[type]).join("、")}`
+                    }
                   >
-                    <span aria-hidden="true">{selectedType ? "✓" : ""}</span>
-                    {FURNITURE_TYPES[value]}
-                  </button>
+                    <button
+                      key={value}
+                      type="button"
+                      className={selectedType ? styles.typeSelected : styles.typeButton}
+                      style={{ "--furniture-type-color": group.color }}
+                      aria-label={`${FURNITURE_TYPES[value]} (${value})`}
+                      aria-pressed={selectedType}
+                      disabled={!availableTypes.includes(value)}
+                      title={
+                        !availableTypes.includes(value)
+                          ? "当前项目尚未启用此类别，请先升级配置"
+                          : `${FURNITURE_TYPES[value]} (${value})`
+                      }
+                      onClick={() => {
+                        item.setFurnitureInstanceDraft(value, note);
+                      }}
+                    >
+                      <span aria-hidden="true">{selectedType ? "✓" : ""}</span>
+                      {FURNITURE_TYPES[value]}
+                    </button>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -368,15 +386,37 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         {orientationEnabled && <span>朝向证据：{orientation}</span>}
         <label>
           当前实例类别
-          <select aria-label="当前实例类别" value={editType} disabled={disabled || !selected || referenceChanged}
-            onChange={(event) => setEditType(event.target.value)}>
-            {!availableTypes.includes(editType) && <option value={editType}>{FURNITURE_TYPES[editType] || editType || "请选择实例"}</option>}
-            {availableTypes.map((value) => <option key={value} value={value}>{FURNITURE_TYPES[value]}</option>)}
+          <select
+            aria-label="当前实例类别"
+            value={editType}
+            disabled={disabled || !selected || referenceChanged}
+            onChange={(event) => setEditType(event.target.value)}
+          >
+            {!availableTypes.includes(editType) && (
+              <option value={editType}>{FURNITURE_TYPES[editType] || editType || "请选择实例"}</option>
+            )}
+            {availableTypes.map((value) => (
+              <option key={value} value={value}>
+                {FURNITURE_TYPES[value]}
+              </option>
+            ))}
           </select>
         </label>
-        <Button type="button" size="smaller" aria-label="应用当前实例类别"
-          disabled={disabled || !selected || referenceChanged || editType === selected?.context.instance_type || !availableTypes.includes(editType)}
-          onClick={applyCategory}>应用类别</Button>
+        <Button
+          type="button"
+          size="smaller"
+          aria-label="应用当前实例类别"
+          disabled={
+            disabled ||
+            !selected ||
+            referenceChanged ||
+            editType === selected?.context.instance_type ||
+            !availableTypes.includes(editType)
+          }
+          onClick={applyCategory}
+        >
+          应用类别
+        </Button>
         <span>复核状态：{reviewStatus}</span>
         {orientationEnabled && (
           <>
@@ -461,6 +501,15 @@ export const FurnitureInstanceControls = observer(({ item }) => {
       </div>
 
       <div className={styles.options}>
+        <label>
+          <input
+            type="checkbox"
+            checked={item.furnitureInstanceShowAllNames}
+            onChange={(event) => item.setFurnitureInstanceShowAllNames(event.target.checked)}
+          />
+          全图名称
+        </label>
+        {!focus && <span>请用 Move 选择 Focus 家具组团以显示组内名称。</span>}
         <label>
           <input
             type="checkbox"

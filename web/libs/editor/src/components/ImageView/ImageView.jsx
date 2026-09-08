@@ -34,7 +34,7 @@ import {
   shouldRenderOccupancyReferenceRegion,
 } from "../../occupancy/referenceDisplay";
 import { FurnitureInstanceControls } from "../../furnitureInstances/FurnitureInstanceControls";
-import { FurnitureInstanceLayer } from "../../furnitureInstances/FurnitureInstanceLayer";
+import { FurnitureInstanceLayer, FurnitureInstanceLabels } from "../../furnitureInstances/FurnitureInstanceLayer";
 import {
   furnitureInstanceMultiRegionSelection,
   furnitureInstanceToolbarTools,
@@ -1578,6 +1578,7 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
       )}
       {(!item.occupancyEnabled || item.occupancyActivePartId) && <Selection item={item} isPanning={state.isPanning} />}
       <DrawingRegion item={item} />
+      <FurnitureInstanceLabels item={item} />
       {item.smoothingEnabled === false && <PixelGridLayer item={item} />}
 
       {item.crosshair && (

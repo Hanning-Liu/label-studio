@@ -56,6 +56,8 @@ export const FurnitureInstances = types
     furnitureInstanceBusy: false,
     furnitureInstanceBoundarySnap: true,
     furnitureInstancePixelSnap: true,
+    furnitureInstanceShowAllNames: false,
+    furnitureInstanceHoveredId: "",
   }))
   .views((self) => ({
     get furnitureInstancesEnabled() {
@@ -204,6 +206,12 @@ export const FurnitureInstances = types
     setFurnitureInstanceEditNotice(message) {
       self.furnitureInstanceEditNotice = message || "";
     },
+    setFurnitureInstanceShowAllNames(value) {
+      self.furnitureInstanceShowAllNames = Boolean(value);
+    },
+    setFurnitureInstanceHoveredId(value) {
+      self.furnitureInstanceHoveredId = value || "";
+    },
     setFurnitureInstanceBusy(value) {
       self.furnitureInstanceBusy = !!value;
     },
@@ -213,7 +221,8 @@ export const FurnitureInstances = types
     },
     setFurnitureInstanceDraft(type, note = "") {
       if (!Object.hasOwn(FURNITURE_TYPES, type)) throw new Error("家具实例类别无效");
-      if (!self.furnitureInstanceAvailableTypes.includes(type)) throw new Error("当前项目尚未启用该家具类别，请先升级配置");
+      if (!self.furnitureInstanceAvailableTypes.includes(type))
+        throw new Error("当前项目尚未启用该家具类别，请先升级配置");
       self.furnitureInstanceType = type;
       self.furnitureInstanceNote = note || "";
     },
@@ -233,12 +242,17 @@ export const FurnitureInstances = types
             if (value.instance_id !== id) continue;
             if (controlName(result) === CONTROLS.type) result.setValue([type]);
             result.setMetaValue("furniture_instance_context", {
-              ...value, instance_type: type, review_status: "pending", review_fingerprint: null,
+              ...value,
+              instance_type: type,
+              review_status: "pending",
+              review_fingerprint: null,
             });
           }
         }
         const current = self.annotation.serializeAnnotation({ fast: true });
-        const errors = validateFurnitureInstances(current, current, { review: false }).filter((issue) => issue.instanceId === id);
+        const errors = validateFurnitureInstances(current, current, { review: false }).filter(
+          (issue) => issue.instanceId === id,
+        );
         if (errors.length) throw new Error(errors.map((issue) => issue.message).join("；"));
         self.furnitureInstanceEditNotice = "已修改当前实例类别，请重新确认复核。";
         return true;

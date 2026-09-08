@@ -87,6 +87,8 @@ const setup = ({
     furnitureInstanceErrors: errors,
     furnitureInstanceBoundarySnap: true,
     furnitureInstancePixelSnap: true,
+    furnitureInstanceShowAllNames: false,
+    setFurnitureInstanceShowAllNames: jest.fn(),
     furnitureInstanceEditNotice: "",
     selectedToolControl: "",
     getToolsManager: () => ({
@@ -97,7 +99,9 @@ const setup = ({
     setFurnitureInstanceBusy: jest.fn((value) => {
       item.furnitureInstanceBusy = value;
     }),
-    setFurnitureInstanceDraft: jest.fn((value) => { item.furnitureInstanceDraftType = value; }),
+    setFurnitureInstanceDraft: jest.fn((value) => {
+      item.furnitureInstanceDraftType = value;
+    }),
     setFurnitureInstanceCategory: jest.fn(),
     startFurnitureInstanceTool: jest.fn((control) => {
       item.furnitureInstanceDrawingControl = control;
@@ -181,6 +185,31 @@ test("orientation controls are absent when a project explicitly disables them", 
   expect(screen.queryByRole("button", { name: "标注家具正面方向" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "标注家具正面边" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "将当前家具实例朝向恢复为 unknown" })).not.toBeInTheDocument();
+});
+
+test("category changes are explicit and save failure can retry without repeating the edit", async () => {
+  const saveDraft = jest.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("offline")).mockResolvedValue({});
+  const { item } = setup({ saveDraft });
+  fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), { target: { value: "dressing_table" } });
+  expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "应用当前实例类别" }));
+  await waitFor(() => expect(item.setFurnitureInstanceCategory).toHaveBeenCalledWith("instance-i", "dressing_table"));
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("修改保留本地但未保存"));
+  fireEvent.click(screen.getByRole("button", { name: "仅重试保存当前 L4 草稿" }));
+  await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(3));
+  expect(item.setFurnitureInstanceCategory).toHaveBeenCalledTimes(1);
+});
+
+test("unconfigured classes are disabled and selecting another instance resets an unapplied edit", () => {
+  const { item, rerender } = setup();
+  item.furnitureInstanceAvailableTypes = ["desk", "office_chair"];
+  rerender(<FurnitureInstanceControls item={item} />);
+  expect(screen.getByRole("button", { name: "梳妆台 (dressing_table)" })).toBeDisabled();
+  fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), { target: { value: "office_chair" } });
+  item.furnitureInstanceEffectiveSelectedId = "";
+  rerender(<FurnitureInstanceControls item={item} />);
+  expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("");
+  expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
 });
 
 test("renders canvas-first status cards and all 28 grouped palette choices", () => {

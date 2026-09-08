@@ -27,6 +27,11 @@ import {
 } from "../utils/roomConstraintGeometry";
 import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
 import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
+import {
+  furnitureGeometryRegion,
+  furnitureNativePartActive,
+  syncFurnitureHalo,
+} from "../furnitureInstances/appearance";
 
 const Model = types
   .model({
@@ -536,6 +541,17 @@ const Poly = memo(
 
     return (
       <Group key={name} name={name}>
+        {colors.haloColor && (
+          <Line
+            name="furniture-halo:_transformable"
+            points={flattenedPoints}
+            closed
+            stroke={colors.haloColor}
+            strokeWidth={colors.strokeWidth + 2}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+        )}
         <Line
           name="_transformable"
           lineJoin="round"
@@ -549,6 +565,12 @@ const Poly = memo(
           fill={colors.fillColor}
           closed={true}
           {...dragProps}
+          onTransform={(event) => {
+            if (colors.haloColor) syncFurnitureHalo(event.target);
+          }}
+          onDragMove={(event) => {
+            if (colors.haloColor) syncFurnitureHalo(event.target);
+          }}
           onTransformEnd={(e) => {
             if (e.target !== e.currentTarget) return;
 
@@ -736,8 +758,8 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
         ? (pos) =>
             item.parent.fixForZoomWrapper(pos, (p) => {
               const previous = item.points.map((point) => ({ x: point.x, y: point.y }));
-              const dx = item.parent.canvasToInternalX(p.x),
-                dy = item.parent.canvasToInternalY(p.y);
+              const dx = item.parent.canvasToInternalX(p.x);
+              const dy = item.parent.canvasToInternalY(p.y);
               const accepted = item.parent.constrainOccupancyPolygon(
                 item,
                 previous,
@@ -819,9 +841,11 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
       }}
       {...dragProps}
       draggable={!item.isReadOnly() && (!item.inSelection || item.parent?.selectedRegions?.length === 1)}
-      listening={!suggestion && !isReference}
+      listening={!suggestion && !isReference && (!furnitureGeometryRegion(item) || furnitureNativePartActive(item))}
     >
-      <LabelOnPolygon item={item} color={displayStyles.labelColor || displayStyles.strokeColor} />
+      {!item.parent?.furnitureInstancesEnabled && (
+        <LabelOnPolygon item={item} color={displayStyles.labelColor || displayStyles.strokeColor} />
+      )}
 
       {item.mouseOverStartPoint}
 
