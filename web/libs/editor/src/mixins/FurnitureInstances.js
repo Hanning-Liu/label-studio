@@ -297,7 +297,13 @@ export const FurnitureInstances = types
       self.updateRoomConstraintTools?.();
       return hadDraft;
     },
-    startFurnitureInstanceTool(name) {
+    startFurnitureInstanceTool(name, requestedTool = null) {
+      const manager = self.getToolsManager();
+      const tools = manager.allTools();
+      // A rectangle control owns ordinary, three-point and dynamic variants.
+      // Preserve a toolbar's exact selection; name-only callers use a manual tool.
+      const tool = requestedTool ?? tools.find((candidate) => candidate.control?.name === name && !candidate.dynamic);
+      if (!tool || !tools.includes(tool) || tool.control?.name !== name) throw new Error("绘制工具尚未就绪");
       if (ORIENTATION_CONTROLS.has(name) && ORIENTATION_CONTROLS.has(self.furnitureInstanceDrawingControl)) {
         if (
           self.furnitureInstanceDrawingControl === name &&
@@ -320,12 +326,7 @@ export const FurnitureInstances = types
           ? "front_direction"
           : "front_edge";
       state?.children?.find((label) => label.alias === value || label.value === value)?.setSelected(true);
-      const tool = self
-        .getToolsManager()
-        .allTools()
-        .find((candidate) => candidate.control?.name === name);
-      if (!tool) throw new Error("绘制工具尚未就绪");
-      self.getToolsManager().selectTool(tool, true);
+      manager.selectTool(tool, true);
       self.furnitureInstanceDrawingControl = name;
     },
     furnitureInstanceDrawingPoint(point, region = null, starting = false, control = "") {

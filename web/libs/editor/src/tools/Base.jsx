@@ -27,7 +27,7 @@ const ToolView = observer(({ item }) => {
       onClick={() => {
         if (furnitureBlockReason) return;
         if (isFurnitureInstanceGeometryTool(item) && item.obj.startFurnitureInstanceTool) {
-          item.obj.startFurnitureInstanceTool(item.control?.name);
+          item.obj.startFurnitureInstanceTool(item.control?.name, item);
         } else {
           item.manager.selectTool(item, true);
         }

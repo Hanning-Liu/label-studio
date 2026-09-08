@@ -1,4 +1,9 @@
 import { TextEncoder } from "util";
+import { createElement } from "react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import keymaster from "keymaster";
+import { NodeViews } from "../../../../components/Node/Node";
+import { cn } from "../../../../utils/bem";
 
 import { confirmFurnitureInstances, orientationForInstance } from "../../../../furnitureInstances/constraints";
 import { CONTROLS, context, controlName } from "../../../../furnitureInstances/domain";
@@ -19,7 +24,7 @@ global.TextEncoder = TextEncoder;
 if (!globalThis.structuredClone) globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));
 
 jest.mock("keymaster", () => {
-  const keymaster = () => {};
+  const keymaster = jest.fn();
   keymaster.unbind = () => {};
   keymaster.setScope = () => {};
   return { __esModule: true, default: keymaster };
@@ -149,6 +154,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  jest.restoreAllMocks();
   jest.useRealTimers();
   ToolsManager.removeAllTools();
 });
@@ -156,21 +163,16 @@ afterEach(() => {
 const armGeometry = (image, name = CONTROLS.rectangle, threePoint = false, dynamic = false) => {
   image.setFurnitureInstanceDraft("desk");
   image.setFurnitureInstanceFocus("group-g");
-  image.startFurnitureInstanceTool(name);
-  if (name === CONTROLS.rectangle) {
-    const manager = image.getToolsManager();
-    manager.selectTool(
-      manager
-        .allTools()
-        .find(
-          (tool) =>
-            tool.control?.name === name &&
-            tool.toolName === (threePoint ? "Rectangle3PointTool" : "RectangleTool") &&
-            tool.dynamic === dynamic,
-        ),
-      true,
-    );
-  }
+  const tool =
+    name === CONTROLS.rectangle
+      ? image.getToolsManager().allTools().find(
+          (candidate) =>
+            candidate.control?.name === name &&
+            candidate.toolName === (threePoint ? "Rectangle3PointTool" : "RectangleTool") &&
+            candidate.dynamic === dynamic,
+        )
+      : null;
+  image.startFurnitureInstanceTool(name, tool);
   return image.getToolsManager().findSelectedTool();
 };
 
@@ -216,6 +218,109 @@ const expectCompletedGeometry = (image, tool) => {
   );
   expect(instance.context).toMatchObject({ group_id: "group-g", instance_type: "desk", review_status: "pending" });
 };
+
+describe("L4 geometry toolbar entry points", () => {
+  const activeClass = cn("tool").mod({ active: true }).toClassName();
+  const disabledClass = cn("tool").mod({ disabled: true }).toClassName();
+  beforeEach(() => {
+    // This Jest configuration stubs the icon package without these named exports.
+    for (const name of ["RectRegionModel", "Rect3PointRegionModel", "PolygonRegionModel"]) {
+      jest.replaceProperty(NodeViews[name], "icon", () => null);
+    }
+  });
+
+  const variants = [
+    [CONTROLS.rectangle, "RectangleTool", "drag"],
+    [CONTROLS.rectangle, "Rectangle3PointTool", "three-point"],
+    [CONTROLS.polygon, "PolygonTool", "polygon"],
+  ];
+
+  test.each(variants.flatMap((variant) => ["click", "shortcut"].map((entry) => [entry, ...variant])))(
+    "%s on %s / %s selects that tool, completes to Move and can be armed again",
+    (entry, control, toolName, mode) => {
+      const { image, annotation } = setup(makeOccupancy(), []);
+      image.setFurnitureInstanceDraft("desk");
+      image.setFurnitureInstanceFocus("group-g");
+      const manager = image.getToolsManager();
+      const tool = manager.allTools().find(
+        (item) => item.control?.name === control && item.toolName === toolName && !item.dynamic,
+      );
+      const before = annotation.serializeAnnotation({ fast: true });
+      keymaster.mockClear();
+      const view = render(createElement(tool.viewClass));
+      const button = view.getByRole("button");
+      if (entry === "click") {
+        fireEvent.click(button);
+      } else {
+        // Run the keyboard handler actually registered by the rendered toolbar.
+        const [key, , handler] = keymaster.mock.calls.at(-1) ?? [];
+        expect(key).toBe(mode === "three-point" ? "shift+r" : mode === "polygon" ? "p" : "r");
+        expect(handler).toEqual(expect.any(Function));
+        act(() => handler({ preventDefault: jest.fn(), stopPropagation: jest.fn() }));
+      }
+      expect(manager.findSelectedTool()).toBe(tool);
+      expect(button).toHaveClass(activeClass);
+      expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+      expect(manager.allTools().some((item) => item.dynamic && item.selected)).toBe(false);
+      act(() => {
+        if (mode === "polygon") {
+          tool.startDrawing(20, 20);
+          tool.currentArea.addPoint(40, 20);
+          tool.currentArea.addPoint(40, 40);
+          tool.finishDrawing();
+          jest.runOnlyPendingTimers();
+        } else {
+          drawRectangle(tool, mode);
+        }
+      });
+      expectCompletedGeometry(image, tool);
+      expect(button).not.toHaveClass(activeClass);
+      fireEvent.click(button);
+      expect(manager.findSelectedTool()).toBe(tool);
+      expect(button).toHaveClass(activeClass);
+      expect(image.furnitureInstanceLogicals).toHaveLength(1);
+    },
+  );
+
+  test.each(variants)("%s / %s remains blocked without Focus", (control, toolName) => {
+    const { image } = setup(makeOccupancy(), []);
+    image.setFurnitureInstanceDraft("desk");
+    const manager = image.getToolsManager();
+    const tool = manager.allTools().find(
+      (item) => item.control?.name === control && item.toolName === toolName && !item.dynamic,
+    );
+    const selected = manager.findSelectedTool();
+    const view = render(createElement(tool.viewClass));
+    expect(view.getByRole("button")).toHaveClass(disabledClass);
+    fireEvent.click(view.getByRole("button"));
+    expect(manager.findSelectedTool()).toBe(selected);
+    expect(image.furnitureInstanceLogicals).toHaveLength(0);
+  });
+
+  test.each([CONTROLS.rectangle, CONTROLS.polygon])("name-only %s selects a manual tool", (control) => {
+    const { image } = setup(makeOccupancy(), []);
+    image.setFurnitureInstanceDraft("desk");
+    image.setFurnitureInstanceFocus("group-g");
+    image.startFurnitureInstanceTool(control);
+    const tool = image.getToolsManager().findSelectedTool();
+    expect(tool.control.name).toBe(control);
+    expect(tool.dynamic).toBe(false);
+    if (control === CONTROLS.rectangle) expect(tool.toolName).toBe("RectangleTool");
+  });
+
+  test("rejects a tool belonging to another control before changing the current selection", () => {
+    const refs = makeOccupancy();
+    const { image, annotation } = setup(refs, makeInstance(refs));
+    image.selectFurnitureInstance("instance-i");
+    const selectedIds = annotation.selectedRegions.map((region) => region.id);
+    const manager = image.getToolsManager();
+    const selected = manager.findSelectedTool();
+    const other = manager.allTools().find((tool) => tool.control?.name === CONTROLS.polygon);
+    expect(() => image.startFurnitureInstanceTool(CONTROLS.rectangle, other)).toThrow("绘制工具尚未就绪");
+    expect(manager.findSelectedTool()).toBe(selected);
+    expect(annotation.selectedRegions.map((region) => region.id)).toEqual(selectedIds);
+  });
+});
 
 test.each(["drag", "two-clicks", "three-point"])(
   "completed L4 %s rectangle returns to Move and selects the new instance",

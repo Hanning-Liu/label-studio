@@ -281,7 +281,7 @@ describe("Base tool", () => {
       );
       render(tool.viewClass());
       screen.getByTestId("tool-button").click();
-      expect(startFurnitureInstanceTool).toHaveBeenCalledWith("furniture_instance_rectangle");
+      expect(startFurnitureInstanceTool).toHaveBeenCalledWith("furniture_instance_rectangle", tool);
       expect(tool.manager.selectTool).not.toHaveBeenCalled();
     });
 
