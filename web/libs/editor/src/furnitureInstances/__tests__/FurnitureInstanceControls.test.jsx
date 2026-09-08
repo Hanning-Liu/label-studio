@@ -143,6 +143,30 @@ const setup = ({
   };
 };
 
+test("keyboard focus exposes category definitions with an accessible description", async () => {
+  const { item } = setup();
+  const button = screen.getByRole("button", { name: "梳妆台 (dressing_table)" });
+  fireEvent.focus(button);
+  const hint = await screen.findByRole("tooltip");
+  expect(hint).toHaveTextContent("梳妆");
+  expect(hint).toHaveTextContent("易混淆");
+  expect(button.getAttribute("aria-describedby")).toBe(hint.id);
+  expect(item.setFurnitureInstanceDraft).not.toHaveBeenCalled();
+});
+
+test("an unavailable category has a keyboard-focusable explanation", async () => {
+  const { item, rerender } = setup();
+  item.furnitureInstanceAvailableTypes = item.furnitureInstanceAvailableTypes.filter(
+    (type) => type !== "dressing_table",
+  );
+  rerender();
+  const button = screen.getByRole("button", { name: "梳妆台 (dressing_table)" });
+  expect(button).toBeDisabled();
+  expect(button.parentElement.tabIndex).toBe(0);
+  fireEvent.focus(button.parentElement);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("当前项目尚未启用此类别");
+});
+
 beforeEach(() => Modal.confirm.mockReset());
 afterEach(() => jest.restoreAllMocks());
 
@@ -188,7 +212,11 @@ test("orientation controls are absent when a project explicitly disables them", 
 });
 
 test("category changes are explicit and save failure can retry without repeating the edit", async () => {
-  const saveDraft = jest.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("offline")).mockResolvedValue({});
+  const saveDraft = jest
+    .fn()
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({});
   const { item } = setup({ saveDraft });
   fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), { target: { value: "dressing_table" } });
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();

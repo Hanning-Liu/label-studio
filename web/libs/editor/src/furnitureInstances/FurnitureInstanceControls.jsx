@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { observer } from "mobx-react";
-import { Modal } from "antd";
-import { Button, Tooltip } from "@humansignal/ui";
+import { Modal, Tooltip } from "antd";
+import { Button } from "@humansignal/ui";
 import catalogDetails from "./catalogDetails.json";
 
 import { downloadJson } from "../occupancy/download";
@@ -19,6 +19,7 @@ import styles from "./FurnitureInstanceControls.module.scss";
 import { FURNITURE_TYPE_GROUPS, furnitureParentIdentity, shortFurnitureId } from "./presentation";
 
 export const FurnitureInstanceControls = observer(({ item }) => {
+  const categoryHelpId = useId();
   const annotation = item.annotation;
   const controller = annotation.store.referenceSyncController;
   const [state, setState] = useState(controller?.state || {});
@@ -332,35 +333,41 @@ export const FurnitureInstanceControls = observer(({ item }) => {
             <div>
               {group.types.map((value) => {
                 const selectedType = type === value;
+                const unavailable = !availableTypes.includes(value);
+                const helpId = `${categoryHelpId}-${value}`;
+                const description = unavailable
+                  ? "当前项目尚未启用此类别，请先升级配置"
+                  : `${catalogDetails[value].definition} 别称：${catalogDetails[value].aliases.join("、")}；易混淆：${catalogDetails[value].confusable.map((type) => FURNITURE_TYPES[type]).join("、")}`;
                 return (
-                  <Tooltip
-                    key={value}
-                    title={
-                      !availableTypes.includes(value)
-                        ? "当前项目尚未启用此类别，请先升级配置"
-                        : `${catalogDetails[value].definition} 别称：${catalogDetails[value].aliases.join("、")}；易混淆：${catalogDetails[value].confusable.map((type) => FURNITURE_TYPES[type]).join("、")}`
-                    }
-                  >
-                    <button
-                      key={value}
-                      type="button"
-                      className={selectedType ? styles.typeSelected : styles.typeButton}
-                      style={{ "--furniture-type-color": group.color }}
-                      aria-label={`${FURNITURE_TYPES[value]} (${value})`}
-                      aria-pressed={selectedType}
-                      disabled={!availableTypes.includes(value)}
-                      title={
-                        !availableTypes.includes(value)
-                          ? "当前项目尚未启用此类别，请先升级配置"
-                          : `${FURNITURE_TYPES[value]} (${value})`
-                      }
-                      onClick={() => {
-                        item.setFurnitureInstanceDraft(value, note);
-                      }}
+                  <Tooltip key={value} id={helpId} title={description} trigger={["hover", "focus"]}>
+                    <span
+                      className={styles.typeHint}
+                      tabIndex={unavailable ? 0 : undefined}
+                      aria-label={unavailable ? `${FURNITURE_TYPES[value]}：${description}` : undefined}
+                      aria-describedby={helpId}
                     >
-                      <span aria-hidden="true">{selectedType ? "✓" : ""}</span>
-                      {FURNITURE_TYPES[value]}
-                    </button>
+                      <button
+                        key={value}
+                        type="button"
+                        className={selectedType ? styles.typeSelected : styles.typeButton}
+                        style={{ "--furniture-type-color": group.color }}
+                        aria-label={`${FURNITURE_TYPES[value]} (${value})`}
+                        aria-pressed={selectedType}
+                        aria-describedby={helpId}
+                        disabled={unavailable}
+                        title={
+                          !availableTypes.includes(value)
+                            ? "当前项目尚未启用此类别，请先升级配置"
+                            : `${FURNITURE_TYPES[value]} (${value})`
+                        }
+                        onClick={() => {
+                          item.setFurnitureInstanceDraft(value, note);
+                        }}
+                      >
+                        <span aria-hidden="true">{selectedType ? "✓" : ""}</span>
+                        {FURNITURE_TYPES[value]}
+                      </button>
+                    </span>
                   </Tooltip>
                 );
               })}

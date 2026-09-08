@@ -104,9 +104,15 @@
 }
 
 .typeButton:focus-visible,
-.typeSelected:focus-visible {
+.typeSelected:focus-visible,
+.typeHint:focus-visible {
   outline: 2px solid var(--color-neutral-content);
   outline-offset: 2px;
+}
+
+.typeHint {
+  display: inline-flex;
+  border-radius: 5px;
 }
 
 .typeButton:disabled,
