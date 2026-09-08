@@ -2,6 +2,7 @@
 
 import hashlib
 from collections import Counter
+from xml.parsers import expat
 
 from lxml import etree
 
@@ -10,6 +11,46 @@ ADDITIONS = (('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'
 
 def config_sha256(config):
     return hashlib.sha256(config.encode('utf-8')).hexdigest()
+
+
+def _append_choices(config, missing):
+    """Locate the validated control in the original bytes, preserving all existing XML."""
+    source = config.encode('utf-8')
+    parser = expat.ParserCreate()
+    stack = []
+    location = {}
+
+    def start(name, attrs):
+        selected = name == 'Choices' and attrs.get('name') == 'furniture_instance_type'
+        stack.append(selected)
+        if selected:
+            location['start'] = parser.CurrentByteIndex
+
+    def end(name):
+        if stack.pop():
+            location['end'] = parser.CurrentByteIndex
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.Parse(source, True)
+    position = location['end']
+    additions = [etree.tostring(etree.Element('Choice', value=label, alias=alias), encoding='utf-8')
+                 for alias, label in missing]
+    if source[position:position + 9] != b'</Choices':
+        # Expat reports the byte after a self-closing empty control.
+        opening = source[location['start']:position]
+        if not opening.endswith(b'/>'):
+            raise ValueError('无法安全定位家具类别控件结束位置')
+        return (source[:position - 2] + b'>' + b''.join(additions) + b'</Choices>' + source[position:]).decode('utf-8')
+    line_start = source.rfind(b'\n', 0, position) + 1
+    indentation = source[line_start:position]
+    if not indentation.strip():
+        newline = b'\r\n' if b'\r\n' in source else b'\n'
+        insertion = b''.join(indentation + b'  ' + addition + newline for addition in additions)
+        position = line_start
+    else:
+        insertion = b''.join(additions)
+    return (source[:position] + insertion + source[position:]).decode('utf-8')
 
 
 def upgrade_choices(config):
@@ -51,6 +92,4 @@ def upgrade_choices(config):
             missing.append((alias, label))
     if not missing:
         return config, []
-    for alias, label in missing:
-        etree.SubElement(control, 'Choice', value=label, alias=alias)
-    return etree.tostring(root, encoding='unicode'), [alias for alias, _ in missing]
+    return _append_choices(config, missing), [alias for alias, _ in missing]

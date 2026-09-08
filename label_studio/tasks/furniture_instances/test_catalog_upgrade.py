@@ -27,6 +27,23 @@ def old_config():
 
 
 class CatalogUpgradeTests(TestCase):
+    def test_preserves_original_xml_bytes_and_supports_empty_control(self):
+        original = old_config().replace('/>', ' />').replace('\n', '\r\n')
+        updated, _ = upgrade_choices(original)
+        for alias, label in [('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台')]:
+            inserted = f'<Choice value="{label}" alias="{alias}"/>'
+            updated = updated.replace('    ' + inserted + '\r\n', '').replace(inserted, '')
+        self.assertEqual(updated, original)
+        root = etree.fromstring(original.encode())
+        control = root.xpath('.//Choices[@name="furniture_instance_type"]')[0]
+        for choice in list(control):
+            control.remove(choice)
+        control.text = None
+        empty = etree.tostring(root, encoding='unicode')
+        expanded, additions = upgrade_choices(empty)
+        self.assertEqual(additions, ['dressing_table', 'bar_counter'])
+        self.assertEqual(len(etree.fromstring(expanded.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')), 2)
+
     def test_append_preserves_existing_tree_and_is_idempotent(self):
         original = old_config()
         updated, additions = upgrade_choices(original)
@@ -34,7 +51,11 @@ class CatalogUpgradeTests(TestCase):
         root = etree.fromstring(updated.encode())
         for node in root.xpath('.//Choice[@alias="dressing_table" or @alias="bar_counter"]'):
             node.getparent().remove(node)
-        self.assertEqual(etree.tostring(root, encoding='unicode'), original)
+        normalized = etree.XMLParser(remove_blank_text=True)
+        self.assertEqual(
+            etree.tostring(etree.fromstring(etree.tostring(root), normalized)),
+            etree.tostring(etree.fromstring(original.encode(), normalized)),
+        )
         self.assertEqual(upgrade_choices(updated), (updated, []))
 
     def test_rejects_alias_label_control_and_mode_conflicts(self):

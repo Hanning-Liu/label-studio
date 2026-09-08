@@ -316,6 +316,25 @@ class FurnitureInstancesToUnifiedTests(unittest.TestCase):
         for name, value in original_windows.items():
             self.assertEqual(output[name], value)
 
+        for instance_type in ("dressing_table", "bar_counter"):
+            with self.subTest(instance_type=instance_type):
+                expanded_results = copy.deepcopy([geometry, category])
+                for result in expanded_results:
+                    result["id"] = "ls:l4:" + instance_type
+                    result["meta"]["furniture_instance_context"]["instance_id"] = "furniture-instance:" + instance_type
+                    result["meta"]["furniture_instance_context"]["instance_type"] = instance_type
+                    result["meta"]["furniture_instance_provenance"] = stamp(result["id"])
+                    if result["type"] == "choices":
+                        result["value"]["choices"] = [instance_type]
+                expanded_results.extend(copy.deepcopy([geometry, category]))
+                expanded = aggregate(base, expanded_results)
+                Draft202012Validator(schema).validate(expanded)
+                restored = reimport_annotation_envelope(expanded)
+                self.assertCountEqual(restored["result"], expanded_results)
+                self.assertEqual(aggregate(base, restored["result"]), expanded)
+                for name, value in original_windows.items():
+                    self.assertEqual(expanded[name], value)
+
         shown = base["furniture_instances"][0]
         shown_geometry = Polygon(
             [(point["x"], point["y"]) for point in shown["geometry"]["coordinates"][0]]

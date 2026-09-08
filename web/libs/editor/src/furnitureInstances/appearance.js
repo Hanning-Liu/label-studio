@@ -91,6 +91,13 @@ export function furnitureInstanceNames(instances) {
 const intersects = (a, b, gap = 3) =>
   a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y;
 
+export function furnitureLabelLeader(label) {
+  const clamp = (value, min, size) => Math.max(min, Math.min(value, min + size));
+  const x = clamp(label.x + label.width / 2, label.bounds.x, label.bounds.width);
+  const y = clamp(label.y + label.height / 2, label.bounds.y, label.bounds.height);
+  return [x, y, clamp(x, label.x, label.width), clamp(y, label.y, label.height)];
+}
+
 // All inputs and output rectangles are CSS screen pixels, independent of canvas zoom/rotation.
 export function layoutFurnitureLabels(candidates, viewport) {
   const placed = [];
@@ -128,7 +135,7 @@ export function layoutFurnitureLabels(candidates, viewport) {
         (rect) =>
           !placed.some((other) => intersects(rect, other)) &&
           !intersects(rect, b) &&
-          !obstacles.some((obstacle) => intersects(rect, obstacle)),
+          (entry.priority >= 2 || !obstacles.some((obstacle) => intersects(rect, obstacle))),
       );
     const fallback =
       entry.priority >= 2 &&

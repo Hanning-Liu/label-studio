@@ -1,6 +1,7 @@
 import {
   furnitureGeometryStyles,
   furnitureInstanceNames,
+  furnitureLabelLeader,
   furnitureShapeStyles,
   layoutFurnitureLabels,
 } from "../appearance";
@@ -104,4 +105,15 @@ test("native parent references contribute no duplicate focus fill", () => {
   const style = furnitureReferenceStyles(region, { fillColor: "#ff0000", strokeColor: "#ff0000" });
   expect(style.fillColor).toContain(", 0)");
   expect(style.strokeColor).toContain(", 0)");
+});
+
+test("selected sink labels stay beside the sink even when the cabinet surrounds it", () => {
+  const entries = [
+    { id: "sink", priority: 3, text: "水槽", bounds: { x: 40, y: 130, width: 20, height: 20 } },
+    { id: "cabinet", priority: 1, text: "橱柜", bounds: { x: 30, y: 80, width: 40, height: 100 } },
+  ];
+  const [label] = layoutFurnitureLabels(entries, { width: 700, height: 400 });
+  const [x1, y1, x2, y2] = furnitureLabelLeader(label);
+  expect(label.id).toBe("sink");
+  expect(Math.hypot(x2 - x1, y2 - y1)).toBeLessThanOrEqual(10);
 });

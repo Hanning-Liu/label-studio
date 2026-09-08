@@ -12,6 +12,7 @@ import { furnitureTypeColor } from "./presentation";
 import { furnitureInstanceInteractionLayerListening } from "./referenceDisplay";
 import {
   furnitureInstanceNames,
+  furnitureLabelLeader,
   furnitureNativePartIds,
   furnitureShapeStyles,
   layoutFurnitureLabels,
@@ -192,7 +193,7 @@ export const FurnitureInstanceLabels = observer(({ item }) => {
       {labels.map((label) => (
         <Group key={label.id} name={`furniture-label:${label.id}`} listening={false}>
           <Line
-            points={[label.bounds.x, label.bounds.y, label.x + label.width / 2, label.y + label.height / 2]}
+            points={furnitureLabelLeader(label)}
             stroke="#475569"
             strokeWidth={1}
             listening={false}
