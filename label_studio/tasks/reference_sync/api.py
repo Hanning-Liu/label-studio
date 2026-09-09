@@ -12,6 +12,7 @@ from .results import ROOMS, ZONES, inside, pending_reviews, region_hash, result_
 from .service import (SyncConflict,binding_status,current_reference,enqueue_source,lock_target,
                       prepare_source_annotation_result,prepare_write,snapshot,sync_atomic,target_binding)
 from .room_metadata import geometry_digest
+from .lineage import consistent_read, report_for_task, configured_level
 
 
 class ReferenceSyncStatusAPI(generics.GenericAPIView):
@@ -21,6 +22,7 @@ class ReferenceSyncStatusAPI(generics.GenericAPIView):
     def task(self):
         return get_object_or_404(Task.objects.for_user(self.request.user),pk=self.kwargs['pk'])
 
+    @consistent_read
     def get(self,request,*args,**kwargs):
         task=self.task()
         binding=ReferenceSyncBinding.objects.filter(target_task=task).select_related('mapping').first()
@@ -29,8 +31,11 @@ class ReferenceSyncStatusAPI(generics.GenericAPIView):
             data['mode']='target'
             return Response(data)
         outgoing=list(ReferenceSyncBinding.objects.filter(source_task_id=task.id,mapping__source_project_id=task.project_id).select_related('mapping'))
-        return Response({'enabled':any(b.mapping.enabled for b in outgoing),'mode':'source',
-                         'bindings':[binding_status(b,request.user) for b in outgoing]})
+        data = {'enabled':any(b.mapping.enabled for b in outgoing),'mode':'source',
+                'bindings':[binding_status(b,request.user) for b in outgoing]}
+        if configured_level(task.project.label_config):
+            data['lineage'] = report_for_task(task)
+        return Response(data)
 
     @sync_atomic
     def post(self,request,*args,**kwargs):

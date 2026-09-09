@@ -64,6 +64,8 @@ class FurnitureInstanceSyncTests(TransactionTestCase):
             completed_by=self.user,
             result=self.source_results(),
         )
+        from tasks.reference_sync.test_fixtures import attach_ancestors
+        attach_ancestors(self.source_task, self.source, 3)
         self.mapping = ReferenceSyncMapping.objects.create(
             source_project=self.source_project,
             target_project=self.target_project,

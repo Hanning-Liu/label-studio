@@ -591,6 +591,7 @@ class WindowDownstreamPipelineTests(TransactionTestCase):
 
     def l2_pipeline(self):
         from tasks.reference_sync.results import reference_hash
+        from tasks.reference_sync.lineage import digest
 
         source_project = Project.objects.create(
             title="Window L1 source", label_config=CONFIG, organization=self.org, created_by=self.user
@@ -618,6 +619,7 @@ class WindowDownstreamPipelineTests(TransactionTestCase):
             source_annotation_id=source.id,
             target_task=target,
             prediction_id=prediction.id,
+            source_data_hash=digest(source_task.data),
             desired_hash=revision,
             applied_hash=revision,
             status="synced",
@@ -631,6 +633,8 @@ class WindowDownstreamPipelineTests(TransactionTestCase):
 
     def l3_pipeline(self):
         from tasks.occupancy.reference import reference_hash
+        from tasks.reference_sync.lineage import digest
+        from tasks.reference_sync.test_fixtures import attach_ancestors
 
         source_project = Project.objects.create(
             title="Window L2 source", label_config=DOWNSTREAM_CONFIG, organization=self.org, created_by=self.user
@@ -647,6 +651,8 @@ class WindowDownstreamPipelineTests(TransactionTestCase):
             completed_by=self.user,
             result=source_results,
         )
+        attach_ancestors(source_task, source, 2)
+        source_results = source.result
         target = Task.objects.create(project=target_project, data=copy.deepcopy(source_task.data), overlap=1)
         refs = [{**copy.deepcopy(result), "readonly": True} for result in source_results]
         prediction = Prediction.objects.create(task=target, project=target_project, result=refs)
@@ -664,6 +670,7 @@ class WindowDownstreamPipelineTests(TransactionTestCase):
             source_annotation_id=source.id,
             target_task=target,
             prediction_id=prediction.id,
+            source_data_hash=digest(source_task.data),
             desired_hash=revision,
             applied_hash=revision,
             status="synced",
@@ -748,7 +755,8 @@ class WindowDownstreamPipelineTests(TransactionTestCase):
         protected = manual_hash(draft.result)
         zone, label = self.zone_and_label()
         source.result = self.authoritative_references(ys=(25, 45)) + [zone, label]
-        source.save(update_fields=["result", "updated_at"])
+        from tasks.reference_sync.test_fixtures import update_fixture_l1
+        update_fixture_l1(source.task, source)
         payload = {
             "reference_version": reference_hash(draft.result),
             "base_manual_hash": manual_hash(draft.result),

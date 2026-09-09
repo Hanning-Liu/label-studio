@@ -242,6 +242,8 @@ def process_binding(binding_id):
     source, annotation = source_for(binding)
     revision = reference_hash(annotation.result)
     target_project = binding.mapping.target_project
+    from .lineage import require_source
+    require_source(binding, lock=True)
     if source.project.organization_id != target_project.organization_id:
         raise ValueError('跨组织同步禁止')
     refs = validate_source(annotation.result,target_project.label_config)
@@ -355,7 +357,7 @@ def process_pending():
             # successful competing worker's state after its transaction ends.
             attempts = attempted.pop('attempts') + 1
             ReferenceSyncBinding.objects.filter(pk=binding_id,status__in=['pending','retry'],**attempted).update(
-                attempts=attempts,status='blocked' if isinstance(exc,(ValueError,KeyError,TypeError)) else 'retry',
+                attempts=attempts,status='blocked' if isinstance(exc,(ValueError,KeyError,TypeError,SyncConflict)) else 'retry',
                 error=str(exc)[:1500],updated_at=timezone.now(),
                 next_attempt_at=timezone.now()+timedelta(seconds=min(60,2**min(attempts,6))))
     return count
@@ -389,6 +391,10 @@ def prepare_write(task, payload, instance=None, *, submission=False):
                 'L4 家具实例项目缺少已启用的权威 L3 参考绑定；正式提交已停止，草稿不会被覆盖',
                 'furniture_instance_binding_required',
             )
+        if submission:
+            from .lineage import configured_level, report_for_task, require_report
+            if configured_level(task.project.label_config) in (2, 3, 4) and not source_room_mappings(task):
+                require_report(report_for_task(task, result=payload.get('result', []), lock=True))
         return payload.get('result'), None
     binding = ReferenceSyncBinding.objects.select_for_update().select_related('mapping').get(pk=binding.id)
     if l4_config and not is_furniture_instances(binding.mapping):
@@ -450,6 +456,9 @@ def prepare_write(task, payload, instance=None, *, submission=False):
             400,
             display_context={'reason': 'WINDOW_PROJECTION_VALIDATION', 'level': 'L2'},
         ) from exc
+    if submission:
+        from .lineage import report_for_task, require_report
+        require_report(report_for_task(task, result=merged, lock=True))
     return merged,binding
 
 
@@ -536,7 +545,21 @@ def latest_reference_difference(binding):
     return difference, room_results
 
 
-def binding_status(binding,user):
+def binding_status(binding, user):
+    data = _binding_status(binding, user)
+    from .lineage import report_for_task, require_source
+    if binding.target_task_id:
+        data['lineage'] = report_for_task(binding.target_task)
+    else:
+        try:
+            data['lineage'] = require_source(binding)
+        except (ValueError, SyncConflict) as exc:
+            data['lineage'] = {'ready': False, 'version': None, 'root': None, 'levels': [],
+                               'window_count': None, 'issues': [{'code': 'lineage_missing', 'message': str(exc)}]}
+    return data
+
+
+def _binding_status(binding,user):
     from tasks.models import AnnotationDraft
     if is_occupancy(binding.mapping) or is_furniture_instances(binding.mapping):
         if is_occupancy(binding.mapping):

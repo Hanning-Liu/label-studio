@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator
 
@@ -30,6 +31,15 @@ PROJECT_ID = 14
 TASK_ID = 24
 ANNOTATION_ID = 104
 ZONE_PARENT_FINGERPRINT = "a" * 64
+
+
+def cli_with_verified_evidence(args):
+    # These tests isolate the existing atomic writer and /4 transformer contract.
+    # Real, unmocked four-level CLI evidence is exercised in test_lineage.py.
+    with patch("tasks.reference_sync.lineage_bundle.load_bundle", return_value=([], {})), patch(
+        "tasks.reference_sync.lineage_bundle.validate_publication_sources"
+    ):
+        return main([*args, "--lineage-manifest", "verified-by-test-boundary.json"])
 
 
 def raw_rectangle(result_id, x, y, width, height, rotation=0, *, control="furniture_instance_rectangle"):
@@ -570,7 +580,7 @@ class FurnitureInstancesToUnifiedTests(unittest.TestCase):
             output_path = root / "nested" / "output.json"
             base_path.write_text(json.dumps(base), encoding="utf-8")
             annotation_path.write_text(json.dumps(envelope(results)), encoding="utf-8")
-            exit_code = main(
+            exit_code = cli_with_verified_evidence(
                 [
                     "--base-json",
                     str(base_path),
@@ -795,7 +805,7 @@ class FurnitureInstancesToUnifiedTests(unittest.TestCase):
             output_path = root / "output.json"
             base_path.write_text(json.dumps(base), encoding="utf-8")
             annotation_path.write_text(json.dumps(envelope(results)), encoding="utf-8")
-            exit_code = main(
+            exit_code = cli_with_verified_evidence(
                 [
                     "--base",
                     str(base_path),

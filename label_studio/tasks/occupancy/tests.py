@@ -43,6 +43,8 @@ class OccupancySyncTests(TransactionTestCase):
                 'value': {'x': 0, 'y': 0, 'width': 100, 'height': 100, 'rotation': 0, 'rectanglelabels': ['Bathroom']},
                 'original_width': 1080, 'original_height': 671, 'meta': {'room_graph_node': {'schema_version': 3, 'room_type': 'Bathroom'}}}
         self.source = Annotation.objects.create(task=self.source_task, project=self.source_project, completed_by=self.user, result=[room] + copy.deepcopy(self.fixture[:2]))
+        from tasks.reference_sync.test_fixtures import attach_ancestors
+        attach_ancestors(self.source_task, self.source, 2)
         self.mapping = ReferenceSyncMapping.objects.create(source_project=self.source_project, target_project=self.target_project, sync_type=SYNC_TYPE, apply_policy='manual', auto_create=False, enabled=True)
         self.binding = ReferenceSyncBinding.objects.create(mapping=self.mapping, source_task_id=self.source_task.id, source_annotation_id=self.source.id)
         self.task = sync_atomic(initialize_binding)(self.binding)
@@ -144,7 +146,8 @@ class OccupancySyncTests(TransactionTestCase):
         before = copy.deepcopy(submitted.result)
         expected = self.window_reference()
         self.source.result.append(expected)
-        self.source.save()
+        from tasks.reference_sync.test_fixtures import update_fixture_l1
+        update_fixture_l1(self.source_task, self.source)
         self.binding.refresh_from_db()
 
         payload = {**self.payload(draft), 'source_version': reference_hash(self.source.result)}

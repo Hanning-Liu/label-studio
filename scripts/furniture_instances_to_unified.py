@@ -897,21 +897,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--task-id", required=True, type=int)
     parser.add_argument("--annotation-id", required=True, type=int)
     parser.add_argument("--output", "--output-json", dest="output", required=True, type=Path)
+    parser.add_argument("--lineage-manifest", required=True, type=Path,
+                        help="audit_floorplan_lineage exported L1--L4 evidence manifest")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        from tasks.reference_sync.lineage_bundle import load_bundle, validate_publication_sources
+        documents, _report = load_bundle(args.lineage_manifest)
+        base = _read_json(args.base)
+        envelope = _read_json(args.annotation)
+        annotation, outer = _annotation_from_envelope(envelope, args.annotation_id)
+        _validate_envelope_identity(outer, annotation, args.project_id, args.task_id, args.annotation_id)
+        validate_publication_sources(base, annotation, documents)
         output = aggregate_furniture_instances(
-            _read_json(args.base),
-            _read_json(args.annotation),
+            base,
+            envelope,
             project_id=args.project_id,
             task_id=args.task_id,
             annotation_id=args.annotation_id,
         )
         _write_json(args.output, output)
-    except FurnitureAggregationError as exc:
+    except (ValueError, TypeError, KeyError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print(f"wrote {len(output['furniture_instances'])} furniture instance(s): {args.output}")
