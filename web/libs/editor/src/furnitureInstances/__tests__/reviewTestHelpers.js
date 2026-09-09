@@ -32,6 +32,7 @@ export function reviewSetup() {
       busy: false,
       switched: false,
       drawing: false,
+      readonly: false,
     },
     {},
     { deep: false },
@@ -56,7 +57,7 @@ export function reviewSetup() {
     get isDrawing() {
       return state.drawing;
     },
-    isReadOnly: () => false,
+    isReadOnly: () => state.readonly,
     saveDraftImmediatelyWithResults: jest.fn(async () => {
       calls.push("save");
     }),

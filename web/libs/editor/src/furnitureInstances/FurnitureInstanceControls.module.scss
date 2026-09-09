@@ -188,15 +188,35 @@
 }
 
 .reviewBar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  flex: 0 1 auto;
+  min-height: 0;
   background: var(--color-neutral-background);
   color: var(--color-neutral-content);
-  max-height: 55vh;
+  max-height: 60%;
   overflow: auto;
   box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
 }
+
+.reviewOutliner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.reviewList {
+  flex: 1 1 40%;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reviewList > section { flex: 0 0 auto; }
+.reviewList > p { margin: 2px 0; }
 
 .reviewBar select {
   max-width: 100%;

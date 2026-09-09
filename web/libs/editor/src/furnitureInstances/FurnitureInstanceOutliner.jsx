@@ -21,14 +21,15 @@ export const FurnitureReviewBar = observer(({ item, review }) => {
   const root = useRef(null);
   useEffect(() => {
     let inReview = false;
+    const scope = () => root.current?.closest('[aria-label="L4 家具实例列表"]') || root.current;
     const activate = (event) => {
-      inReview = Boolean(root.current?.contains(event.target) || item.stageRef?.container()?.contains(event.target));
+      inReview = Boolean(scope()?.contains(event.target) || item.stageRef?.container()?.contains(event.target));
     };
     const keydown = (event) => {
       const editable = event.target?.closest?.(
         'input, textarea, select, [contenteditable="true"], [role="dialog"], .ant-modal',
       );
-      const foreignButton = event.target?.closest?.("button, a") && !root.current?.contains(event.target);
+      const foreignButton = event.target?.closest?.("button, a") && !scope()?.contains(event.target);
       if (
         event.key !== "Enter" ||
         !event.shiftKey ||
@@ -223,36 +224,39 @@ export const FurnitureInstanceOutliner = observer(({ item }) => {
     );
   };
   return (
-    <div className={styles.outliner} aria-label="L4 家具实例列表">
+    <div className={`${styles.outliner} ${styles.reviewOutliner}`} aria-label="L4 家具实例列表">
       <FurnitureReviewBar item={item} review={review} />
-      <p>家具实例 {rows.length} · 父级链只读且不可由当前 Focus 覆盖</p>
-      {parents.map((parent) => {
-        const own = rows.filter((row) => row.groupId === parent.id);
-        if (!own.length) return null;
-        const focused = item.furnitureInstanceFocusId === parent.id;
-        return (
-          <section
-            key={parent.id}
-            className={styles.reviewGroup}
-            aria-label={`${GROUP_TYPES[parent.groupType] || parent.groupType}组团`}
-          >
-            <button
-              type="button"
-              disabled={blocked}
-              aria-expanded={focused}
-              onClick={() => review.focusGroup(parent.id)}
+      <div className={styles.reviewList}>
+        <p>家具实例 {rows.length} · 父级链只读且不可由当前 Focus 覆盖</p>
+        {parents.map((parent) => {
+          const own = rows.filter((row) => row.groupId === parent.id);
+          if (!own.length) return null;
+          const focused = item.furnitureInstanceFocusId === parent.id;
+          return (
+            <section
+              key={parent.id}
+              className={styles.reviewGroup}
+              aria-label={`${GROUP_TYPES[parent.groupType] || parent.groupType}组团`}
             >
-              {GROUP_TYPES[parent.groupType] || parent.groupType} · {short(parent.id)}
-              <br />
-              房间 {short(parent.roomId)} / 分区 {short(parent.zoneId)}
-              <br />
-              {progress(review.counts.groups[parent.id] || { reviewed: 0, pending: 0, blocked: 0 })}
-            </button>
-            {focused && (own.some(visible) ? own.filter(visible).map(renderRow) : <span>本组没有符合筛选的实例</span>)}
-          </section>
-        );
-      })}
-      {rows.filter((row) => !parents.some((parent) => parent.id === row.groupId) && visible(row)).map(renderRow)}
+              <button
+                type="button"
+                disabled={blocked}
+                aria-expanded={focused}
+                onClick={() => review.focusGroup(parent.id)}
+              >
+                {GROUP_TYPES[parent.groupType] || parent.groupType} · {short(parent.id)}
+                <br />
+                房间 {short(parent.roomId)} / 分区 {short(parent.zoneId)}
+                <br />
+                {progress(review.counts.groups[parent.id] || { reviewed: 0, pending: 0, blocked: 0 })}
+              </button>
+              {focused &&
+                (own.some(visible) ? own.filter(visible).map(renderRow) : <span>本组没有符合筛选的实例</span>)}
+            </section>
+          );
+        })}
+        {rows.filter((row) => !parents.some((parent) => parent.id === row.groupId) && visible(row)).map(renderRow)}
+      </div>
     </div>
   );
 });

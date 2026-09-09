@@ -106,3 +106,31 @@ test("checked valid reviews become disabled in the reviewed filter and unknown r
   expect(screen.getByRole("checkbox", { name: "勾选已检查：床 · a" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "床 · a · 已复核" })).toBeEnabled();
 });
+
+test("continuous shortcut accepts an instance name focus, but not an unrelated button or readonly annotation", async () => {
+  const { session, item, state } = setup();
+  await act(async () => {
+    await session.start();
+  });
+  const name = screen.getByRole("button", { name: "床 · a · 待复核" });
+  const elsewhere = document.createElement("button");
+  document.body.append(elsewhere);
+  fireEvent.focusIn(elsewhere);
+  fireEvent.keyDown(elsewhere, { key: "Enter", shiftKey: true });
+  fireEvent.focusIn(name);
+  act(() =>
+    runInAction(() => {
+      state.readonly = true;
+    }),
+  );
+  fireEvent.keyDown(name, { key: "Enter", shiftKey: true });
+  expect(item.confirmFurnitureInstanceReviews).not.toHaveBeenCalled();
+  act(() =>
+    runInAction(() => {
+      state.readonly = false;
+    }),
+  );
+  fireEvent.keyDown(name, { key: "Enter", shiftKey: true });
+  await waitFor(() => expect(item.confirmFurnitureInstanceReviews).toHaveBeenCalledTimes(1));
+  elsewhere.remove();
+});
