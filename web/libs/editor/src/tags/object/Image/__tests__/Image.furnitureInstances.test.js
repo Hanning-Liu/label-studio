@@ -941,3 +941,61 @@ test("invalid batch target prevents any model review write", () => {
   expect(() => image.confirmFurnitureInstanceReviews(["a", "b"])).toThrow();
   expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
 });
+
+test("parent acceptance is atomic, survives reload and preserves unrelated reviewed instances", () => {
+  const original = makeOccupancy();
+  const updated = original.map((r) =>
+    r.meta?.occupancy_context?.group_id
+      ? { ...r, meta: { ...r.meta, occupancy_context: { ...r.meta.occupancy_context, group_note: "updated" } } }
+      : r,
+  );
+  const stale = stampProvenance(
+    makeInstance(original, {
+      geometry: [square(20, 20, 30, 30), square(40, 40, 50, 50)],
+      orientation: {
+        status: "front_direction",
+        vertices: [
+          { x: 22, y: 25 },
+          { x: 28, y: 25 },
+        ],
+      },
+    }),
+  );
+  const other = confirmFurnitureInstances(makeInstance(updated, { instanceId: "untouched" }), updated, ["untouched"]);
+  const { image, annotation } = setup(updated, [...stale, ...other]);
+  const before = annotation.serializeAnnotation({ fast: true });
+  const targets = image.regs.flatMap((r) => [...r.results]).filter((r) => context(r).instance_id === "instance-i");
+  const action = targets[1].setMetaValue;
+  targets[1].setMetaValue = () => {
+    throw new Error("injected parent acceptance failure");
+  };
+  expect(() => image.acceptFurnitureInstanceParentUpdate("instance-i")).toThrow("injected parent acceptance failure");
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  targets[1].setMetaValue = action;
+  image.acceptFurnitureInstanceParentUpdate("instance-i");
+  const after = annotation.serializeAnnotation({ fast: true });
+  expect(after.filter((r) => context(r).instance_id !== "instance-i")).toEqual(
+    before.filter((r) => context(r).instance_id !== "instance-i"),
+  );
+  for (const r of after.filter((r) => context(r).instance_id === "instance-i")) {
+    const old = before.find((b) => b.id === r.id && b.from_name === r.from_name);
+    expect(r.value).toEqual(old.value);
+    expect(r.meta.furniture_instance_provenance).toEqual(old.meta.furniture_instance_provenance);
+    expect(context(r)).toEqual({
+      ...context(old),
+      parent_fingerprint: image.furnitureInstanceParents[0].fingerprint,
+      review_status: "pending",
+      review_fingerprint: null,
+    });
+  }
+  const loaded = setup(
+    after.filter((r) => !r.from_name.startsWith("furniture_")),
+    after.filter((r) => r.from_name.startsWith("furniture_")),
+  );
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
+  expect(loaded.image.furnitureInstanceErrors.filter((e) => e.instanceId === "instance-i").map((e) => e.code)).toEqual([
+    "review",
+  ]);
+  loaded.image.confirmFurnitureInstanceReviews(["instance-i"]);
+  expect(loaded.image.furnitureInstanceErrors).toEqual([]);
+});

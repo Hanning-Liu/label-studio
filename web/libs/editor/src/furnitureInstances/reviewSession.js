@@ -9,6 +9,7 @@ import {
   nextFurnitureReviewId,
 } from "./review";
 import { focusFurnitureReview, furnitureReviewPoints } from "./reviewFocus";
+import { acceptFurnitureParentUpdate } from "./parentUpdate";
 
 const sessions = new WeakMap();
 
@@ -312,6 +313,18 @@ export class FurnitureReviewSession {
       });
     }
   }
+  async acceptParentUpdate(id) {
+    if (this.blockReason) {
+      this.error = this.blockReason;
+      return;
+    }
+    const snapshot = this.snapshot;
+    this.frozenCounts = { total: { ...snapshot.total }, groups: { ...snapshot.groups } };
+    const ok = await this.run(() => acceptFurnitureParentUpdate(this.item, id));
+    runInAction(() => {
+      if (ok || !this.unsaved) this.frozenCounts = null;
+    });
+  }
   async confirm(ids, { advance = false, batch = false } = {}) {
     if (this.blockReason) {
       this.error = this.blockReason;
@@ -426,6 +439,10 @@ export class FurnitureReviewSession {
     const request = this.pending;
     const ok = await this.run(() => retryFurnitureInstanceSave(this.item), { retry: true });
     if (ok && request) await this.finish(request);
+    else if (ok)
+      runInAction(() => {
+        this.frozenCounts = null;
+      });
   }
 }
 
@@ -454,6 +471,7 @@ decorate(FurnitureReviewSession, {
   start: action.bound,
   advance: action.bound,
   run: action.bound,
+  acceptParentUpdate: action.bound,
   confirm: action.bound,
   finish: action.bound,
   retry: action.bound,

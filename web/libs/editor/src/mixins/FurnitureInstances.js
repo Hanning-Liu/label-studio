@@ -29,6 +29,7 @@ import {
 } from "../furnitureInstances/constraints";
 import { area, clone, difference, EPS_AREA, fingerprint, resultGeometry } from "../occupancy/geometry";
 import { getFurnitureReviewSession } from "../furnitureInstances/reviewSession";
+import { furnitureParentUpdate } from "../furnitureInstances/parentUpdate";
 import { GEOMETRY as OCCUPANCY_GEOMETRY, REFERENCES as OCCUPANCY_REFERENCES } from "../occupancy/domain";
 
 const REFERENCE_CONTROLS = new Set([
@@ -630,6 +631,31 @@ export const FurnitureInstances = types
           if (value && fingerprint(result.meta?.furniture_instance_context || {}) !== fingerprint(value))
             result.setMetaValue("furniture_instance_context", value);
         }
+    },
+    acceptFurnitureInstanceParentUpdate(id, expectedToken) {
+      const reason = self.furnitureInstanceOperationBlockReason();
+      if (reason) throw new Error(reason);
+      const current = self.annotation.serializeAnnotation({ fast: true });
+      const next = furnitureParentUpdate(current, current, id);
+      if (expectedToken && next.token !== expectedToken) throw new Error("实例或父组团已变化，请重新检查");
+      if (next.results === current) return;
+      const contexts = new Map(next.results.map((result) => [resultKey(result), context(result)]));
+      const snapshot = getSnapshot(self.annotation.areas);
+      self.annotation.history.freeze("furniture-instance-parent-update");
+      try {
+        for (const region of self.regs)
+          for (const result of region.results) {
+            const value = contexts.get(`${region.cleanId}\u0000${controlName(result)}`);
+            if (value?.instance_id === id) result.setMetaValue("furniture_instance_context", value);
+          }
+      } catch (error) {
+        applySnapshot(self.annotation.areas, snapshot);
+        self.annotation.updateObjects();
+        throw error;
+      } finally {
+        self.annotation.history.unfreeze("furniture-instance-parent-update");
+      }
+      self.furnitureInstanceEditNotice = "已接受原父组团更新，当前实例待复核。";
     },
     confirmFurnitureInstanceReviews(ids) {
       const reason = self.furnitureInstanceOperationBlockReason();

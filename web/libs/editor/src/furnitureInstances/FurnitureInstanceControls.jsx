@@ -4,6 +4,7 @@ import { Modal, Tooltip } from "antd";
 import { Button } from "@humansignal/ui";
 import catalogDetails from "./catalogDetails.json";
 import { useFurnitureReviewSession } from "./reviewSession";
+import { furnitureParentUpdate } from "./parentUpdate";
 
 import { downloadJson } from "../occupancy/download";
 import { CONTROLS, FURNITURE_TYPES, ORIENTATION_CONTROLS } from "./domain";
@@ -206,6 +207,14 @@ export const FurnitureInstanceControls = observer(({ item }) => {
             : "reviewed（已复核）"
           : "需处理（请检查实例问题）"
     : "—";
+  let parentUpdateReason = disabledReason || review.blockReason;
+  if (selected && effectiveReviewStatus === "stale" && !parentUpdateReason) {
+    try {
+      furnitureParentUpdate(item.furnitureInstanceData, item.furnitureInstanceData, selected.id);
+    } catch (cause) {
+      parentUpdateReason = cause.message || "请先处理当前实例的校验问题";
+    }
+  }
 
   return (
     <section className={styles.dock} data-testid="furniture-instance-controls" aria-label="L4 家具实例工具">
@@ -406,6 +415,19 @@ export const FurnitureInstanceControls = observer(({ item }) => {
           应用类别
         </Button>
         <span>复核状态：{reviewStatus}</span>
+        {effectiveReviewStatus === "stale" && (
+          <Button
+            type="button"
+            size="smaller"
+            variant="primary"
+            look="outlined"
+            disabled={Boolean(parentUpdateReason)}
+            tooltip={parentUpdateReason || "保留当前实例和原父级关系，接受更新后仍需确认复核"}
+            onClick={() => review.acceptParentUpdate(selected.id)}
+          >
+            检查并接受父组团更新
+          </Button>
+        )}
         {orientationEnabled && (
           <>
             <Button
@@ -494,6 +516,12 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         </Button>
       </div>
 
+      {effectiveReviewStatus === "stale" && (
+        <p role="note">
+          {parentUpdateReason ||
+            "请检查当前实例仍属于原家具组团且符合新边界，再接受父组团更新。接受后转为待复核，实例 ID、几何和方向证据保留。"}
+        </p>
+      )}
       <div className={styles.options}>
         <label>
           <input

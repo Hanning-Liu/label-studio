@@ -4,7 +4,9 @@ import { TextEncoder } from "util";
 
 import { FurnitureInstanceControls } from "../FurnitureInstanceControls";
 import { effectiveFurnitureInstanceReviewStatus } from "../FurnitureInstanceOutliner";
-import { FURNITURE_TYPES } from "../domain";
+import { FURNITURE_TYPES, furnitureInstances, furnitureGroups } from "../domain";
+import { makeInstance, makeOccupancy } from "./helpers";
+import { furnitureParentUpdate } from "../parentUpdate";
 global.TextEncoder = TextEncoder;
 
 jest.mock("antd/lib/modal", () => ({ __esModule: true, default: { confirm: jest.fn() } }));
@@ -133,6 +135,7 @@ const setup = ({
       return changed;
     }),
     confirmFurnitureInstanceReviews: jest.fn(),
+    acceptFurnitureInstanceParentUpdate: jest.fn(),
     deleteFurnitureInstance: jest.fn(() => {
       item.furnitureInstanceDeleteRequestId = "";
     }),
@@ -154,6 +157,39 @@ const setup = ({
     rerender: () => view.rerender(controls()),
   };
 };
+
+test("stale instance offers explicit acceptance which saves but never confirms review", async () => {
+  const s = setup({ reviewStatus: "stale", errors: [{ code: "parent_stale", instanceId: "instance-i" }] });
+  const refs = makeOccupancy();
+  let data = [
+    ...refs.map((r) =>
+      r.meta?.occupancy_context?.group_id
+        ? { ...r, meta: { ...r.meta, occupancy_context: { ...r.meta.occupancy_context, group_note: "changed" } } }
+        : r,
+    ),
+    ...makeInstance(refs),
+  ];
+  s.item.furnitureInstanceData = data;
+  s.item.furnitureInstanceLogicals = furnitureInstances(data);
+  s.item.furnitureInstanceParents = furnitureGroups(data);
+  s.annotation.serializeAnnotation.mockImplementation(() => data);
+  s.item.acceptFurnitureInstanceParentUpdate.mockImplementation((id) => {
+    data = furnitureParentUpdate(data, data, id).results;
+  });
+  s.rerender();
+  fireEvent.click(screen.getByRole("button", { name: "检查并接受父组团更新" }));
+  await waitFor(() => expect(s.annotation.saveDraftImmediatelyWithResults).toHaveBeenCalledTimes(2));
+  expect(s.item.acceptFurnitureInstanceParentUpdate).toHaveBeenCalledTimes(1);
+  expect(s.item.acceptFurnitureInstanceParentUpdate).toHaveBeenCalledWith("instance-i", expect.any(String));
+  expect(s.item.confirmFurnitureInstanceReviews).not.toHaveBeenCalled();
+  expect(s.item.selectFurnitureInstance).not.toHaveBeenCalled();
+});
+
+test("an invalid saved parent disables acceptance with a visible explanation", () => {
+  setup({ reviewStatus: "stale", errors: [{ code: "parent_missing", instanceId: "instance-i" }] });
+  expect(screen.getByRole("button", { name: "检查并接受父组团更新" })).toBeDisabled();
+  expect(screen.getByRole("note")).toHaveTextContent("待处理家具实例不存在");
+});
 
 test("keyboard focus exposes category definitions with an accessible description", async () => {
   const { item } = setup();
