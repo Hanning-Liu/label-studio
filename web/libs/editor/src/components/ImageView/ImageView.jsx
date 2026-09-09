@@ -25,6 +25,7 @@ import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
 import { WholeRoomInheritanceControls } from "./WholeRoomInheritanceControls";
 import { ReferenceSyncControls } from "./ReferenceSyncControls";
+import { ReferenceLineageStatus } from "./ReferenceLineageStatus";
 import { OccupancyControls } from "../../occupancy/OccupancyControls";
 import { OccupancyLayer } from "../../occupancy/OccupancyLayer";
 import { occupancyToolbarTools } from "../../occupancy/editing";
@@ -1136,6 +1137,7 @@ export default observer(
 
       return (
         <>
+          {!isViewingAll && <ReferenceLineageStatus item={item} />}
           {!isViewingAll &&
             (item.furnitureInstancesEnabled ? (
               <FurnitureInstanceControls item={item} />

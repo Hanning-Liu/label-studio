@@ -344,6 +344,8 @@ export class ReferenceSyncController {
     // periodic poll is in flight. Never treat an old cached status as verified.
     const status = await this.request(`/api/tasks/${this.taskId}/reference-sync/`);
     this.emit({ status, error: "" });
+    if (status.lineage?.ready === false)
+      throw new Error(status.lineage.issues?.[0]?.message || "L1—L4 来源链未就绪，请先处理上游参考");
     const profile = MANUAL_REFERENCE_PROFILES[syncType];
     if (!profile || !status.enabled || status.sync_type !== syncType || status.error ||
         status.source_version !== expectedVersion || status.reference_version !== expectedVersion)

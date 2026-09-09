@@ -49,6 +49,9 @@ export function nextFurnitureReviewId(snapshot, order, currentId, preferCurrent 
 }
 
 export function furnitureReferenceBlock(item, status) {
+  if (status?.lineage?.ready === false) {
+    return status.lineage.issues?.[0]?.message || "L1—L4 来源链未就绪，请先处理上游参考";
+  }
   if (
     status?.enabled &&
     (status.sync_type !== "occupancy_to_furniture_instances" ||

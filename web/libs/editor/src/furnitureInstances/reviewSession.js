@@ -67,6 +67,8 @@ export class FurnitureReviewSession {
       status?.sync_type,
       status?.source_version,
       status?.reference_version,
+      status?.lineage?.version,
+      status?.lineage?.ready,
       status?.error,
     ]);
   }

@@ -15,6 +15,24 @@ const setup = () => {
   return { current, wrapper, controller };
 };
 
+test("L4 rejects an invalid ancestor even when the direct source version still matches", async () => {
+  const { controller } = setup();
+  controller.request.mockResolvedValue({
+    ...status, sync_type: "occupancy_to_furniture_instances", source_version: "old", reference_version: "old",
+    lineage: { ready: false, version: "root-changed", issues: [{ message: "L2 缺少 L1 窗参考" }] },
+  });
+  await expect(controller.checkFurnitureInstancesReference("old")).rejects.toThrow("L2 缺少 L1 窗参考");
+});
+
+test("L4 accepts a verified windowless source chain", async () => {
+  const { controller } = setup();
+  controller.request.mockResolvedValue({
+    ...status, sync_type: "occupancy_to_furniture_instances", source_version: "old", reference_version: "old",
+    lineage: { ready: true, version: "windowless", window_count: 0, issues: [] },
+  });
+  await expect(controller.checkFurnitureInstancesReference("old")).resolves.toMatchObject({ lineage: { ready: true } });
+});
+
 test("L3 manual policy never auto-applies even when draft is clean", async () => {
   const { controller } = setup();
   controller.apply = jest.fn();

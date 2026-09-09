@@ -18,6 +18,40 @@ const deferred = () => {
 
 import { reviewSetup } from "./reviewTestHelpers";
 
+test("an ancestor-only lineage change clears selections and pauses review without rewriting results", async () => {
+  const { session, state, item } = reviewSetup();
+  const disconnect = session.connect();
+  await session.start();
+  session.selectAll();
+  const original = JSON.stringify(state.results);
+  runInAction(() => {
+    session.referenceStatus = { ...session.referenceStatus, lineage: {
+      ready: false, version: "changed-l1", issues: [{ message: "L2 缺少 L1 窗参考" }],
+    } };
+  });
+  expect(session.checkedIds).toEqual([]);
+  expect(session.active).toBe(false);
+  expect(session.blockReason).toContain("L2 缺少 L1 窗参考");
+  await session.confirm(["a"], { advance: true });
+  expect(item.confirmFurnitureInstanceReviews).not.toHaveBeenCalled();
+  expect(JSON.stringify(state.results)).toBe(original);
+  disconnect();
+});
+
+test("an ancestor change during the first save aborts before confirmation", async () => {
+  const { session, annotation, item, state } = reviewSetup();
+  const pending = deferred();
+  annotation.saveDraftImmediatelyWithResults.mockReturnValueOnce(pending.promise);
+  const confirm = session.confirm(["a"], { advance: true });
+  runInAction(() => {
+    session.referenceStatus = { ...session.referenceStatus, lineage: { ready: false, version: "l1-new" } };
+  });
+  pending.resolve({});
+  await confirm;
+  expect(item.confirmFurnitureInstanceReviews).not.toHaveBeenCalled();
+  expect(state.selected).toBe("a");
+});
+
 test("bulk review saves and checks once, changes only checked instances and counts multipart once", async () => {
   const { session, item, state, calls } = reviewSetup();
   const original = state.results.filter((r) => r.meta?.furniture_instance_context?.instance_id === "c");
