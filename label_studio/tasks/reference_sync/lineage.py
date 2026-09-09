@@ -338,7 +338,7 @@ def require_report(report):
     return report
 
 
-def require_source(binding, *, lock=False):
+def require_source(binding, *, lock=False, expected_version=None):
     """Before create/apply: validate upstream, not the old target being repaired."""
     from .service import source_for
     source_task, annotation = source_for(binding)
@@ -346,6 +346,9 @@ def require_source(binding, *, lock=False):
     if level is None:
         raise ValueError('不支持的参考同步类型')
     documents = collect_documents(source_task, level=level - 1, formal=True, lock=lock)
+    if expected_version is not None and profile_reference_hash(documents[-1]['result'], level) != expected_version:
+        from .service import SyncConflict
+        raise SyncConflict('读取来源链期间正式标注再次变化，本次创建或应用已中止', 'source_version_conflict')
     report = require_report(validate_documents(documents))
     validate_window_config(binding.mapping.target_project.label_config, canonical_windows(documents[0]['result']))
     return report

@@ -159,6 +159,38 @@ class LineageTests(TransactionTestCase):
                          expected_config_sha256=preview['original_sha256'], expected_source_version=preview['source_version'],
                          stdout=StringIO())
 
+    def test_source_change_between_direct_check_and_locked_snapshot_aborts_apply(self):
+        from unittest.mock import patch
+        from .lineage import require_source
+        draft = self.f.draft()
+        before = copy.deepcopy(draft.result)
+        payload = {**self.f.payload(draft), 'source_version': self.f.binding.applied_hash}
+        def racing_source(binding, **kwargs):
+            self.f.change_source_group()
+            return require_source(binding, **kwargs)
+        with patch('tasks.reference_sync.lineage.require_source', side_effect=racing_source):
+            response = self.f.client.post(f'/api/tasks/{self.f.task.id}/reference-sync/apply/', payload, format='json')
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(str(response.data['detail']), '读取来源链期间正式标注再次变化，本次创建或应用已中止')
+        draft.refresh_from_db()
+        self.assertEqual(draft.result, before)
+
+    def test_valid_first_window_cannot_enter_old_downstream_config(self):
+        docs = self.documents()
+        import xml.etree.ElementTree as ET
+        for doc in docs[1:]:
+            root = ET.fromstring(doc['label_config'])
+            for parent in root.iter():
+                for child in list(parent):
+                    if child.get('name') == 'window_vector':
+                        parent.remove(child)
+            doc['label_config'] = ET.tostring(root, encoding='unicode')
+            doc['result'] = [r for r in doc['result'] if r.get('from_name') != 'window_vector']
+        report = validate_documents(docs, complete=True)
+        self.assertEqual(report['window_count'], 1)
+        self.assertFalse(any(issue['level'] == 1 for issue in report['issues']))
+        self.assertEqual({issue['level'] for issue in report['issues']}, {2, 3, 4})
+
     def test_new_task_ready_but_draft_is_not_complete(self):
         self.f.draft()
         self.assertTrue(report_for_task(self.f.task)['ready'])

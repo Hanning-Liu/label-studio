@@ -243,7 +243,7 @@ def process_binding(binding_id):
     revision = reference_hash(annotation.result)
     target_project = binding.mapping.target_project
     from .lineage import require_source
-    require_source(binding, lock=True)
+    require_source(binding, lock=True, expected_version=revision)
     if source.project.organization_id != target_project.organization_id:
         raise ValueError('跨组织同步禁止')
     refs = validate_source(annotation.result,target_project.label_config)

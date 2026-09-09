@@ -224,7 +224,7 @@ def initialize_binding(binding):
     source_task, annotation = source_for(binding)
     project = binding.mapping.target_project
     from tasks.reference_sync.lineage import require_source
-    require_source(binding, lock=True)
+    require_source(binding, lock=True, expected_version=reference_hash(annotation.result))
     if source_task.project.organization_id != project.organization_id:
         raise ValueError('禁止跨组织引用')
     refs = validate_source(annotation.result, project.label_config)
@@ -290,7 +290,7 @@ def apply_reference(binding, draft, payload, user):
     if digest(source_task.data) != digest(draft.task.data):
         raise SyncConflict('来源图片已变化，停止应用', 'source_image_changed')
     from tasks.reference_sync.lineage import require_source
-    require_source(binding, lock=True)
+    require_source(binding, lock=True, expected_version=revision)
     refs = validate_source(annotation.result, binding.mapping.target_project.label_config)
     lock_target(draft.task)
     before = snapshot(draft.task)
