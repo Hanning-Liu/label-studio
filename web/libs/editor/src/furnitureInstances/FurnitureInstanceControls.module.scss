@@ -186,3 +186,70 @@
   margin-top: 4px;
   text-align: left;
 }
+
+.reviewBar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-neutral-background);
+  color: var(--color-neutral-content);
+  max-height: 55vh;
+  overflow: auto;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+}
+
+.reviewBar select {
+  max-width: 100%;
+  color: var(--color-neutral-content);
+  background: var(--color-neutral-surface);
+}
+
+.reviewBar button,
+.reviewGroup > button {
+  padding: 5px 7px;
+  color: var(--color-neutral-content);
+  background: var(--color-neutral-surface);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.reviewBar button:disabled,
+.reviewGroup button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reviewBar button:focus-visible,
+.reviewGroup button:focus-visible,
+.reviewRow input:focus-visible {
+  outline: 2px solid var(--color-neutral-content);
+  outline-offset: 2px;
+}
+
+.reviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.reviewActions button {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.reviewBar .confirmBatch {
+  border: 2px solid var(--color-positive-content);
+  font-weight: 600;
+}
+
+.reviewRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 5px;
+  align-items: start;
+}
+
+.reviewRow input { margin-top: 8px; }
+.reviewRow button { overflow-wrap: anywhere; }
+.reviewRow ul { padding-left: 16px; margin: 4px 0; }

@@ -3,6 +3,7 @@ import { observer } from "mobx-react";
 import { Modal, Tooltip } from "antd";
 import { Button } from "@humansignal/ui";
 import catalogDetails from "./catalogDetails.json";
+import { useFurnitureReviewSession } from "./reviewSession";
 
 import { downloadJson } from "../occupancy/download";
 import { CONTROLS, FURNITURE_TYPES, ORIENTATION_CONTROLS } from "./domain";
@@ -13,7 +14,6 @@ import {
   applyFurnitureInstanceOperation,
   recoverFurnitureInstanceOrientation,
   retryableFurnitureInstanceOperation,
-  retryFurnitureInstanceSave,
 } from "./operations";
 import styles from "./FurnitureInstanceControls.module.scss";
 import { FURNITURE_TYPE_GROUPS, furnitureParentIdentity, shortFurnitureId } from "./presentation";
@@ -21,15 +21,18 @@ import { FURNITURE_TYPE_GROUPS, furnitureParentIdentity, shortFurnitureId } from
 export const FurnitureInstanceControls = observer(({ item }) => {
   const categoryHelpId = useId();
   const annotation = item.annotation;
+  const review = useFurnitureReviewSession(item);
   const controller = annotation.store.referenceSyncController;
   const [state, setState] = useState(controller?.state || {});
   const type = item.furnitureInstanceDraftType;
   const availableTypes = item.furnitureInstanceAvailableTypes;
   const [editType, setEditType] = useState("");
   const [note, setNote] = useState(item.furnitureInstanceNote);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [hasUnsavedMutation, setHasUnsavedMutation] = useState(false);
+  const error = review.error;
+  const notice = review.notice;
+  const hasUnsavedMutation = review.unsaved;
+  const setError = (value) => review.setError(value);
+  const setNotice = (value) => review.setNotice(value);
   const file = useRef(null);
   const selectedId = item.furnitureInstanceEffectiveSelectedId;
   const selectedType = item.furnitureInstanceLogicals.find((instance) => instance.id === selectedId)?.context
@@ -41,23 +44,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
     return controller?.subscribe(setState);
   }, [controller]);
 
-  const run = async (operation, { rethrow = false } = {}) => {
-    if (item.furnitureInstanceBusy) return;
-    item.setFurnitureInstanceBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const message = await operation();
-      setHasUnsavedMutation(false);
-      if (message) setNotice(message);
-    } catch (cause) {
-      if (cause?.localMutationApplied) setHasUnsavedMutation(true);
-      setError(cause.message || "操作失败；当前标注仍保留");
-      if (rethrow) throw cause;
-    } finally {
-      item.setFurnitureInstanceBusy(false);
-    }
-  };
+  const run = review.run;
 
   useEffect(() => {
     if (!item.furnitureInstanceDeleteRequestId) return;
@@ -72,7 +59,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
       okText: "删除实例",
       okType: "danger",
       cancelText: "取消",
-      onOk: () => run(retryableDelete, { rethrow: true }),
+      onOk: () => run(retryableDelete, { rethrow: true, retry: true }),
       onCancel: () => item.clearFurnitureInstanceDeleteRequest(),
     });
   }, [item.furnitureInstanceDeleteRequestId]);
@@ -86,7 +73,6 @@ export const FurnitureInstanceControls = observer(({ item }) => {
   const focusIdentity = furnitureParentIdentity(focus, item.furnitureInstanceData);
   const errors = item.furnitureInstanceErrors;
   const currentErrors = errors.filter((issue) => issue.instanceId === selected?.id);
-  const reviewErrors = currentErrors.filter((issue) => issue.code === "review");
   const selectedDrawingControl = item.getToolsManager?.()?.findSelectedTool?.()?.control?.name || "";
   const activeDrawingControl =
     selectedDrawingControl === item.furnitureInstanceDrawingControl ? selectedDrawingControl : "";
@@ -146,14 +132,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
     }
   };
 
-  const confirmSelected = () =>
-    run(() => {
-      if (!selected) throw new Error("请先选择家具实例");
-      return applyFurnitureInstanceOperation(item, () => {
-        item.confirmFurnitureInstanceReviews([selected.id]);
-        return `实例 ${selected.id} 已记录人工复核并保存；仍需正式提交任务。`;
-      });
-    });
+  const confirmSelected = () => review.confirm(selected ? [selected.id] : []);
 
   const applyCategory = () =>
     run(() =>
@@ -219,11 +198,13 @@ export const FurnitureInstanceControls = observer(({ item }) => {
   const reviewStatus = selected
     ? effectiveReviewStatus === "stale"
       ? "stale（父级已过期）"
-      : reviewErrors.length || effectiveReviewStatus === "pending"
+      : review.selectedRow?.status === "pending"
         ? "needs_review（待复核；保存值 pending）"
-        : effectiveReviewStatus === "reviewed"
-          ? "reviewed（已复核）"
-          : "stale（父级已过期）"
+        : review.selectedRow?.status === "reviewed"
+          ? review.pending?.ids.includes(selected.id) && (review.busy || review.unsaved)
+            ? "确认待保存"
+            : "reviewed（已复核）"
+          : "需处理（请检查实例问题）"
     : "—";
 
   return (
@@ -267,7 +248,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
             disabled={retryDisabled}
             tooltip={retryDisabledReason || "只重试保存已保留的本地修改"}
             aria-label="仅重试保存当前 L4 草稿"
-            onClick={() => run(() => retryFurnitureInstanceSave(item))}
+            onClick={review.retry}
           >
             仅重试保存当前草稿
           </Button>
@@ -482,7 +463,13 @@ export const FurnitureInstanceControls = observer(({ item }) => {
           size="smaller"
           variant="positive"
           look="outlined"
-          disabled={disabled || !selected || referenceChanged}
+          disabled={
+            disabled ||
+            !selected ||
+            referenceChanged ||
+            review.selectedRow?.status !== "pending" ||
+            !!review.blockReason
+          }
           tooltip={
             disabledReason ||
             (!selected ? "请先选择家具实例" : "") ||

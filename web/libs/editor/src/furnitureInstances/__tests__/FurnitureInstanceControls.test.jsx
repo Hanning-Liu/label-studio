@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Modal from "antd/lib/modal";
+import { TextEncoder } from "util";
 
 import { FurnitureInstanceControls } from "../FurnitureInstanceControls";
 import { effectiveFurnitureInstanceReviewStatus } from "../FurnitureInstanceOutliner";
 import { FURNITURE_TYPES } from "../domain";
+global.TextEncoder = TextEncoder;
 
 jest.mock("antd/lib/modal", () => ({ __esModule: true, default: { confirm: jest.fn() } }));
 
@@ -59,7 +61,17 @@ const setup = ({
       review_status: reviewStatus,
       review_fingerprint: reviewStatus === "reviewed" ? "a".repeat(64) : null,
     },
-    geometry: [],
+    geometry: [
+      [
+        [
+          [10, 10],
+          [40, 10],
+          [40, 40],
+          [10, 40],
+          [10, 10],
+        ],
+      ],
+    ],
     results: [{ id: "geometry-i" }],
     orientationResults,
   };
