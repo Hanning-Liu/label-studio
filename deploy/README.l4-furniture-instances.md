@@ -101,3 +101,8 @@ docker exec graph-label-l4-qa-app \
 The L3 reference is copied as read-only data. Later L3 changes require an
 explicit reference apply; existing instance geometry and saved parent IDs are
 retained and become stale until reviewed.
+
+L4 creation now also validates the explicitly bound formal L1/L2 ancestry.
+Windows are required downstream only when the authoritative L1 has windows;
+an unknown source is never treated as windowless. Full L4 publication requires
+`--lineage-manifest`. See [the lineage audit and recovery guide](L1-L4-window-lineage.md).
