@@ -889,3 +889,55 @@ test("L4 geometry, category and direction keep their own metadata through save a
   );
   expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(saved);
 });
+
+test("batch review synchronizes all parts and evidence, and an application exception restores every target", () => {
+  const refs = makeOccupancy();
+  const furniture = [
+    ...makeInstance(refs, {
+      instanceId: "a",
+      geometry: [square(20, 20, 30, 30), square(40, 40, 50, 50)],
+      orientation: {
+        status: "front_direction",
+        vertices: [
+          { x: 22, y: 25 },
+          { x: 28, y: 25 },
+        ],
+      },
+    }),
+    ...makeInstance(refs, { instanceId: "b" }),
+    ...makeInstance(refs, { instanceId: "c" }),
+  ];
+  const { image, annotation } = setup(refs, furniture);
+  const before = annotation.serializeAnnotation({ fast: true });
+  const targeted = image.regs
+    .flatMap((region) => [...region.results])
+    .filter((r) => r.meta?.furniture_instance_context?.instance_id === "b");
+  const originalAction = targeted[0].setMetaValue;
+  targeted[0].setMetaValue = () => {
+    throw new Error("injected mutation failure");
+  };
+  expect(() => image.confirmFurnitureInstanceReviews(["a", "b"])).toThrow("injected mutation failure");
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  targeted[0].setMetaValue = originalAction;
+  image.confirmFurnitureInstanceReviews(["a", "b"]);
+  const after = annotation.serializeAnnotation({ fast: true });
+  expect(after.filter((r) => !["a", "b"].includes(context(r).instance_id))).toEqual(
+    before.filter((r) => !["a", "b"].includes(context(r).instance_id)),
+  );
+  for (const id of ["a", "b"]) {
+    const contexts = after.filter((r) => context(r).instance_id === id).map(context);
+    expect(contexts.every((c) => c.review_status === "reviewed")).toBe(true);
+    expect(new Set(contexts.map((c) => c.review_fingerprint)).size).toBe(1);
+  }
+});
+
+test("invalid batch target prevents any model review write", () => {
+  const refs = makeOccupancy();
+  const { image, annotation } = setup(refs, [
+    ...makeInstance(refs, { instanceId: "a" }),
+    ...makeInstance(refs, { instanceId: "b", geometry: [square(85, 85, 98, 98)] }),
+  ]);
+  const before = annotation.serializeAnnotation({ fast: true });
+  expect(() => image.confirmFurnitureInstanceReviews(["a", "b"])).toThrow();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+});

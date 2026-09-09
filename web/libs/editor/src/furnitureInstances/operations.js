@@ -16,8 +16,10 @@ export async function applyFurnitureInstanceOperation(item, operation) {
   const annotation = item.annotation;
 
   await annotation.saveDraftImmediatelyWithResults();
+  if (item.annotation !== annotation) throw new Error("标注已切换，本次未修改");
   const controller = annotation.store.referenceSyncController;
   if (controller) await controller.checkFurnitureInstancesReference(annotation.referenceVersion);
+  if (item.annotation !== annotation) throw new Error("标注已切换，本次未修改");
 
   const result = await operation();
   try {

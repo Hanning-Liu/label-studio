@@ -28,6 +28,7 @@ import {
   VECTOR_EPS,
 } from "../furnitureInstances/constraints";
 import { area, clone, difference, EPS_AREA, fingerprint, resultGeometry } from "../occupancy/geometry";
+import { getFurnitureReviewSession } from "../furnitureInstances/reviewSession";
 import { GEOMETRY as OCCUPANCY_GEOMETRY, REFERENCES as OCCUPANCY_REFERENCES } from "../occupancy/domain";
 
 const REFERENCE_CONTROLS = new Set([
@@ -151,6 +152,7 @@ export const FurnitureInstances = types
     },
     furnitureInstanceDrawBlockReason(control = "") {
       if (!self.furnitureInstancesEnabled) return "";
+      if (getFurnitureReviewSession(self).unsaved) return "请先重试保存或导出窗口备份";
       if (self.furnitureInstanceBusy || self.annotation.submissionStarted) return "操作或保存正在进行";
       if (GEOMETRY_CONTROLS.has(control)) {
         if (!self.furnitureInstanceParents.some((parent) => parent.id === self.furnitureInstanceFocusId))
@@ -170,6 +172,7 @@ export const FurnitureInstances = types
     },
     furnitureInstanceOperationBlockReason() {
       if (!self.furnitureInstancesEnabled || self.annotation.isReadOnly()) return "此标注不可编辑";
+      if (getFurnitureReviewSession(self).unsaved) return "请先重试保存或导出窗口备份";
       if (self.annotation.submissionStarted || self.annotation.isDrawing || self.annotation.hasIncompletePolygons)
         return "请先完成绘制或等待提交结束";
       const status = self.annotation.store.referenceSyncController?.state?.status;
@@ -185,6 +188,7 @@ export const FurnitureInstances = types
     },
     furnitureInstanceOrientationResetBlockReason(id) {
       if (!self.furnitureInstancesEnabled || self.annotation.isReadOnly()) return "此标注不可编辑";
+      if (getFurnitureReviewSession(self).unsaved) return "请先重试保存或导出窗口备份";
       if (self.annotation.submissionStarted) return "请等待提交结束";
       const orientationDrawing = ORIENTATION_CONTROLS.has(self.furnitureInstanceDrawingControl);
       if ((self.annotation.isDrawing || self.annotation.hasIncompletePolygons) && !orientationDrawing)
@@ -633,11 +637,22 @@ export const FurnitureInstances = types
       const current = self.annotation.serializeAnnotation({ fast: true });
       const next = confirmFurnitureInstances(current, current, ids);
       const contexts = new Map(next.map((result) => [resultKey(result), context(result)]));
-      for (const region of self.regs)
-        for (const result of region.results) {
-          const value = contexts.get(`${region.cleanId}\u0000${controlName(result)}`);
-          if (value?.instance_id) result.setMetaValue("furniture_instance_context", value);
-        }
+      const requested = new Set(ids);
+      const snapshot = getSnapshot(self.annotation.areas);
+      self.annotation.history.freeze("furniture-instance-review");
+      try {
+        for (const region of self.regs)
+          for (const result of region.results) {
+            const value = contexts.get(`${region.cleanId}\u0000${controlName(result)}`);
+            if (requested.has(value?.instance_id)) result.setMetaValue("furniture_instance_context", value);
+          }
+      } catch (error) {
+        applySnapshot(self.annotation.areas, snapshot);
+        self.annotation.updateObjects();
+        throw error;
+      } finally {
+        self.annotation.history.unfreeze("furniture-instance-review");
+      }
       self.furnitureInstanceEditNotice = "";
     },
     requestFurnitureInstanceDelete(region) {
