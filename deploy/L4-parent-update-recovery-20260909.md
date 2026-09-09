@@ -34,7 +34,11 @@ L3 家具组团轮廓变化并手动应用到 L4 后，现有实例保存的父�
 镜像 ID：`sha256:28ec2427ccaff03d130deeea1c53632253aacafd59abb5377492be2efe9f1e02`。
 OCI revision：`86fd3014625a96a512bf8af8e33def35625bd617`。
 
-18088 为本次独立副本；18086 的 app/worker 更新需在使用者保存草稿并暂停编辑的交接点进行，先重新备份并核对项目身份。更新服务不替使用者接受真实餐桌的父级更新，也不替其确认复核。
+使用者已明确确认 18086 保存草稿并暂停编辑。2026-09-09 15:46–15:48（Asia/Shanghai）重新核对容器镜像、数据卷、端口及项目 13 身份，暂停 app/worker，备份最新数据库、卷内其他文件、项目配置和 Compose，再同步更新两服务到上述镜像。
+
+升级后 app healthy、worker running、均为固定镜像且重启计数为 0，HTTP `/health/` 为 UP。全部正式标注、草稿、参考关系/审计及项目配置指纹与升级前一致。刷新原 18086 页面后仍为 30 已复核 / 0 待复核 / 1 需处理；已选中餐桌并确认新按钮可用。没有替使用者接受真实餐桌的父级更新或确认复核。
+
+18088 独立副本完成验收后停止服务，保留数据卷、镜像和证据。升级前备份位于本机 `work/parent-update-audit/before-deploy.sqlite3`、`before-deploy-volume-files.tar.gz`、`compose-before-deploy.yml`，后置比对记录为 `after-deploy.json`。
 
 回退到 `label-studio-window-l4:review-98a1f316f`，使用当前数据卷，保留更新后产生的草稿与复核结果；不要用旧数据库覆盖新数据。18082 与 18085 不在本次更新范围。
 
