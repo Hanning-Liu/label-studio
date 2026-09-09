@@ -279,3 +279,11 @@ test("empty and blocked-only tasks stop without a false completion; reference co
   await session.start();
   expect(session.notice).toBe("尚无家具实例可复核");
 });
+
+test("starting from a reviewed-only filter reveals the pending queue without changing results", async () => {
+  const { session, annotation } = reviewSetup();
+  session.setFilter("reviewed");
+  await session.start();
+  expect(session.filter).toBe("pending");
+  expect(annotation.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
+});

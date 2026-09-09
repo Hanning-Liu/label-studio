@@ -45,7 +45,9 @@ export const FurnitureReviewBar = observer(({ item, review }) => {
         review.blockReason ||
         item.annotation.store.settings?.enableHotkeys === false ||
         review.selectedRow?.status !== "pending" ||
-        document.querySelector('[role="dialog"][aria-modal="true"], .ant-modal-wrap:not([style*="display: none"])')
+        document.querySelector(
+          '[role="dialog"], [aria-label="Close modal"], .ant-modal-wrap:not([style*="display: none"])',
+        )
       )
         return;
       event.preventDefault();

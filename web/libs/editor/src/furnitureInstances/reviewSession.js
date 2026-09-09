@@ -250,6 +250,7 @@ export class FurnitureReviewSession {
   }
   async start() {
     if (this.blockReason) return;
+    if (!["all", "pending"].includes(this.filter)) this.setFilter("pending");
     this.active = true;
     this.order = furnitureReviewOrder(
       this.snapshot,

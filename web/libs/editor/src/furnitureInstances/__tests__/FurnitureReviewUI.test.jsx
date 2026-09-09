@@ -61,6 +61,11 @@ test("Shift+Enter is scoped, ignores repeats, inputs, modals and existing submit
   document.body.append(modal);
   fireEvent.keyDown(bar, { key: "Enter", shiftKey: true });
   modal.remove();
+  const appModal = document.createElement("button");
+  appModal.setAttribute("aria-label", "Close modal");
+  document.body.append(appModal);
+  fireEvent.keyDown(bar, { key: "Enter", shiftKey: true });
+  appModal.remove();
   act(() =>
     runInAction(() => {
       state.drawing = true;
