@@ -363,7 +363,12 @@ def _find_node(base: dict[str, Any], node_id: str, kind: str) -> dict[str, Any] 
     matches = [
         node
         for node in base.get("nodes", [])
-        if isinstance(node, dict) and node.get("id") == node_id and node.get("kind") == kind
+        if isinstance(node, dict) and node.get("kind") == kind and (
+            node.get("id") == node_id
+            or (kind in {"room", "zone"} and node.get("result_id") == node_id)
+            or (kind == "furniture_group" and isinstance(node.get("context"), dict)
+                and node["context"].get("group_id") == node_id)
+        )
     ]
     if len(matches) > 1:
         raise FurnitureAggregationError(f"base defines duplicate {kind} node {node_id!r}")
@@ -417,28 +422,34 @@ def _validate_parent(base: dict[str, Any], context: dict[str, Any], instance_geo
     zone = _find_node(base, context["zone_id"], "zone")
     group_node = _find_node(base, context["group_id"], "furniture_group")
     group = _matching_group(base, context)
+    # /4 graph IDs may be namespaced; only explicit source result/context IDs
+    # establish equivalence. Saved annotation parent IDs are never rewritten.
+    room_id = room["id"] if room else context["room_id"]
+    zone_id = zone["id"] if zone else context["zone_id"]
 
     structural_errors: list[str] = []
     if room is None:
         structural_errors.append("room node is missing")
     if zone is None:
         structural_errors.append("zone node is missing")
-    elif zone.get("parent_room_id") != context["room_id"]:
+    elif zone.get("parent_room_id") != room_id:
         structural_errors.append("zone now belongs to another room")
     if group_node is None:
         structural_errors.append("furniture-group node is missing")
     else:
-        if group_node.get("parent_room_id") != context["room_id"]:
+        if group_node.get("parent_room_id") != room_id:
             structural_errors.append("furniture-group node now belongs to another room")
-        if group_node.get("parent_zone_id") != context["zone_id"]:
+        if group_node.get("parent_zone_id") != zone_id:
             structural_errors.append("furniture-group node now belongs to another zone")
     if group is None:
         structural_errors.append("furniture-group occupancy region is missing")
     else:
-        if group.get("parent_room_id") != context["room_id"]:
+        if group.get("parent_room_id") != room_id:
             structural_errors.append("furniture-group region now belongs to another room")
-        if group.get("parent_zone_id") != context["zone_id"]:
+        if group.get("parent_zone_id") != zone_id:
             structural_errors.append("furniture-group region now belongs to another zone")
+        if group_node and group_node.get("occupancy_region_id", group["id"]) != group["id"]:
+            structural_errors.append("furniture-group node points to another region")
     if structural_errors:
         if context["review_status"] != "stale":
             raise FurnitureAggregationError(
@@ -453,7 +464,7 @@ def _validate_parent(base: dict[str, Any], context: dict[str, Any], instance_geo
         raise FurnitureAggregationError(
             f"L3 group {context['group_id']!r} geometry cannot be reconstructed for boundary validation: {exc}"
         ) from exc
-    if not group_geometry.covers(instance_geometry):
+    if instance_geometry.difference(group_geometry).area > EPS_AREA:
         if context["review_status"] != "stale":
             raise FurnitureAggregationError(
                 f"instance {context['instance_id']!r} crosses its saved furniture-group boundary"

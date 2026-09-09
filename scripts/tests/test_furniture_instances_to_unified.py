@@ -268,6 +268,36 @@ def aggregate(base, results):
 
 
 class FurnitureInstancesToUnifiedTests(unittest.TestCase):
+    def test_explicit_source_ids_resolve_namespaced_graph_nodes_without_rewriting_parents(self):
+        base, fingerprint = base_document()
+        results = [rectangle_result("furniture:desk", "desk-geometry", "desk", fingerprint, 10, 10, 10, 10),
+                   category_result("furniture:desk", "desk-geometry", "desk", fingerprint)]
+        expected = aggregate(base, results)["furniture_instances"]
+        room, zone, group = base["nodes"]
+        room.update(id="canonical-r", result_id="room-a")
+        zone.update(id="canonical-z", result_id="zone-a", parent_room_id="canonical-r")
+        group.update(id="canonical-g", context={"group_id": "group-a"},
+                     parent_room_id="canonical-r", parent_zone_id="canonical-z",
+                     occupancy_region_id=base["occupancy_regions"][0]["id"])
+        base["occupancy_regions"][0].update(parent_room_id="canonical-r", parent_zone_id="canonical-z")
+        before = copy.deepcopy(base)
+        self.assertEqual(aggregate(base, results)["furniture_instances"], expected)
+        self.assertEqual(base, before)
+        base["nodes"].append({**room, "id": "ambiguous-room"})
+        with self.assertRaisesRegex(FurnitureAggregationError, "duplicate room"):
+            aggregate(base, results)
+
+    def test_parent_boundary_float_roundoff_does_not_admit_real_outside_area(self):
+        base, fingerprint = base_document()
+        raw = base["occupancy_regions"][0]["parts"][0]["raw"]["value"]
+        geometry = rectangle_result("furniture:desk", "desk-geometry", "desk", fingerprint,
+                                    raw["x"], raw["y"], raw["width"] + 1e-13, raw["height"])
+        results = [geometry, category_result("furniture:desk", "desk-geometry", "desk", fingerprint)]
+        aggregate(base, results)
+        geometry["value"]["width"] += 0.001
+        with self.assertRaisesRegex(FurnitureAggregationError, "boundary"):
+            aggregate(base, results)
+
     def test_real_foundation_example_output_validates_against_v4_schema(self):
         foundation = SCRIPTS.parent / "examples" / "occupancy-schema-foundation"
         base = json.loads((foundation / "example.json").read_text(encoding="utf-8"))

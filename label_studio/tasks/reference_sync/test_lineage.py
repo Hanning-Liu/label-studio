@@ -63,7 +63,9 @@ def publication_base(documents):
         from tasks.windows.downstream import _targets
         from tasks.windows.projections import derive_window_projections
         config = replace(config, projection_boundary_tolerance_px=1e-6)
-        projections = derive_window_projections(traces, connections, _targets(zone['result'], 'L2') + _targets(occupancy['result'], 'L3'), config)
+        targets = [{key: target[key] for key in ('level', 'entity_id', 'room_id', 'geometry')}
+                   for target in _targets(zone['result'], 'L2') + _targets(occupancy['result'], 'L3')]
+        projections = derive_window_projections(traces, connections, targets, config)
     else:
         from tasks.windows.config import WindowConfig
         traces, connections, config = [], [], WindowConfig()
@@ -337,6 +339,22 @@ class LineageTests(TransactionTestCase):
                 broken['window_projections'].append({'id': 'forged', 'target': {'level': 'L4'}})
             with self.assertRaises(ValueError):
                 validate_publication_sources(broken, annotation, docs)
+
+    def test_projection_roundoff_never_relaxes_identity_geometry_or_policy(self):
+        from .lineage_bundle import projection_equivalent
+        record = {'id': 'p1', 'fingerprint': 'exact', 'relation': {'overlap_length_px': 17.0, 'tolerance': 1e-6},
+                  'path_intervals': [{'path_parameter_start': 0.0, 'path_parameter_end': 1.0}]}
+        changed = copy.deepcopy(record)
+        changed['relation']['overlap_length_px'] -= 1e-13
+        self.assertTrue(projection_equivalent(record, changed))
+        changed['relation']['overlap_length_px'] -= 1e-5
+        self.assertFalse(projection_equivalent(record, changed))
+        for key in ('id', 'fingerprint'):
+            changed = {**record, key: 'wrong'}
+            self.assertFalse(projection_equivalent(record, changed))
+        changed = copy.deepcopy(record)
+        changed['relation']['tolerance'] += 1e-13
+        self.assertFalse(projection_equivalent(record, changed))
 
     def test_cli_writes_exact_atomic_output_with_complete_evidence(self):
         scripts = Path(__file__).resolve().parents[3] / 'scripts'

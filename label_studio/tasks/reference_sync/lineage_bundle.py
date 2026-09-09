@@ -3,11 +3,28 @@
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 
 from .lineage import canonical_windows, digest, validate_documents
 
 FORMAT = 'floorplan-lineage/1'
+
+
+def projection_equivalent(first, second, key=None):
+    """Permit only sub-nanopixel GEOS round-off in measured intervals/lengths.
+
+    IDs, hashes, source geometry, policies and all other evidence remain exact.
+    """
+    if isinstance(first, dict) and isinstance(second, dict):
+        return first.keys() == second.keys() and all(projection_equivalent(value, second[name], name) for name, value in first.items())
+    if isinstance(first, list) and isinstance(second, list):
+        return len(first) == len(second) and all(projection_equivalent(a, b, key) for a, b in zip(first, second))
+    if key in {'path_parameter_start', 'path_parameter_end', 'overlap_length_px'}:
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in (first, second)):
+            return False
+        return math.isclose(first, second, abs_tol=1e-9, rel_tol=0)
+    return first == second
 
 
 def json_bytes(value):
@@ -144,11 +161,13 @@ def validate_publication_sources(base, annotation, documents):
                                   and sorted((digest(part.get('raw')) for part in region.get('parts', []))) == sorted(map(digest, rows))]
                 if len(candidates) != 1 or target['room_id'] not in room_map:
                     raise ValueError(f"基础数据 {level} 投影目标缺少唯一原始几何证据: {target['entity_id']}")
-                targets.append({**target, 'entity_id': candidates[0]['id'], 'room_id': room_map[target['room_id']]})
+                # The established /4 offline contract identifies the image in
+                # sources, not a per-editor surface_key in each target hash.
+                targets.append({'level': level, 'geometry': target['geometry'],
+                                'entity_id': candidates[0]['id'], 'room_id': room_map[target['room_id']]})
         # Match the established /4 offline projection policy, while deriving
         # from the verified formal geometries rather than trusting saved arrays.
         tolerance = base.get('algorithm', {}).get('parameters', {}).get('l3_boundary_precision_px', 1e-6)
-        import math
         if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or tolerance < 0:
             raise ValueError('基础数据窗投影边界容差无效')
         config = replace(config, projection_boundary_tolerance_px=tolerance)
@@ -157,7 +176,9 @@ def validate_publication_sources(base, annotation, documents):
                                               connections=canonical_connections, projections=projections, config=config,
                                               provenance={key: documents[0][key] for key in ('project_id', 'task_id', 'annotation_id')})
         for name in ('window_traces', 'window_connections', 'window_projections'):
-            if digest(sorted(base.get(name, []), key=lambda row: row.get('id', ''))) != digest(expected[name]):
+            actual = sorted(base.get(name, []), key=lambda row: row.get('id', ''))
+            same = projection_equivalent(actual, expected[name]) if name == 'window_projections' else digest(actual) == digest(expected[name])
+            if not same:
                 raise ValueError(f'基础数据 {name} 与权威 L1 窗数据不一致')
         if base.get('window_matching_policy') != expected['window_matching_policy']:
             raise ValueError('基础数据窗匹配策略与 L1 来源不一致')
