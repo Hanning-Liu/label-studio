@@ -138,5 +138,10 @@
     "definition": "已辨识为家具或设施但当前类别表无法覆盖的对象。",
     "aliases": ["其他家具"],
     "confusable": ["cabinet"]
+  },
+  "potted_plant": {
+    "definition": "带种植容器的独立绿植，沿图中可辨认的盆栽整体平面轮廓标注；不包括成片种植区、花坛或单独空花盆。",
+    "aliases": ["盆栽", "盆栽绿植", "室内绿植"],
+    "confusable": ["other"]
   }
 }

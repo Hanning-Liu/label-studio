@@ -53,6 +53,7 @@ export const FURNITURE_TYPES = Object.freeze({
   dryer: "烘干机",
   shoe_cabinet: "鞋柜",
   other: "其他",
+  potted_plant: "绿植盆栽",
 });
 
 export const ROLE_BY_CONTROL = Object.freeze({

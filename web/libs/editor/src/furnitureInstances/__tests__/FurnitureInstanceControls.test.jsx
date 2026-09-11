@@ -202,13 +202,13 @@ test("keyboard focus exposes category definitions with an accessible description
   expect(item.setFurnitureInstanceDraft).not.toHaveBeenCalled();
 });
 
-test("an unavailable category has a keyboard-focusable explanation", async () => {
+test.each([['dressing_table', '梳妆台'], ['potted_plant', '绿植盆栽']])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
   const { item, rerender } = setup();
   item.furnitureInstanceAvailableTypes = item.furnitureInstanceAvailableTypes.filter(
-    (type) => type !== "dressing_table",
+    (type) => type !== category,
   );
   rerender();
-  const button = screen.getByRole("button", { name: "梳妆台 (dressing_table)" });
+  const button = screen.getByRole("button", { name: `${label} (${category})` });
   expect(button).toBeDisabled();
   expect(button.parentElement.tabIndex).toBe(0);
   fireEvent.focus(button.parentElement);
@@ -288,7 +288,7 @@ test("unconfigured classes are disabled and selecting another instance resets an
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
 });
 
-test("renders canvas-first status cards and all 28 grouped palette choices", () => {
+test("renders canvas-first status cards and all 29 grouped palette choices", () => {
   const { item, rerender } = setup();
   expect(screen.getByRole("region", { name: "当前 Focus 家具组团" })).toHaveTextContent(
     "学习办公 · 窗边 · 房间 书房 · 分区 学习办公 · group-g",

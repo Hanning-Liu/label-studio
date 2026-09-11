@@ -74,7 +74,7 @@ const CONFIG = `<View>
 
 const CATALOG_CONFIG = CONFIG.replace(
   "</Choices>",
-  '<Choice value="梳妆台" alias="dressing_table" /><Choice value="吧台/餐吧台" alias="bar_counter" /></Choices>',
+  '<Choice value="梳妆台" alias="dressing_table" /><Choice value="吧台/餐吧台" alias="bar_counter" /><Choice value="绿植盆栽" alias="potted_plant" /></Choices>',
 );
 
 test("project choices constrain draft selection, import and category edits before mutation", () => {
@@ -95,7 +95,7 @@ test("project choices constrain draft selection, import and category edits befor
   expect(image.furnitureInstanceEditNotice).toContain("应用类别");
 });
 
-test.each(["dressing_table", "bar_counter"])(
+test.each(["dressing_table", "bar_counter", "potted_plant"])(
   "reclassify a multipart reviewed instance to %s, retaining geometry, provenance and evidence",
   (type) => {
     const refs = makeOccupancy();

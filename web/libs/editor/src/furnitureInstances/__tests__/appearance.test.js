@@ -10,7 +10,7 @@ import { furnitureReferenceStyles } from "../referenceDisplay";
 import { FURNITURE_TYPES } from "../domain";
 import details from "../catalogDetails.json";
 
-test("all 28 classes have definitions, aliases and valid disambiguation links", () => {
+test("all 29 classes have definitions, aliases and valid disambiguation links", () => {
   expect(Object.keys(details).sort()).toEqual(Object.keys(FURNITURE_TYPES).sort());
   for (const entry of Object.values(details)) {
     expect(entry.definition.length).toBeGreaterThan(5);

@@ -8,7 +8,7 @@ from tasks.furniture_instances.catalog_upgrade import config_sha256, upgrade_cho
 
 
 class Command(BaseCommand):
-    help = 'Preview or append the two L4 catalog additions to one explicitly identified project.'
+    help = 'Preview or append missing L4 catalog additions to one explicitly identified project.'
 
     def add_arguments(self, parser):
         parser.add_argument('--project-id', type=int, required=True)

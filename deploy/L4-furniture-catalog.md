@@ -32,6 +32,7 @@
 | `dryer` | 烘干机 | 用于干燥衣物的设备。 别称：干衣机 | `washing_machine` | IfcElectricAppliance / TUMBLEDRYER（条件性） | 仅滚筒式干衣设备直接对应；其他形式需核对 |
 | `shoe_cabinet` | 鞋柜 | 用于收纳鞋类的柜体。 别称：鞋橱 | `cabinet`、`wardrobe` | IfcFurniture / USERDEFINED | 项目约定；保留专用类别 |
 | `other` | 其他 | 已辨识为家具或设施但当前类别表无法覆盖的对象。 别称：其他家具 | `cabinet` | 待确定 / 待确定 | 需要人工说明与证据；不将未知对象自动伪造成 IFC 实体 |
+| `potted_plant` | 绿植盆栽 | 带种植容器的独立绿植，沿图中可辨认的盆栽整体平面轮廓标注；不包括成片种植区、花坛或单独空花盆。别称：盆栽、盆栽绿植、室内绿植 | `other` | 暂不指定 | 本项目新增语义类别；IFC 映射待额外证据确认，本轮仅用于标注与聚合 |
 
 ## 官方依据
 
@@ -44,8 +45,8 @@
 
 ## 类别升级与人工改类
 
-新模板包含 28 类。旧项目先执行 `manage.py upgrade_furniture_instance_choices --project-id ID --dry-run`，审查配置差异并备份；再加 `--apply --expected-title TITLE --expected-config-sha256 HASH`。命令只追加梳妆台和吧台，不重建模板、不更改标注。已存在相同选项时无操作；冲突必须人工处理。
+新模板包含 29 类，绿植盆栽追加在现有“其他”分组末尾，沿用该组颜色。旧项目先执行 `manage.py upgrade_furniture_instance_choices --project-id ID --dry-run`，审查配置差异并备份；再加 `--apply --expected-title TITLE --expected-config-sha256 HASH`。命令仅追加缺少的梳妆台、吧台和绿植盆栽，不重建模板、不更改标注。原有 28 类项目只会增加绿植盆栽；已存在相同选项时无操作；冲突必须人工处理。
 
 待绘制按钮只影响下一次创建。选中现有实例后使用“当前实例类别 → 应用类别”，统一修改所有分块和方向证据上下文，保留几何和来源，重新进行人工复核。绝不根据所在房间自动重分类 desk。
 
-有新类别结果后，只能回退到支持 28 类的兼容镜像；不得恢复只允许 26 类的运行版本或删除新选项。
+使用绿植盆栽后，回退镜像也必须支持 `potted_plant`（29 类），并保留新增选项及标注。仅含梳妆台、吧台等旧 28 类结果时，可以回退到支持对应类别的版本；不得恢复不支持已保存类别的镜像。

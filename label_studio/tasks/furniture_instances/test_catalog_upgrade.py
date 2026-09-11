@@ -1,4 +1,5 @@
 import json
+import re
 from io import StringIO
 from unittest import TestCase
 
@@ -19,7 +20,7 @@ def old_config():
     root = etree.fromstring(build_template(SOURCE_CONFIG).encode())
     control = root.xpath('.//Choices[@name="furniture_instance_type"]')[0]
     for choice in list(control):
-        if choice.get('alias') in ('dressing_table', 'bar_counter'):
+        if choice.get('alias') in ('dressing_table', 'bar_counter', 'potted_plant'):
             control.remove(choice)
     root.append(etree.Comment('retain custom layout'))
     etree.SubElement(root, 'Header', value='自定义提示', size='5')
@@ -27,12 +28,24 @@ def old_config():
 
 
 class CatalogUpgradeTests(TestCase):
+    def test_28_category_project_only_adds_potted_plant(self):
+        root = etree.fromstring(build_template(SOURCE_CONFIG).encode())
+        plant = root.xpath('.//Choice[@alias="potted_plant"]')[0]
+        plant.getparent().remove(plant)
+        original = etree.tostring(root, encoding='unicode')
+        updated, additions = upgrade_choices(original)
+        self.assertEqual(additions, ['potted_plant'])
+        choices = etree.fromstring(updated.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')
+        self.assertEqual(len(choices), 29)
+        self.assertEqual((choices[-1].get('alias'), choices[-1].get('value')), ('potted_plant', '绿植盆栽'))
+        self.assertEqual(upgrade_choices(updated), (updated, []))
+
     def test_preserves_original_xml_bytes_and_supports_empty_control(self):
         original = old_config().replace('/>', ' />').replace('\n', '\r\n')
         updated, _ = upgrade_choices(original)
-        for alias, label in [('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台')]:
+        for alias, label in [('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'), ('potted_plant', '绿植盆栽')]:
             inserted = f'<Choice value="{label}" alias="{alias}"/>'
-            updated = updated.replace('    ' + inserted + '\r\n', '').replace(inserted, '')
+            updated = re.sub(r'(?m)^[ \t]*' + re.escape(inserted) + r'\r?\n', '', updated).replace(inserted, '')
         self.assertEqual(updated, original)
         root = etree.fromstring(original.encode())
         control = root.xpath('.//Choices[@name="furniture_instance_type"]')[0]
@@ -41,15 +54,15 @@ class CatalogUpgradeTests(TestCase):
         control.text = None
         empty = etree.tostring(root, encoding='unicode')
         expanded, additions = upgrade_choices(empty)
-        self.assertEqual(additions, ['dressing_table', 'bar_counter'])
-        self.assertEqual(len(etree.fromstring(expanded.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')), 2)
+        self.assertEqual(additions, ['dressing_table', 'bar_counter', 'potted_plant'])
+        self.assertEqual(len(etree.fromstring(expanded.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')), 3)
 
     def test_append_preserves_existing_tree_and_is_idempotent(self):
         original = old_config()
         updated, additions = upgrade_choices(original)
-        self.assertEqual(additions, ['dressing_table', 'bar_counter'])
+        self.assertEqual(additions, ['dressing_table', 'bar_counter', 'potted_plant'])
         root = etree.fromstring(updated.encode())
-        for node in root.xpath('.//Choice[@alias="dressing_table" or @alias="bar_counter"]'):
+        for node in root.xpath('.//Choice[@alias="dressing_table" or @alias="bar_counter" or @alias="potted_plant"]'):
             node.getparent().remove(node)
         normalized = etree.XMLParser(remove_blank_text=True)
         self.assertEqual(
@@ -62,6 +75,8 @@ class CatalogUpgradeTests(TestCase):
         for old, new in [
             ('alias="desk"', 'alias="dressing_table"'),
             ('value="书桌"', 'value="梳妆台"'),
+            ('alias="desk"', 'alias="potted_plant"'),
+            ('value="书桌"', 'value="绿植盆栽"'),
             ('alias="desk"', 'alias="bed"'),
             ('name="furniture_instance_polygon"', 'name="furniture_instance_type"'),
             ('choice="single"', 'choice="multiple"'),
@@ -94,6 +109,7 @@ class CatalogUpgradeCommandTests(TransactionTestCase):
         call_command('upgrade_furniture_instance_choices', **options)
         self.project.refresh_from_db()
         self.assertIn('dressing_table', self.project.label_config)
+        self.assertIn('potted_plant', self.project.label_config)
         updated = self.project.label_config
         call_command('upgrade_furniture_instance_choices', **{**options, 'expected_config_sha256': config_sha256(updated)})
         self.project.refresh_from_db()

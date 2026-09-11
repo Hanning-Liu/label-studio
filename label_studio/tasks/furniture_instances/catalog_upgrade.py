@@ -1,4 +1,4 @@
-"""Append the two catalog additions without rebuilding a user's L4 template."""
+"""Append catalog additions without rebuilding a user's L4 template."""
 
 import hashlib
 from collections import Counter
@@ -6,7 +6,7 @@ from xml.parsers import expat
 
 from lxml import etree
 
-ADDITIONS = (('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'))
+ADDITIONS = (('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'), ('potted_plant', '绿植盆栽'))
 
 
 def config_sha256(config):
