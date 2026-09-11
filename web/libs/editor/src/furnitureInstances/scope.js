@@ -25,18 +25,36 @@ export function connectionZoneIds(result, zones) {
   if (
     !(W > 0 && H > 0) ||
     !Array.isArray(vertices) ||
-    vertices.length !== 2 ||
+    vertices.length < 2 ||
+    result.value?.closed === true ||
     vertices.some((p) => p.isBezier || !Number.isFinite(p.x) || !Number.isFinite(p.y))
   )
-    throw new Error("连接必须具有两个直线点和有效原图尺寸");
-  const [a, b] = vertices.map((p) => [(p.x * W) / 100, (p.y * H) / 100]);
-  const epsilon = Math.max(2, Math.round(0.001 * Math.min(W, H)));
-  if (Math.hypot(b[0] - a[0], b[1] - a[1]) < Math.max(4, 2 * epsilon)) throw new Error("连接线过短");
+    throw new Error("连接必须是开放直线或折线，并具有有效原图尺寸");
+  const points = vertices.map((p) => [(p.x * W) / 100, (p.y * H) / 100]);
+  const lengths = points.slice(1).map((p, i) => Math.hypot(p[0] - points[i][0], p[1] - points[i][1]));
+  const length = lengths.reduce((sum, value) => sum + value, 0);
+  const raw = 0.001 * Math.min(W, H),
+    lower = Math.floor(raw);
+  // Match Python's round-to-even at exact halves in the exporter's tolerance.
+  const epsilon = Math.max(2, raw - lower === 0.5 ? lower + (lower % 2) : Math.round(raw));
+  if (length < Math.max(4, 2 * epsilon)) throw new Error("连接线过短");
+  const samples = Array.from({ length: 401 }, (_, i) => {
+    let target = (length * i) / 400;
+    for (let j = 0; j < lengths.length; j++) {
+      if (target <= lengths[j] || j === lengths.length - 1) {
+        const t = lengths[j] > 1e-12 ? Math.max(0, Math.min(1, target / lengths[j])) : 0;
+        return [
+          points[j][0] + t * (points[j + 1][0] - points[j][0]),
+          points[j][1] + t * (points[j + 1][1] - points[j][1]),
+        ];
+      }
+      target -= lengths[j];
+    }
+  });
   const supported = zones.filter((zone) => {
     const rings = zone.geometry.flatMap((p) => p.map((r) => r.map(([x, y]) => [(x * W) / 100, (y * H) / 100])));
     let count = 0;
-    for (let i = 0; i <= 400; i++) {
-      const p = [a[0] + ((b[0] - a[0]) * i) / 400, a[1] + ((b[1] - a[1]) * i) / 400];
+    for (const p of samples) {
       if (rings.some((r) => r.some((v, j) => distanceToSegment(p, v, r[(j + 1) % r.length]) <= epsilon))) count++;
     }
     return count / 401 >= 0.95;

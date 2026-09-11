@@ -111,17 +111,19 @@ export class FurnitureReviewSession {
   }
 
   connect() {
-    if (this.connections++ === 0) {
-      const controller = this.annotation.store.referenceSyncController;
+    const controller = this.annotation.store.referenceSyncController;
+    if (this.controller !== controller) {
+      this.controllerSubscription?.();
+      this.controller = controller;
       this.referenceStatus = controller?.state?.status;
-      if (controller)
-        this.disposers.push(
-          controller.subscribe((state) =>
-            runInAction(() => {
-              this.referenceStatus = state.status;
-            }),
-          ),
-        );
+      this.controllerSubscription = controller?.subscribe((state) =>
+        runInAction(() => {
+          this.referenceStatus = state.status;
+        }),
+      );
+    }
+    if (this.connections++ === 0) {
+      this.referenceStatus = controller?.state?.status;
       this.disposers.push(
         reaction(
           () => [
@@ -137,6 +139,9 @@ export class FurnitureReviewSession {
     }
     return () => {
       if (--this.connections === 0) {
+        this.controllerSubscription?.();
+        this.controllerSubscription = null;
+        this.controller = null;
         this.disposers.splice(0).forEach((dispose) => dispose());
         runInAction(() => {
           this.active = false;
@@ -498,6 +503,7 @@ export function getFurnitureReviewSession(item) {
 
 export function useFurnitureReviewSession(item) {
   const session = getFurnitureReviewSession(item);
-  useEffect(() => session.connect(), [session]);
+  const controller = item.annotation.store.referenceSyncController;
+  useEffect(() => session.connect(), [session, controller]);
   return session;
 }

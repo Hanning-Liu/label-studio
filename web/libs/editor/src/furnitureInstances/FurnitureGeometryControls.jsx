@@ -89,7 +89,7 @@ export const FurnitureGeometryControls = observer(({ item }) => {
         </label>
         <button
           type="button"
-          disabled={!!blocked || !focus || !type || !!duplicate || !!creationError}
+          disabled={!!blocked || !!review.referenceBlock || !focus || !type || !!duplicate || !!creationError}
           onClick={create}
         >
           使用本组轮廓创建实例
@@ -237,7 +237,7 @@ export const FurnitureGeometryControls = observer(({ item }) => {
               <div className={styles.row}>
                 <button
                   type="button"
-                  disabled={!!blocked || !preview.valid}
+                  disabled={!!blocked || !!review.referenceBlock || !preview.valid}
                   onClick={() =>
                     review.run(() =>
                       applyFurnitureInstanceOperation(item, () => {

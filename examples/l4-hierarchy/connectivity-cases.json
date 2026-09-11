@@ -1,0 +1,14 @@
+{
+  "width": 1000, "height": 500,
+  "zones": [
+    {"id":"a","roomId":"room","points":[[0,0],[50,0],[50,100],[0,100]]},
+    {"id":"b","roomId":"room","points":[[50,0],[100,0],[100,100],[50,100]]}
+  ],
+  "cases": [
+    {"name":"shared boundary","vertices":[[50,20],[50,80]],"expected":["a","b"]},
+    {"name":"split collinear polyline","vertices":[[50,20],[50,50],[50,80]],"expected":["a","b"]},
+    {"name":"within pixel tolerance","vertices":[[50.15,20],[50.15,80]],"expected":["a","b"]},
+    {"name":"interior is not adjacency","vertices":[[40,20],[40,80]],"expected":[]},
+    {"name":"bent line lacks support","vertices":[[50,20],[60,50],[50,80]],"expected":[]}
+  ]
+}

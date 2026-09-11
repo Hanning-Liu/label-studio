@@ -52,7 +52,16 @@
   background: var(--color-neutral-surface);
 
   input { width: 120px; }
-  button { color: var(--color-neutral-content); }
+  button {
+    padding: 5px 7px;
+    color: var(--color-neutral-content);
+    border: 1px solid var(--color-neutral-border);
+    border-radius: 4px;
+    background: var(--color-neutral-background);
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--color-neutral-content); outline-offset: 2px; }
 }
 
 .header,

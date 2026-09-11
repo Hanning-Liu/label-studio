@@ -18,6 +18,24 @@ const deferred = () => {
 
 import { reviewSetup } from "./reviewTestHelpers";
 
+test("late or replaced controller updates the shared lineage guard for all connected controls", () => {
+  const { session, annotation } = reviewSetup();
+  annotation.store.referenceSyncController = null;
+  const first = session.connect();
+  const unsubscribe = jest.fn();
+  annotation.store.referenceSyncController = {
+    state: { status: { lineage: { ready: false, issues: [{ message: "上游过期" }] } } },
+    subscribe: jest.fn(() => unsubscribe),
+  };
+  const second = session.connect();
+  expect(session.blockReason).toBe("上游过期");
+  expect(annotation.store.referenceSyncController.subscribe).toHaveBeenCalledTimes(1);
+  first();
+  expect(unsubscribe).not.toHaveBeenCalled();
+  second();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+});
+
 test("an ancestor-only lineage change clears selections and pauses review without rewriting results", async () => {
   const { session, state, item } = reviewSetup();
   const disconnect = session.connect();
@@ -25,9 +43,14 @@ test("an ancestor-only lineage change clears selections and pauses review withou
   session.selectAll();
   const original = JSON.stringify(state.results);
   runInAction(() => {
-    session.referenceStatus = { ...session.referenceStatus, lineage: {
-      ready: false, version: "changed-l1", issues: [{ message: "L2 缺少 L1 窗参考" }],
-    } };
+    session.referenceStatus = {
+      ...session.referenceStatus,
+      lineage: {
+        ready: false,
+        version: "changed-l1",
+        issues: [{ message: "L2 缺少 L1 窗参考" }],
+      },
+    };
   });
   expect(session.checkedIds).toEqual([]);
   expect(session.active).toBe(false);
