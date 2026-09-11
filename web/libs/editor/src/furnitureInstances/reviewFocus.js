@@ -51,10 +51,12 @@ export async function focusFurnitureReview(item, points, stillCurrent = () => tr
       bounds = scroll.getBoundingClientRect();
       canvas = container.getBoundingClientRect();
     }
+    const navigation = scroll.querySelector?.('[data-testid="furniture-scope-navigation"]');
+    const navigationHeight = navigation?.getBoundingClientRect().height || 0;
     const viewport = {
       left: Math.max(canvas.left, bounds.left),
       right: Math.min(canvas.right, bounds.right - 16),
-      top: Math.max(canvas.top, bounds.top),
+      top: Math.max(canvas.top, bounds.top + navigationHeight),
       bottom: Math.min(canvas.bottom, bounds.bottom - 40),
     };
     if (viewport.right - viewport.left <= 96 || viewport.bottom - viewport.top <= 96) {

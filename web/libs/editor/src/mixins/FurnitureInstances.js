@@ -1,5 +1,8 @@
 import { applySnapshot, getSnapshot, types } from "mobx-state-tree";
 import { walkableReferencesFor } from "../furnitureInstances/walkableReferences";
+import { furnitureScopeFor, instanceInScope } from "../furnitureInstances/scope";
+import { groupCreationState, groupInstanceResults } from "../furnitureInstances/creation";
+import { rectanglePreview, rectanglePreviewToken } from "../furnitureInstances/rectanglePreview";
 
 import {
   ALL_CONTROLS,
@@ -28,7 +31,16 @@ import {
   validateFurnitureInstances,
   VECTOR_EPS,
 } from "../furnitureInstances/constraints";
-import { area, clone, difference, EPS_AREA, fingerprint, resultGeometry } from "../occupancy/geometry";
+import {
+  area,
+  clone,
+  difference,
+  EPS_AREA,
+  fingerprint,
+  resultGeometry,
+  validationMultiGeometry,
+  VALIDATION_EPS_AREA,
+} from "../occupancy/geometry";
 import { getFurnitureReviewSession } from "../furnitureInstances/reviewSession";
 import { furnitureParentUpdate } from "../furnitureInstances/parentUpdate";
 import { GEOMETRY as OCCUPANCY_GEOMETRY, REFERENCES as OCCUPANCY_REFERENCES } from "../occupancy/domain";
@@ -49,6 +61,13 @@ export const FurnitureInstances = types
     furnitureinstanceorientation: types.optional(types.boolean, true),
   })
   .volatile(() => ({
+    furnitureInstanceRoomId: "",
+    furnitureInstanceZoneId: "",
+    furnitureInstanceOverview: false,
+    furnitureInstanceRoomBackground: false,
+    furnitureInstanceReferenceLayers: { windows: true, openings: true, connections: true, barriers: true },
+    furnitureInstanceGeometryPreview: null,
+    furnitureInstanceTransformCandidate: null,
     furnitureInstanceFocusId: "",
     furnitureInstanceSelectedId: "",
     furnitureInstanceType: "bed",
@@ -88,10 +107,25 @@ export const FurnitureInstances = types
     get furnitureInstanceParents() {
       if (!self.furnitureInstancesEnabled) return [];
       try {
-        return furnitureGroups(self.furnitureInstanceData);
+        return self.furnitureInstanceScope.groups;
       } catch {
         return [];
       }
+    },
+    get furnitureInstanceScope() {
+      return furnitureScopeFor(self, self.furnitureInstanceData);
+    },
+    furnitureInstanceWithinScope(instance) {
+      return instanceInScope(self, instance);
+    },
+    furnitureInstanceRegionInScope(region) {
+      const value = context(contextResult(region));
+      return (
+        !self.furnitureInstancesEnabled ||
+        !value.instance_id ||
+        region?.isDrawing ||
+        (value.room_id === self.furnitureInstanceRoomId && value.zone_id === self.furnitureInstanceZoneId)
+      );
     },
     get furnitureInstanceWalkableReferences() {
       return walkableReferencesFor(self, self.furnitureInstanceData);
@@ -119,7 +153,9 @@ export const FurnitureInstances = types
       return result && GEOMETRY_CONTROLS.has(controlName(result)) ? selected[0].cleanId : "";
     },
     get furnitureInstanceEffectiveSelectedId() {
-      return effectiveFurnitureInstanceSelection(self.annotation.selectedRegions, self.furnitureInstanceSelectedId);
+      const id = effectiveFurnitureInstanceSelection(self.annotation.selectedRegions, self.furnitureInstanceSelectedId);
+      const instance = self.furnitureInstanceLogicals.find((candidate) => candidate.id === id);
+      return instance && instanceInScope(self, instance) ? id : "";
     },
     furnitureInstanceIsReference(name) {
       return self.furnitureInstancesEnabled && REFERENCE_CONTROLS.has(name);
@@ -160,6 +196,8 @@ export const FurnitureInstances = types
       if (getFurnitureReviewSession(self).unsaved) return "请先重试保存或导出窗口备份";
       if (self.furnitureInstanceBusy || self.annotation.submissionStarted) return "操作或保存正在进行";
       if (GEOMETRY_CONTROLS.has(control)) {
+        if (!self.furnitureInstanceRoomId || !self.furnitureInstanceZoneId)
+          return "请先选择房间、功能分区及 Focus 家具组团";
         if (!self.furnitureInstanceParents.some((parent) => parent.id === self.furnitureInstanceFocusId))
           return "请先选择 Focus 家具组团";
         if (!self.furnitureInstanceDraftType) return "当前项目未配置可用的家具实例类别";
@@ -277,10 +315,16 @@ export const FurnitureInstances = types
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons) throw new Error("请先完成或取消绘制");
       if (id && !self.furnitureInstanceParents.some((parent) => parent.id === id))
         throw new Error("Focus 家具组团不存在");
+      if (id) {
+        const parent = self.furnitureInstanceParents.find((p) => p.id === id);
+        self.setFurnitureInstanceSpace(parent.roomId, parent.zoneId);
+      }
       self.furnitureInstanceFocusId = id || "";
       self.furnitureInstanceSelectedId = "";
       self.furnitureInstanceDrawingControl = "";
       self.furnitureInstanceEditNotice = "";
+      self.furnitureInstanceGeometryPreview = null;
+      self.furnitureInstanceTransformCandidate = null;
       self.annotation.unselectAreas();
       self.updateRoomConstraintTools?.();
     },
@@ -295,6 +339,20 @@ export const FurnitureInstances = types
       }
       const instance = self.furnitureInstanceLogicals.find((candidate) => candidate.id === id);
       if (!instance) return;
+      self.furnitureInstanceGeometryPreview = null;
+      self.furnitureInstanceTransformCandidate = null;
+      // List/search/review navigation follows saved identities; canvas only
+      // exposes hit targets within the current scope.
+      const room = self.furnitureInstanceScope.rooms.find((r) => r.id === instance.context.room_id);
+      const zone = self.furnitureInstanceScope.zones.find(
+        (z) => z.id === instance.context.zone_id && z.roomId === room?.id,
+      );
+      if (!room || !zone) {
+        self.furnitureInstanceEditNotice = "原父房间或分区已失效，不能按位置重绑实例";
+        return;
+      }
+      self.furnitureInstanceRoomId = room.id;
+      self.furnitureInstanceZoneId = zone.id;
       self.furnitureInstanceSelectedId = id;
       self.furnitureInstanceFocusId = instance.context.group_id;
       self.furnitureInstanceDrawingControl = "";
@@ -307,6 +365,134 @@ export const FurnitureInstances = types
         .find((tool) => tool.fullName === "MoveTool");
       if (move) self.getToolsManager().selectTool(move, true);
       self.updateRoomConstraintTools?.();
+    },
+    setFurnitureInstanceSpace(roomId = "", zoneId = "") {
+      if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons || self.furnitureInstanceBusy)
+        throw new Error("请先完成绘制或等待保存结束");
+      if (getFurnitureReviewSession(self).unsaved) throw new Error("请先重试保存或导出窗口备份");
+      const scope = self.furnitureInstanceScope;
+      if (roomId && !scope.rooms.some((r) => r.id === roomId)) throw new Error("房间不存在");
+      if (zoneId && !scope.zones.some((z) => z.id === zoneId && z.roomId === roomId))
+        throw new Error("分区不属于当前房间");
+      self.furnitureInstanceRoomId = roomId;
+      self.furnitureInstanceZoneId = zoneId;
+      self.furnitureInstanceFocusId = "";
+      self.furnitureInstanceSelectedId = "";
+      self.furnitureInstanceHoveredId = "";
+      self.furnitureInstanceDrawingControl = "";
+      self.furnitureInstanceGeometryPreview = null;
+      self.furnitureInstanceTransformCandidate = null;
+      self.annotation.unselectAreas();
+      getFurnitureReviewSession(self).clear();
+      self.updateRoomConstraintTools?.();
+    },
+    setFurnitureInstanceReferenceDisplay(key, enabled) {
+      if (key === "overview") self.furnitureInstanceOverview = !!enabled;
+      else if (key === "roomBackground") self.furnitureInstanceRoomBackground = !!enabled;
+      else if (Object.hasOwn(self.furnitureInstanceReferenceLayers, key))
+        self.furnitureInstanceReferenceLayers = { ...self.furnitureInstanceReferenceLayers, [key]: !!enabled };
+    },
+    createFurnitureInstanceFromGroup(groupId, type, token) {
+      const reason = self.furnitureInstanceOperationBlockReason();
+      if (reason) throw new Error(reason);
+      if (groupId !== self.furnitureInstanceFocusId || !self.furnitureInstanceAvailableTypes.includes(type))
+        throw new Error("Focus 或项目类别配置已改变");
+      const current = self.furnitureInstanceData;
+      if (groupCreationState(current, groupId, type).token !== token) throw new Error("父组团已改变");
+      const created = groupInstanceResults(current, groupId, type, self.annotation.referenceVersion);
+      const snapshot = getSnapshot(self.annotation.areas);
+      self.annotation.history.freeze("furniture-instance-from-group");
+      try {
+        self.annotation.deserializeResults(clone(created.results));
+        self.annotation.updateObjects();
+        const actual = self.furnitureInstanceData.filter((r) => context(r).instance_id === created.id);
+        if (!sameFurnitureResultKeys(actual, created.results)) throw new Error("新实例分块未完整载入");
+        return created.id;
+      } catch (error) {
+        applySnapshot(self.annotation.areas, snapshot);
+        self.annotation.updateObjects();
+        throw error;
+      } finally {
+        self.annotation.history.unfreeze("furniture-instance-from-group");
+      }
+    },
+    previewFurnitureRectangle(options = {}) {
+      if (self.furnitureInstanceBusy || self.annotation.isDrawing || self.annotation.hasIncompletePolygons)
+        throw new Error("请先完成绘制或等待保存结束");
+      const instance = self.furnitureInstanceLogicals.find((i) => i.id === self.furnitureInstanceEffectiveSelectedId);
+      const part =
+        instance?.parts.find((p) => p.id === self.furnitureInstanceActivePartId) ||
+        (instance?.parts.length === 1 ? instance.parts[0] : null);
+      if (part?.from_name !== CONTROLS.rectangle) throw new Error("请先选择一个矩形实例或其矩形分块");
+      const parent = self.furnitureInstanceParents.find((p) => p.id === instance.context.group_id);
+      if (!parent) throw new Error("原父组团不存在");
+      const token = rectanglePreviewToken(instance, parent, self.annotation.referenceVersion);
+      const previous = self.furnitureInstanceGeometryPreview;
+      if (previous && previous.token !== token) throw new Error("预览期间实例或参考已改变，请取消后重新预览");
+      const parameters = { ...(previous?.options || {}), ...options };
+      const preview = rectanglePreview(
+        part,
+        parent.geometry,
+        parameters,
+        instance.parts.filter((p) => p.id !== part.id),
+      );
+      self.furnitureInstanceGeometryPreview = {
+        ...preview,
+        options: parameters,
+        token,
+        instanceId: instance.id,
+        regionId: part.id,
+        reference: self.annotation.referenceVersion,
+        annotationId: self.annotation.id,
+      };
+      self.furnitureInstanceTransformCandidate = null;
+      return preview;
+    },
+    cancelFurnitureRectanglePreview() {
+      self.furnitureInstanceGeometryPreview = null;
+      self.furnitureInstanceTransformCandidate = null;
+    },
+    applyFurnitureRectanglePreview() {
+      const reason = self.furnitureInstanceOperationBlockReason();
+      if (reason) throw new Error(reason);
+      const preview = self.furnitureInstanceGeometryPreview;
+      const instance = self.furnitureInstanceLogicals.find((i) => i.id === preview?.instanceId);
+      const parent = self.furnitureInstanceParents.find((p) => p.id === instance?.context.group_id);
+      if (
+        !preview?.valid ||
+        !instance ||
+        !parent ||
+        preview.annotationId !== self.annotation.id ||
+        preview.instanceId !== self.furnitureInstanceEffectiveSelectedId ||
+        preview.token !== rectanglePreviewToken(instance, parent, self.annotation.referenceVersion)
+      )
+        throw new Error("预览无效、实例或参考已改变，请重新预览");
+      const region = self.regs.find((r) => r.cleanId === preview.regionId);
+      if (!region) throw new Error("矩形分块已不存在");
+      const snapshot = getSnapshot(self.annotation.areas);
+      self.annotation.history.freeze("furniture-rectangle-preview");
+      try {
+        // Preview has already passed the same pixel-space containment rules.
+        // Do not re-snap an explicitly accepted value during model application.
+        applySnapshot(region, { ...getSnapshot(region), ...preview.value });
+        self.refreshFurnitureInstanceReviews([instance.id]);
+        const actual = self.furnitureInstanceData;
+        const issues = validateFurnitureInstances(actual, actual, { review: false }).filter(
+          (e) => (!e.instanceId || e.instanceId === instance.id) && e.code !== "orientation",
+        );
+        if (issues.length) throw new Error(issues.map((e) => e.message).join("；"));
+        self.annotation.updateObjects();
+        self.furnitureInstanceGeometryPreview = null;
+        self.furnitureInstanceEditNotice = instance.orientationResults.length
+          ? "已应用几何，待重新复核；原方向证据已保留，请检查并在失效时重标。"
+          : "已应用几何，请重新复核。";
+      } catch (error) {
+        applySnapshot(self.annotation.areas, snapshot);
+        self.annotation.updateObjects();
+        throw error;
+      } finally {
+        self.annotation.history.unfreeze("furniture-rectangle-preview");
+      }
     },
     finishFurnitureInstanceOrientationDrawing(name = "", selectMove = false) {
       const control = ORIENTATION_CONTROLS.has(name) ? name : self.furnitureInstanceDrawingControl;
@@ -468,7 +654,21 @@ export const FurnitureInstances = types
       if (!self.furnitureInstanceConstrains(region)) return target;
       try {
         const accepted = constrainFurnitureRectangle(previous, target, self.furnitureInstanceConstraintSpace(region));
-        self.furnitureInstanceEditNotice = "";
+        const constrained = Object.keys(target).some((key) => Math.abs(target[key] - accepted[key]) > 1e-6);
+        self.furnitureInstanceEditNotice = constrained
+          ? "候选轮廓已受原父组团边界限制；可缩小或使用角度适配预览。"
+          : "";
+        self.furnitureInstanceTransformCandidate =
+          constrained && target.width > 0 && target.height > 0
+            ? {
+                geometry: resultGeometry({
+                  value: target,
+                  original_width: self.naturalWidth,
+                  original_height: self.naturalHeight,
+                }),
+                valid: false,
+              }
+            : null;
         return accepted;
       } catch (error) {
         self.furnitureInstanceEditNotice = error.message;
@@ -517,7 +717,14 @@ export const FurnitureInstances = types
           original_width: self.naturalWidth,
           original_height: self.naturalHeight,
         });
-        if (area(difference(geometry, parent.geometry)) > EPS_AREA)
+        if (
+          area(
+            difference(
+              validationMultiGeometry(geometry, self.naturalWidth, self.naturalHeight),
+              validationMultiGeometry(parent.geometry, self.naturalWidth, self.naturalHeight),
+            ),
+          ) > VALIDATION_EPS_AREA
+        )
           throw new Error("调整不能越出原父家具组团或填入其孔洞");
         self.furnitureInstanceEditNotice = "";
         return true;

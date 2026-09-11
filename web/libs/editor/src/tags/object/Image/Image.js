@@ -1051,14 +1051,18 @@ const Model = types
       views: {
         getSkipInteractions(region = null) {
           if (self.furnitureInstancesEnabled) {
+            if (self.furnitureInstanceGeometryPreview || (region && !self.furnitureInstanceRegionInScope(region)))
+              return true;
             const tool = self.getToolsManager().findSelectedTool();
             // KonvaVector's imperative point creation honors its disabled prop.
             // Keep the active direction draft writable while other shapes stay
             // out of the drawing tool's hit-testing path.
             if (
-              region?.isDrawing && tool?.currentArea === region &&
+              region?.isDrawing &&
+              tool?.currentArea === region &&
               ["furniture_front_direction", "furniture_front_edge"].includes(tool.control?.name)
-            ) return false;
+            )
+              return false;
             if (
               tool?.isDrawingTool &&
               [
@@ -1072,7 +1076,8 @@ const Model = types
           }
           if (self.occupancyEnabled && !self.occupancyActivePartId) {
             const tool = self.getToolsManager().findSelectedTool();
-            if (tool?.isDrawingTool && ["occupancy_rectangle", "occupancy_polygon"].includes(tool.control?.name)) return true;
+            if (tool?.isDrawingTool && ["occupancy_rectangle", "occupancy_polygon"].includes(tool.control?.name))
+              return true;
           }
           if (isFF(FF_ZOOM_OPTIM)) {
             if (skipInteractions) return true;
@@ -1382,7 +1387,12 @@ const Model = types
       if (self.occupancyEnabled) {
         const errors = self.occupancyErrors;
         if (!errors.length) return true;
-        InfoModal.warning(`L3 校验未通过（${errors.length} 项），请使用顶部“复核与问题”逐项定位。\n${errors.slice(0, 6).map((e) => e.message).join("\n")}`);
+        InfoModal.warning(
+          `L3 校验未通过（${errors.length} 项），请使用顶部“复核与问题”逐项定位。\n${errors
+            .slice(0, 6)
+            .map((e) => e.message)
+            .join("\n")}`,
+        );
         return false;
       }
       const roomErrors = self.refreshRoomV3Metadata();
@@ -1398,11 +1408,7 @@ const Model = types
         );
         return false;
       }
-      const errors = [
-        ...roomErrors,
-        ...self.validateFunctionZoneV3(),
-        ...self.validateWholeRoomInheritance(),
-      ];
+      const errors = [...roomErrors, ...self.validateFunctionZoneV3(), ...self.validateWholeRoomInheritance()];
       if (!errors.length) return true;
       InfoModal.warning(`v3 几何校验未通过：\n${errors.map((error) => `• ${error}`).join("\n")}`);
       return false;
@@ -1575,7 +1581,11 @@ const Model = types
      * Set zoom
      */
     setZoom(scale, { reviewFit = false } = {}) {
-      scale = clamp(scale, reviewFit && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? 0.1 : 1, Number.POSITIVE_INFINITY);
+      scale = clamp(
+        scale,
+        reviewFit && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? 0.1 : 1,
+        Number.POSITIVE_INFINITY,
+      );
       self.currentZoom = scale;
 
       // cool comment about all this stuff

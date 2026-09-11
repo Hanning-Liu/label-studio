@@ -434,7 +434,8 @@ const Model = types
         // Store whatever format KonvaVector gives us
         self.vertices.replace(points);
         self.invalidateGeometryReview?.();
-        if (!self.isDrawing) self.parent?.refreshOccupancyBarrier?.(self, { snap: true, threshold: 10, refreshReview: true });
+        if (!self.isDrawing)
+          self.parent?.refreshOccupancyBarrier?.(self, { snap: true, threshold: 10, refreshReview: true });
         if (!self.isDrawing) self.parent?.refreshWindowRegion?.(self);
       },
 
@@ -634,7 +635,10 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const stageWidth = image?.naturalWidth ?? 0;
   const stageHeight = image?.naturalHeight ?? 0;
   const { x: offsetX, y: offsetY } = item.parent?.layerZoomScalePosition ?? { x: 0, y: 0 };
-  const disabled = item.disabled || suggestion || store.annotationStore.selected.isLinkingMode;
+  const inScope = item.parent?.furnitureInstanceRegionInScope?.(item) !== false;
+  const previewing = !!item.parent?.furnitureInstanceGeometryPreview;
+  const disabled =
+    item.disabled || suggestion || !inScope || previewing || store.annotationStore.selected.isLinkingMode;
   const selected = !disabled; // Invert disabled to selected for KonvaVector
   // Completely disable all interactions when readonly (includes locked, e.g., in View All mode), or Pan tool is active
   const isDisabled = item.isReadOnly() || item.parent?.getSkipInteractions(item);
@@ -642,7 +646,8 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const isFocusedOpening = isReference && item.roomGraphEdge?.room_ids?.includes(item.parent?.focusedRoom?.cleanId);
   const referenceOpacity = isFocusedOpening ? 0.9 : 0.4;
   const invalidBarrier = item.results.some(
-    (result) => result.from_name?.name === "occupancy_barrier_vector" && result.meta?.occupancy_barrier_context?.match_error,
+    (result) =>
+      result.from_name?.name === "occupancy_barrier_vector" && result.meta?.occupancy_barrier_context?.match_error,
   );
   const invalidWindow =
     item.parent?.windowEnabled && item.results.some((result) => result.meta?.window_context?.derivation_error);
@@ -659,7 +664,13 @@ const HtxVectorView = observer(({ item, suggestion }) => {
 
   return (
     <RegionWrapper item={item}>
-      <Group ref={(ref) => item.segGroupRef(ref)} name={item.id} visible={!item.hidden}>
+      <Group
+        ref={(ref) => item.segGroupRef(ref)}
+        name={item.id}
+        visible={!item.hidden}
+        listening={inScope && !previewing}
+        opacity={inScope ? 1 : 0.18}
+      >
         <KonvaVector
           ref={(kv) => item.setKonvaVectorRef(kv)}
           initialPoints={Array.from(item.vertices)}

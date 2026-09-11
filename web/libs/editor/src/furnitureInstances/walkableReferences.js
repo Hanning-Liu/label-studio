@@ -18,7 +18,10 @@ export function buildWalkableReferences(results) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(part);
   }
-  const regions = [], errors = [], partIds = new Set();
+  const regions = [],
+    errors = [],
+    partIds = new Set(),
+    fallbackPartIds = new Set();
   for (const [id, parts] of groups) {
     if (!parts.some((part) => labels.get(part.id)?.includes("walkable"))) continue;
     try {
@@ -28,10 +31,16 @@ export function buildWalkableReferences(results) {
       if (new Set(parts.map((part) => part.id)).size !== parts.length) throw new Error("重复几何结果 ID");
       for (const part of parts) {
         const c = part.meta?.occupancy_context;
-        if (labels.get(part.id)?.length !== 1 || labels.get(part.id)[0] !== "walkable" ||
-          c.parent_room_id !== first.parent_room_id || c.parent_zone_id !== first.parent_zone_id ||
-          part.original_width !== parts[0].original_width || part.original_height !== parts[0].original_height ||
-          part.to_name !== parts[0].to_name || (part.image_rotation || 0) !== (parts[0].image_rotation || 0))
+        if (
+          labels.get(part.id)?.length !== 1 ||
+          labels.get(part.id)[0] !== "walkable" ||
+          c.parent_room_id !== first.parent_room_id ||
+          c.parent_zone_id !== first.parent_zone_id ||
+          part.original_width !== parts[0].original_width ||
+          part.original_height !== parts[0].original_height ||
+          part.to_name !== parts[0].to_name ||
+          (part.image_rotation || 0) !== (parts[0].image_rotation || 0)
+        )
           throw new Error("分块类别、父级或图像信息不一致");
       }
       const geometry = union(...parts.map(resultGeometry));
@@ -39,10 +48,11 @@ export function buildWalkableReferences(results) {
       regions.push({ id, roomId: first.parent_room_id, zoneId: first.parent_zone_id, geometry });
       for (const part of parts) partIds.add(part.id);
     } catch (error) {
+      for (const part of parts) fallbackPartIds.add(part.id);
       errors.push(`可通行区域 ${id}：${error.message}，暂保留原分块显示。`);
     }
   }
-  return { regions, errors, partIds };
+  return { regions, errors, partIds, fallbackPartIds };
 }
 
 export function walkableReferencesFor(item, results) {

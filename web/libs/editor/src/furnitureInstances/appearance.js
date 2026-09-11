@@ -29,6 +29,15 @@ export function furnitureGeometryRegion(region) {
 }
 
 export function furnitureNativePartActive(region) {
+  if (region.parent?.furnitureInstanceGeometryPreview) return false;
+  const value = region.results?.find((result) => context(result).instance_id);
+  if (
+    value &&
+    region.parent?.furnitureInstanceZoneId !== undefined &&
+    (context(value).zone_id !== region.parent.furnitureInstanceZoneId ||
+      context(value).room_id !== region.parent.furnitureInstanceRoomId)
+  )
+    return false;
   return Boolean(
     region.isDrawing ||
       region.selected ||
@@ -38,7 +47,10 @@ export function furnitureNativePartActive(region) {
 }
 
 export function furnitureNativePartIds(item) {
-  const ids = (item.annotation?.selectedRegions || []).filter(furnitureGeometryRegion).map((region) => region.cleanId);
+  if (item.furnitureInstanceGeometryPreview) return new Set();
+  const ids = (item.annotation?.selectedRegions || [])
+    .filter((region) => furnitureGeometryRegion(region) && furnitureNativePartActive(region))
+    .map((region) => region.cleanId);
   if (item.furnitureInstanceActivePartId) ids.push(item.furnitureInstanceActivePartId);
   return new Set(ids);
 }

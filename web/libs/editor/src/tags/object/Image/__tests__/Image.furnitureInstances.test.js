@@ -7,6 +7,7 @@ import { cn } from "../../../../utils/bem";
 
 import { confirmFurnitureInstances, orientationForInstance } from "../../../../furnitureInstances/constraints";
 import { CONTROLS, context, controlName } from "../../../../furnitureInstances/domain";
+import { groupCreationState } from "../../../../furnitureInstances/creation";
 import {
   makeInstance,
   makeOccupancy,
@@ -183,6 +184,87 @@ const setup = (occupancy, furniture, config = CONFIG, markReferencesReadonly = t
   annotation.reinitHistory(false);
   return { annotation, image, store };
 };
+
+test("hierarchy and display switches never change stored results and block out-of-scope selection", () => {
+  const refs = makeOccupancy(),
+    furniture = makeInstance(refs);
+  const { image, annotation } = setup(refs, furniture);
+  const before = annotation.serializeAnnotation({ fast: true });
+  expect(image.furnitureInstanceDrawBlockReason(CONTROLS.rectangle)).toContain("房间");
+  const region = image.regs.find((r) => r.results.some((v) => context(v).instance_id));
+  annotation.selectArea(region);
+  expect(annotation.selectedRegions).toHaveLength(0);
+  image.setFurnitureInstanceSpace("room-r");
+  expect(image.furnitureInstanceZoneId).toBe("");
+  image.setFurnitureInstanceSpace("room-r", "zone-z");
+  image.setFurnitureInstanceFocus("group-g");
+  image.selectFurnitureInstance("instance-i");
+  expect(image.furnitureInstanceEffectiveSelectedId).toBe("instance-i");
+  image.setFurnitureInstanceReferenceDisplay("overview", true);
+  image.setFurnitureInstanceReferenceDisplay("windows", false);
+  image.setFurnitureInstanceSpace();
+  expect(image.furnitureInstanceFocusId).toBe("");
+  expect(annotation.selectedRegions).toHaveLength(0);
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  image.selectFurnitureInstance("instance-i");
+  expect([image.furnitureInstanceRoomId, image.furnitureInstanceZoneId, image.furnitureInstanceFocusId]).toEqual([
+    "room-r",
+    "zone-z",
+    "group-g",
+  ]);
+});
+
+test("outline creation is one reversible history operation and preserves all existing results", () => {
+  const refs = makeOccupancy(),
+    furniture = makeInstance(refs);
+  const { image, annotation } = setup(refs, furniture);
+  const before = annotation.serializeAnnotation({ fast: true });
+  image.setFurnitureInstanceFocus("group-g");
+  const token = groupCreationState(image.furnitureInstanceData, "group-g", "desk").token;
+  const id = image.createFurnitureInstanceFromGroup("group-g", "desk", token);
+  expect(image.furnitureInstanceLogicals).toHaveLength(2);
+  const after = annotation.serializeAnnotation({ fast: true });
+  expect(after.filter((r) => context(r).instance_id !== id)).toEqual(before);
+  expect(() => image.createFurnitureInstanceFromGroup("group-g", "desk", token)).toThrow("同轮廓");
+  annotation.history.undo();
+  expect(image.furnitureInstanceLogicals).toHaveLength(1);
+  annotation.history.redo();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(after);
+  const loaded = setup(
+    after.filter((r) => !context(r).instance_id),
+    after.filter((r) => context(r).instance_id),
+  );
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
+});
+
+test("rotation preview is isolated, applies once with stable IDs and supports undo and reload", () => {
+  const refs = makeOccupancy(),
+    furniture = makeInstance(refs, { rectangle: { x: 25, y: 25, width: 20, height: 20, rotation: 0 } });
+  const { image, annotation } = setup(refs, furniture);
+  image.selectFurnitureInstance("instance-i");
+  image.confirmFurnitureInstanceReviews(["instance-i"]);
+  const before = annotation.serializeAnnotation({ fast: true });
+  expect(image.previewFurnitureRectangle({ angle: 30 }).valid).toBe(true);
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  image.cancelFurnitureRectanglePreview();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  image.previewFurnitureRectangle({ angle: 30 });
+  image.applyFurnitureRectanglePreview();
+  const after = annotation.serializeAnnotation({ fast: true });
+  const part = after.find((r) => r.from_name === CONTROLS.rectangle);
+  expect(part.value.rotation).toBe(30);
+  expect(context(part)).toMatchObject({ instance_id: "instance-i", group_id: "group-g", review_status: "pending" });
+  expect(after.filter((r) => !context(r).instance_id)).toEqual(before.filter((r) => !context(r).instance_id));
+  annotation.history.undo();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  annotation.history.redo();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(after);
+  const loaded = setup(
+    after.filter((r) => !context(r).instance_id),
+    after.filter((r) => context(r).instance_id),
+  );
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
+});
 
 const attachVectorRef = (region) => {
   const points = [];

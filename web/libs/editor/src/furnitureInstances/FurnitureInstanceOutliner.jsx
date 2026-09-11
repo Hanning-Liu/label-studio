@@ -5,6 +5,7 @@ import { GROUP_TYPES } from "../occupancy/domain";
 import { FURNITURE_TYPES } from "./domain";
 import { REVIEW_LABELS } from "./review";
 import { useFurnitureReviewSession } from "./reviewSession";
+import { FurnitureReferencePanel } from "./FurnitureScopeControls";
 import styles from "./FurnitureInstanceControls.module.scss";
 
 const short = (value) => (value?.length > 22 ? `${value.slice(0, 11)}…${value.slice(-8)}` : value || "—");
@@ -229,6 +230,7 @@ export const FurnitureInstanceOutliner = observer(({ item }) => {
     <div className={`${styles.outliner} ${styles.reviewOutliner}`} aria-label="L4 家具实例列表">
       <FurnitureReviewBar item={item} review={review} />
       <div className={styles.reviewList}>
+        <FurnitureReferencePanel item={item} />
         <p>家具实例 {rows.length} · 父级链只读且不可由当前 Focus 覆盖</p>
         {parents.map((parent) => {
           const own = rows.filter((row) => row.groupId === parent.id);

@@ -1,4 +1,5 @@
 import { withAlpha } from "../utils/roomConstraintGeometry";
+import { referenceInScope, referenceKey, ROOM_CONTROLS, ZONE_CONTROLS } from "./scope";
 
 const FURNITURE_GEOMETRY_CONTROLS = new Set(["furniture_instance_rectangle", "furniture_instance_polygon"]);
 
@@ -41,6 +42,7 @@ export function furnitureInstanceInteractionLayerListening(item) {
   )
     return false;
   const tool = item.getToolsManager?.().findSelectedTool?.();
+  if (item.furnitureInstanceScope && !item.furnitureInstanceFocusId) return true;
   return tool?.fullName === "MoveTool" || tool?.toolName === "MoveTool";
 }
 
@@ -100,6 +102,23 @@ export function partitionFurnitureReferenceRegions(regions, item) {
     (reference ? references : interactive).push(region);
   }
   return { references, interactive };
+}
+
+export function visibleFurnitureReferenceRegions(regions, item) {
+  const scope = item.furnitureInstanceScope;
+  if (!scope) return regions;
+  return regions.filter((region) => {
+    if (item.furnitureInstanceWalkableReferences?.fallbackPartIds?.has(region.cleanId)) return true;
+    const name = resultName(region.results?.[0]);
+    if (ROOM_CONTROLS.has(name) || ZONE_CONTROLS.has(name)) return false;
+    const entry = scope.references.find((r) =>
+      region.results.some((result) => r.key === referenceKey({ id: region.cleanId, from_name: resultName(result) })),
+    );
+    const c = furnitureReferenceContext(region)?.occupancy;
+    return entry
+      ? referenceInScope(item, entry)
+      : !!(c && (item.furnitureInstanceOverview || c.parent_zone_id === item.furnitureInstanceZoneId));
+  });
 }
 
 export function furnitureInstanceMultiRegionSelection(item) {

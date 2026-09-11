@@ -5,6 +5,7 @@ import { Button } from "@humansignal/ui";
 import catalogDetails from "./catalogDetails.json";
 import { useFurnitureReviewSession } from "./reviewSession";
 import { furnitureParentUpdate } from "./parentUpdate";
+import { FurnitureGeometryControls } from "./FurnitureGeometryControls";
 
 import { downloadJson } from "../occupancy/download";
 import { CONTROLS, FURNITURE_TYPES, ORIENTATION_CONTROLS } from "./domain";
@@ -298,7 +299,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
               {focusIdentity.id}
             </span>
           ) : (
-            <span>未选择；请使用 Move 工具在画布点击家具组团</span>
+            <span>未选择；请先选择房间与功能分区，再使用 Move 点击橙色家具组团</span>
           )}
         </section>
         <label>
@@ -315,6 +316,7 @@ export const FurnitureInstanceControls = observer(({ item }) => {
         </label>
       </div>
 
+      {item.furnitureInstanceScope && <FurnitureGeometryControls item={item} />}
       <fieldset className={styles.palette} disabled={disabled}>
         <legend>待绘制实例类别</legend>
         {FURNITURE_TYPE_GROUPS.map((group) => (

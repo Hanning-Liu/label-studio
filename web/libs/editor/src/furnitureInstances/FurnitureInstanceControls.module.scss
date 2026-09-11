@@ -14,6 +14,47 @@
   }
 }
 
+.scopeNavigation {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  padding: 8px 14px;
+  background: var(--color-neutral-background);
+  color: var(--color-neutral-content);
+  border-bottom: 1px solid var(--color-neutral-border);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+  font-size: 12px;
+
+  .row label { flex: 1 1 150px; min-width: 0; }
+  select { max-width: 100%; width: 100%; }
+}
+
+.referencePanel {
+  padding: 6px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.referenceRow {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.geometryControls {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 6px;
+  background: var(--color-neutral-surface);
+
+  input { width: 120px; }
+  button { color: var(--color-neutral-content); }
+}
+
 .header,
 .row,
 .options {

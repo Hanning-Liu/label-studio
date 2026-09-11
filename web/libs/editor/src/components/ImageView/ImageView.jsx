@@ -36,6 +36,8 @@ import {
 } from "../../occupancy/referenceDisplay";
 import { FurnitureInstanceControls } from "../../furnitureInstances/FurnitureInstanceControls";
 import { FurnitureInstanceLayer, FurnitureInstanceLabels } from "../../furnitureInstances/FurnitureInstanceLayer";
+import { FurnitureScopeNavigation } from "../../furnitureInstances/FurnitureScopeControls";
+import { visibleFurnitureReferenceRegions } from "../../furnitureInstances/referenceDisplay";
 import {
   furnitureInstanceMultiRegionSelection,
   furnitureInstanceToolbarTools,
@@ -357,8 +359,7 @@ const SelectionLayer = observer(({ item, selectionArea }) => {
     item.occupancyEnabled &&
     item.selectedRegions.length > 1 &&
     item.selectedRegions.some((shape) => ["occupancy_rectangle", "occupancy_polygon"].includes(shape.control?.name));
-  const protectedMultiRegionSelection =
-    occupancyMultiPartSelection || furnitureInstanceMultiRegionSelection(item);
+  const protectedMultiRegionSelection = occupancyMultiPartSelection || furnitureInstanceMultiRegionSelection(item);
   const selectedShapeUsesTransformer =
     item.selectedShape?.useTransformer && !item.selectedShape?.occupancyVertexEditing;
 
@@ -378,7 +379,7 @@ const SelectionLayer = observer(({ item, selectionArea }) => {
       <ImageTransformer
         item={item}
         rotateEnabled={supportsRotate}
-        supportsTransform={!disableTransform && supportsTransform}
+        supportsTransform={!item.furnitureInstanceGeometryPreview && !disableTransform && supportsTransform}
         supportsScale={supportsScale}
         selectedShapes={item.selectedRegions}
         singleNodeMode={item.selectedRegions.length === 1}
@@ -1138,6 +1139,7 @@ export default observer(
       return (
         <>
           {!isViewingAll && <ReferenceLineageStatus item={item} />}
+          {!isViewingAll && item.furnitureInstancesEnabled && <FurnitureScopeNavigation item={item} />}
           {!isViewingAll &&
             (item.furnitureInstancesEnabled ? (
               <FurnitureInstanceControls item={item} />
@@ -1537,8 +1539,12 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
     // L2 function zones are read-only references in L3. Render them first and
     // disable hit testing so they cannot cover or steal clicks from furniture.
     ["occupancyZoneReference", occupancyZoneReferenceRegions, false],
-    ["furnitureInstanceReference", furnitureReferenceRegions, false],
-    ["suggestedFurnitureInstanceReference", suggestedFurnitureReferenceRegions, false],
+    ["furnitureInstanceReference", visibleFurnitureReferenceRegions(furnitureReferenceRegions, item), false],
+    [
+      "suggestedFurnitureInstanceReference",
+      visibleFurnitureReferenceRegions(suggestedFurnitureReferenceRegions, item),
+      false,
+    ],
     ["suggestedReference", suggestedReferenceRegions, !(item.occupancyEnabled || item.furnitureInstancesEnabled)],
     ["brush", brushRegions, true],
     ["shape", furnitureInteractiveRegions, true],

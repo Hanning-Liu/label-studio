@@ -64,6 +64,9 @@ const SelectionMap = types
         });
       },
       select(region) {
+        // Explicit L4 sidebar/review navigation sets the saved parent scope first.
+        // Generic canvas, box and keyboard selection must stay within that scope.
+        if (region.parent?.furnitureInstanceRegionInScope?.(region) === false) return;
         self.selected.put(region);
         region.selectRegion && region.selectRegion();
 

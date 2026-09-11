@@ -198,8 +198,8 @@ export function furnitureConstraintSpace(geometry, metrics = {}) {
   const inside = (points, closed = true) => {
     if (!points.length || points.some((candidate) => !Number.isFinite(candidate.x) || !Number.isFinite(candidate.y)))
       return false;
-    if (!points.every(containsPoint)) return false;
-    if (!closed) return points.slice(1).every((end, index) => segmentInside(points[index], end));
+    if (!closed)
+      return points.every(containsPoint) && points.slice(1).every((end, index) => segmentInside(points[index], end));
     try {
       const result = {
         value: { points: points.map(fromPixel).map((candidate) => [candidate.x, candidate.y]) },
