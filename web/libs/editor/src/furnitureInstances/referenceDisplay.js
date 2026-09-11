@@ -79,11 +79,12 @@ export function furnitureReferenceStyles(region, baseStyles) {
   // Logical L3 furniture groups are drawn once by FurnitureInstanceLayer.
   const groupId = furnitureReferenceContext(region)?.occupancy?.group_id;
   const logicalParent = groupId && region.parent.furnitureInstanceParents?.some((parent) => parent.id === groupId);
+  const logicalWalkable = region.parent.furnitureInstanceWalkableReferences?.partIds.has(region.cleanId);
   const fill = baseStyles.fillColor || baseStyles.strokeColor;
   return {
     ...baseStyles,
     fillColor: withAlpha(fill, selected.fill),
-    strokeColor: withAlpha(baseStyles.strokeColor, logicalParent ? 0 : selected.stroke),
+    strokeColor: withAlpha(baseStyles.strokeColor, logicalParent || logicalWalkable ? 0 : selected.stroke),
     labelColor: withAlpha(baseStyles.strokeColor, selected.stroke),
     strokeWidth: selected.width,
   };

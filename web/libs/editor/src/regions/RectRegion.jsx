@@ -246,7 +246,7 @@ const Model = types
         rotation: self.rotation,
       };
       const constrained = self.parent?.occupancyConstrains?.(self);
-      const target = constrained ? lockRectangleToActiveAnchor(previous, rawTarget, activeAnchor) : rawTarget;
+      const target = constrained ? lockRectangleToActiveAnchor(previous, rawTarget, activeAnchor, self.parent) : rawTarget;
       const accepted = constrained
         ? self.parent.constrainOccupancyRectangle(self, previous, target)
         : self.control?.constrainto

@@ -18,7 +18,7 @@ const MOVING_RECTANGLE_EDGES = {
 // nudge an already-snapped stationary edge outside its parent by a fraction of
 // a pixel. Preserve stationary edges from the model exactly and let the normal
 // constraint/snap path process only the edges controlled by the active handle.
-export function lockRectangleToActiveAnchor(previous, target, activeAnchor) {
+export function lockRectangleToActiveAnchor(previous, target, activeAnchor, metrics = {}) {
   const moving = MOVING_RECTANGLE_EDGES[activeAnchor];
 
   if (!moving) return target;
@@ -34,12 +34,16 @@ export function lockRectangleToActiveAnchor(previous, target, activeAnchor) {
   const radians = (previousRotation * Math.PI) / 180;
   const c = Math.cos(radians);
   const s = Math.sin(radians);
+  // Percent X and percent Y have different lengths on a non-square image.
+  // Fix stationary edges in source pixels, never in anisotropic percentages.
+  const width = metrics.naturalWidth || metrics.stageWidth || 100;
+  const height = metrics.naturalHeight || metrics.stageHeight || 100;
   const local = (point) => ({ x: point.x * c + point.y * s, y: -point.x * s + point.y * c });
   const world = (point) => ({ x: point.x * c - point.y * s, y: point.x * s + point.y * c });
   const edges = (rectangle) => {
-    const origin = local(rectangle);
+    const origin = local({ x: rectangle.x * width / 100, y: rectangle.y * height / 100 });
 
-    return [origin.x, origin.x + rectangle.width, origin.y, origin.y + rectangle.height];
+    return [origin.x, origin.x + rectangle.width * width / 100, origin.y, origin.y + rectangle.height * height / 100];
   };
   const fixed = edges(previous);
   const desired = edges({ ...target, rotation: previousRotation });
@@ -52,9 +56,10 @@ export function lockRectangleToActiveAnchor(previous, target, activeAnchor) {
 
   return {
     ...target,
-    ...origin,
-    width: desired[1] - desired[0],
-    height: desired[3] - desired[2],
+    x: origin.x * 100 / width,
+    y: origin.y * 100 / height,
+    width: (desired[1] - desired[0]) * 100 / width,
+    height: (desired[3] - desired[2]) * 100 / height,
     rotation: previousRotation,
   };
 }
@@ -98,7 +103,7 @@ export function constrainOccupancyBox(image, region, oldBox, newBox, activeAncho
       ),
       rotation: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360,
     };
-    const anchoredTarget = lockRectangleToActiveAnchor(previous, target, activeAnchor);
+    const anchoredTarget = lockRectangleToActiveAnchor(previous, target, activeAnchor, image);
     const accepted = image.constrainOccupancyRectangle(region, previous, anchoredTarget);
     const a = (accepted.rotation * Math.PI) / 180;
     const p = { x: image.internalToCanvasX(accepted.x), y: image.internalToCanvasY(accepted.y) };

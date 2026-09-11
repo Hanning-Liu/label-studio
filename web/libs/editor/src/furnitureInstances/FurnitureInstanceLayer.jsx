@@ -51,6 +51,12 @@ export const FurnitureInstanceLayer = observer(({ item }) => {
 
   return (
     <Layer name="furniture-instance-logical-regions" listening={listening}>
+      {item.furnitureInstanceWalkableReferences?.regions.map((region) => (
+        <Path key={`walkable:${region.id}`} name={`walkable-reference:${region.id}`}
+          data={pathData(region.geometry, item.stageWidth / 100, item.stageHeight / 100)}
+          stroke={withAlpha("#249376", 0.28)} strokeWidth={1} strokeScaleEnabled={false}
+          fillEnabled={false} fillRule="evenodd" listening={false} />
+      ))}
       {item.furnitureInstanceParents.map((parent) => {
         const focused = parent.id === item.furnitureInstanceFocusId;
         const hovered = parent.id === hoveredParent;

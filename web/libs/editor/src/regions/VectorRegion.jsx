@@ -770,7 +770,7 @@ const HtxVectorView = observer(({ item, suggestion }) => {
           disableInternalPointAddition={true}
         />
 
-        {item.vertices.length > 0 && (
+        {item.vertices.length > 0 && !item.parent?.furnitureInstanceIsReference?.(item.control?.name) && (
           <LabelOnPolygon item={item} color={vectorStroke} strokewidth={regionStyles.strokeWidth} />
         )}
       </Group>

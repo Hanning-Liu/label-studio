@@ -1,4 +1,5 @@
 import { applySnapshot, getSnapshot, types } from "mobx-state-tree";
+import { walkableReferencesFor } from "../furnitureInstances/walkableReferences";
 
 import {
   ALL_CONTROLS,
@@ -91,6 +92,9 @@ export const FurnitureInstances = types
       } catch {
         return [];
       }
+    },
+    get furnitureInstanceWalkableReferences() {
+      return walkableReferencesFor(self, self.furnitureInstanceData);
     },
     get furnitureInstanceLogicals() {
       if (!self.furnitureInstancesEnabled) return [];
