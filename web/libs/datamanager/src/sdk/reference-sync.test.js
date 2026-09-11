@@ -15,6 +15,99 @@ const setup = () => {
   return { current, wrapper, controller };
 };
 
+const historicalSetup = () => {
+  const context = setup();
+  Object.assign(context.current, {
+    pk: "11", draftId: 0, draftSelected: false, referenceVersion: "new",
+    draftRevision: "2026-09-04T09:00:00Z", editable: true,
+    serializeAnnotation: jest.fn(() => [{ id: "zone", value: { x: 10 } }]),
+  });
+  context.controller.replace = jest.fn();
+  const raw = { id: 9, result: [{ id: "zone" }], reference_version: "new", updated_at: "2026-09-11T09:00:00Z" };
+  const latest = { ...status, drafts: [{ id: 9, annotation_id: 11, updated_at: raw.updated_at }] };
+  context.controller.request.mockResolvedValueOnce({ ...status, drafts: [] })
+    .mockResolvedValueOnce(raw).mockResolvedValueOnce(latest);
+  return { ...context, raw, latest };
+};
+
+test("unchanged formal L2 enters a new linked draft using loaded version tokens", async () => {
+  const { controller, current, raw } = historicalSetup();
+  await controller.apply(true, true);
+  expect(controller.request).toHaveBeenNthCalledWith(2, "/api/tasks/20/annotations/11/drafts", {
+    result: [{ id: "zone", value: { x: 10 } }], reference_version: "new", base_manual_hash: "manual",
+    expected_updated_at: "2026-09-04T09:00:00Z",
+  });
+  expect(controller.replace).toHaveBeenCalledWith(current, raw, true);
+  expect(current.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
+});
+
+test("existing review draft is loaded without creating or overwriting a draft", async () => {
+  const { controller, current, raw, latest } = historicalSetup();
+  controller.request.mockReset().mockResolvedValueOnce(latest).mockResolvedValueOnce(raw).mockResolvedValueOnce(latest);
+  await controller.apply(true, true);
+  expect(controller.request).toHaveBeenNthCalledWith(2, "/api/drafts/9/");
+  expect(controller.replace).toHaveBeenCalledWith(current, raw, true);
+});
+
+test("dirty historical window cannot overwrite an existing review draft", async () => {
+  const { controller, current, latest } = historicalSetup();
+  current.draftResultFingerprint = "unsaved";
+  controller.request.mockReset().mockResolvedValue(latest);
+  await expect(controller.apply(true, true)).rejects.toThrow("另有修改");
+  expect(controller.request).toHaveBeenCalledTimes(1);
+  expect(controller.replace).not.toHaveBeenCalled();
+});
+
+test.each(["save failure", "source changed", "draft changed", "edited", "task changed"])(
+  "review entry preserves the window on %s", async (reason) => {
+    const { controller, current, wrapper, raw, latest } = historicalSetup();
+    controller.request.mockReset().mockResolvedValueOnce({ ...status, drafts: [] });
+    if (reason === "save failure") controller.request.mockRejectedValueOnce(new Error("409 conflict"));
+    else {
+      controller.request.mockImplementationOnce(async () => {
+        if (reason === "edited") current.draftResultFingerprint = "local edit";
+        if (reason === "task changed") wrapper.currentAnnotation = annotation();
+        return raw;
+      }).mockResolvedValueOnce({ ...latest,
+        ...(reason === "source changed" ? { reference_version: "newer" } : {}),
+        ...(reason === "draft changed" ? { drafts: [{ ...latest.drafts[0], updated_at: "2026-09-11T10:00:00Z" }] } : {}),
+      });
+    }
+    await expect(controller.apply(true, true)).rejects.toThrow();
+    expect(controller.replace).not.toHaveBeenCalled();
+    expect(controller.applying).toBe(false);
+    expect(controller.state.actionError).toBeTruthy();
+  },
+);
+
+test("task switch while fetching status stops before creating any draft", async () => {
+  const { controller, wrapper } = historicalSetup();
+  controller.request.mockReset().mockImplementation(async () => {
+    wrapper.currentAnnotation = annotation();
+    return { ...status, drafts: [] };
+  });
+  await expect(controller.apply(true, true)).rejects.toThrow("画面发生变化");
+  expect(controller.request).toHaveBeenCalledTimes(1);
+});
+
+test("double click starts only one review entry", async () => {
+  const { controller } = historicalSetup();
+  const first = controller.apply(true, true);
+  await expect(controller.apply(true, true)).rejects.toThrow("等待保存");
+  await first;
+  expect(controller.request.mock.calls.filter(([, body]) => body)).toHaveLength(1);
+});
+
+test("status polling does not erase a review entry failure or misreport synchronization", async () => {
+  const { controller } = historicalSetup();
+  controller.state.actionError = "draft save failed";
+  controller.request.mockReset().mockResolvedValue({ ...status, drafts: [] });
+  await controller.poll();
+  expect(controller.state.actionError).toBe("draft save failed");
+  expect(controller.state.error).toBe("");
+  expect(controller.state.status.status).toBe("synced");
+});
+
 test("L4 rejects an invalid ancestor even when the direct source version still matches", async () => {
   const { controller } = setup();
   controller.request.mockResolvedValue({

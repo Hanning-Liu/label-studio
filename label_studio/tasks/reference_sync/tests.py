@@ -604,3 +604,45 @@ class ReferenceSyncTests(TransactionTestCase):
         saved.refresh_from_db()
         self.assertIn('passage',{r.get('id') for r in saved.result})
         self.assertFalse(AnnotationDraft.objects.filter(pk=draft.id).exists())
+
+    def test_unchanged_formal_can_enter_draft_and_refresh_legacy_window_projections(self):
+        from tasks.windows.downstream import prepare_downstream_window_results, validate_persisted_projection_state
+        self.source.result.append(window())
+        self.source.save()
+        process_pending()
+        self.binding.refresh_from_db()
+        results = copy.deepcopy(Prediction.objects.get(pk=self.binding.prediction_id).result) + zones()
+        for result in results:
+            if result.get('from_name') == 'zone_rectangle':
+                result.update(original_width=1000, original_height=1000, image_rotation=0)
+        results, _ = prepare_downstream_window_results(results, level='L2', submission=True)
+        for result in results:
+            state = result.get('meta', {}).get('window_projection_state')
+            if state:
+                state['algorithm_version'] = 'window-projection/1'
+        saved = Annotation.objects.create(task=self.target, project=self.target_project, completed_by=self.user, result=results)
+        original = copy.deepcopy(saved.result)
+        original_updated = saved.updated_at
+        self.assertFalse(AnnotationDraft.objects.filter(annotation=saved).exists())
+        response = self.client.post(f'/api/tasks/{self.target.id}/annotations/{saved.id}/drafts', self.payload(saved), format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        draft = AnnotationDraft.objects.get(pk=response.data['id'])
+        self.assertEqual(draft.annotation_id, saved.id)
+        saved.refresh_from_db()
+        self.assertEqual(saved.result, original)
+        self.assertEqual(saved.updated_at, original_updated)
+        response = self.client.patch(f'/api/annotations/{saved.id}/', self.payload(draft), format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        saved.refresh_from_db()
+        validate_persisted_projection_state(saved.result, level='L2')
+        self.assertEqual([(r.get('id'), r.get('from_name'), r.get('value')) for r in saved.result],
+                         [(r.get('id'), r.get('from_name'), r.get('value')) for r in original])
+
+    def test_review_draft_creation_rejects_a_changed_formal_annotation(self):
+        saved = Annotation.objects.create(task=self.target, project=self.target_project, completed_by=self.user,
+            result=copy.deepcopy(Prediction.objects.get(pk=self.binding.prediction_id).result) + zones())
+        payload = self.payload(saved)
+        saved.save(update_fields=['updated_at'])
+        response = self.client.post(f'/api/tasks/{self.target.id}/annotations/{saved.id}/drafts', payload, format='json')
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertFalse(AnnotationDraft.objects.filter(annotation=saved).exists())

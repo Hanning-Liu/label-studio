@@ -15,7 +15,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
   }, [controller]);
   if (!controller) return null;
   const status = state.status;
-  if (!status?.enabled && !state.error) return null;
+  if (!status?.enabled && !state.error && !state.actionError) return null;
   const annotation = item.annotation;
   const source = status?.mode === "source";
   const current = source ? status.bindings[0] : status;
@@ -90,6 +90,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
       )}
       {workerDown && <p role="alert">同步后台心跳中断，暂时无法保证自动同步；已保存标注不会被清空。</p>}
       {failed && <p role="alert">{failed}</p>}
+      {state.actionError && <p role="alert">进入复核草稿未完成：{state.actionError}</p>}
       {(state.notice || state.focusNotice) && (
         <p role="status">
           {state.notice} {state.focusNotice}
@@ -171,7 +172,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
           </button>
         )}
         {!source && historical && (
-          <button type="button" disabled={disabled} onClick={() => run(() => controller.apply(true, true))}>
+          <button type="button" disabled={disabled || annotation.editable === false} onClick={() => run(() => controller.apply(true, true))}>
             进入复核草稿
           </button>
         )}
@@ -180,12 +181,17 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
             参考变更待复核（{pending.length}）
           </button>
         )}
+        {(source || historical) && (
+          <button type="button" onClick={() => setExpanded(!expanded)}>
+            同步详情
+          </button>
+        )}
         {((failed && !repairable) || workerDown) && (
           <button type="button" disabled={disabled} onClick={() => run(() => controller.retry())}>
             重试同步
           </button>
         )}
-        {!source && !compact && (
+        {!source && (!compact || state.actionError) && (
           <button type="button" onClick={() => exportWholeRoomRecovery(annotation, "reference-sync-recovery")}>
             导出当前窗口备份
           </button>
@@ -193,6 +199,8 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
       </div>
       {compact ? (
         <>
+          {!source && historical && <small>当前为已提交结果；进入复核草稿后可再次 Update。</small>}
+          {state.actionError && <small role="alert">进入复核草稿未完成，请查看同步详情；已提交结果未改动。</small>}
           {(failed || workerDown || changed) && <small role="alert">参考同步需要处理，请查看详情</small>}
           <Modal
             visible={expanded}

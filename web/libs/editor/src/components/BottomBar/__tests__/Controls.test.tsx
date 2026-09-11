@@ -1,10 +1,12 @@
 import { render, fireEvent } from "@testing-library/react";
 import { Provider } from "mobx-react";
 import { Controls } from "../Controls";
+import * as featureFlags from "../../../utils/feature-flags";
 
 jest.mock("@humansignal/ui", () => {
   const { forwardRef } = jest.requireActual("react");
   return {
+    ButtonGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Button: forwardRef(({ children, ...props }: { children: React.ReactNode }) => {
       return (
         <button {...props} data-testid="button">
@@ -204,5 +206,24 @@ describe("Controls", () => {
     fireEvent.click(skipTask);
 
     expect(mockStore.skipTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("linked review draft Update", () => {
+  afterEach(() => jest.restoreAllMocks());
+  test.each([
+    [0, true, false, true],
+    [9, true, false, false],
+    [9, false, false, true],
+    [9, true, true, true],
+  ])("draft=%s editable=%s incomplete=%s disabled=%s", (draftId, editable, hasIncompletePolygons, disabled) => {
+    jest.spyOn(featureFlags, "isFF").mockImplementation((flag) => flag === featureFlags.FF_REVIEWER_FLOW);
+    mockStore.hasInterface = (name: string) => name === "update";
+    const { getByRole } = render(
+      <Provider store={mockStore}>
+        <Controls history={mockHistory} annotation={{ ...mockAnnotation, draftId, editable, hasIncompletePolygons }} />
+      </Provider>,
+    );
+    expect(getByRole("button", { name: "submit" }).hasAttribute("disabled")).toBe(disabled);
   });
 });

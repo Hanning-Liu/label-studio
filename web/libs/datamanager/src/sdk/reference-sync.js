@@ -185,6 +185,7 @@ export class ReferenceSyncController {
       if (!explicit) return;
       return this.applyManualReference();
     }
+    if (enterReview && this.historical) return this.enterReviewDraft();
     const annotation = this.annotation;
     if (this.busy(annotation, explicit)) throw new Error("请先完成绘制或等待保存完成；当前画面已保留");
     if (this.historical && !enterReview) return;
@@ -221,6 +222,61 @@ export class ReferenceSyncController {
       this.emit({ error: `${error.message}。当前修改仍在窗口中，可导出备份。` });
       throw error;
     } finally { this.applying = false; this.emit({ busy: false }); }
+  }
+  async enterReviewDraft() {
+    const annotation = this.annotation;
+    if (this.busy(annotation, true)) throw new Error("请先完成绘制或等待保存完成；当前画面已保留");
+    if (!this.historical || annotation.editable === false) throw new Error("当前标注不能进入复核草稿");
+    // Keep the loaded formal annotation's version tokens. A newer server copy
+    // must never authorize saving the older contents of this browser window.
+    const fingerprint = annotation.draftResultFingerprint;
+    const annotationId = annotation.pk;
+    const payload = {
+      result: annotation.serializeAnnotation({ fast: true }),
+      reference_version: annotation.referenceVersion,
+      base_manual_hash: annotation.baseManualHash,
+      expected_updated_at: annotation.draftRevision,
+    };
+    const assertUnchanged = () => {
+      if (this.stopped || annotation !== this.annotation || annotation.pk !== annotationId ||
+          fingerprint !== annotation.draftResultFingerprint || isReferenceBusy(annotation, this.pointerDown)) {
+        throw new Error("加载期间画面发生变化，已保留当前窗口；请完成编辑后重试");
+      }
+    };
+    this.applying = true;
+    this.emit({ busy: true, actionError: "", error: "" });
+    try {
+      const status = await this.request(`/api/tasks/${this.taskId}/reference-sync/`);
+      assertUnchanged();
+      if (status.status !== "synced") throw new Error(status.error || "Room 参考正在同步，请稍后再试");
+      const drafts = (status.drafts || []).filter((draft) => String(draft.annotation_id) === String(annotationId));
+      if (drafts.length > 1) throw new Error("存在多份复核草稿，请先处理草稿冲突");
+      if (drafts.length && hasReferenceEdits(annotation)) {
+        throw new Error("已存在复核草稿，当前窗口另有修改；请先导出窗口备份，再选择草稿");
+      }
+      if (!drafts.length && (!payload.reference_version || !payload.base_manual_hash || !payload.expected_updated_at)) {
+        throw new Error("缺少已提交标注的版本信息，请先导出窗口备份再重新打开任务");
+      }
+      const raw = drafts.length
+        ? await this.request(`/api/drafts/${drafts[0].id}/`)
+        : await this.request(`/api/tasks/${this.taskId}/annotations/${annotationId}/drafts`, payload);
+      const latest = await this.request(`/api/tasks/${this.taskId}/reference-sync/`);
+      assertUnchanged();
+      const persisted = latest.drafts?.find((draft) => Number(draft.id) === Number(raw.id));
+      if (latest.status !== "synced" || !raw.id || raw.reference_version !== latest.reference_version ||
+          status.reference_version !== latest.reference_version || !persisted ||
+          (persisted.updated_at && persisted.updated_at !== raw.updated_at)) {
+        throw new Error("参考或草稿在加载期间再次变化，请重试进入复核草稿；已保存草稿仍保留");
+      }
+      this.replace(annotation, raw, true);
+      this.emit({ status: latest, notice: "已进入复核草稿；原提交结果保持不变。检查后点击 Update 正式提交。" });
+    } catch (error) {
+      this.emit({ actionError: `${error.message}。当前修改仍在窗口中，可导出备份。` });
+      throw error;
+    } finally {
+      this.applying = false;
+      this.emit({ busy: false });
+    }
   }
   replace(annotation, raw, isDraft) {
     const views = annotation.objects.map((object) => ({
