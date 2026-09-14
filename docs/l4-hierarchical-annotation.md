@@ -22,7 +22,7 @@ L4 上级参考不再常驻显示文字。右侧“本区上级参考”区分 L
 - 来源或归属异常单独列出，不按名称或几何猜测父级。来源过期时统计基于已加载参考，应先通过既有上游入口处理。
 - 绘制、方向草稿或几何预览未结束时，先完成／取消再切换。操作后保存失败时各层进度统一保留在保存前；仅重试保存不会重复创建或确认。普通编辑显示的是当前窗口进度，草稿保存不等于正式提交。
 
-实现阅读顺序：`furnitureInstances/scope.js` 提供空间身份，`spatialProgress.js` 将既有复核快照汇总到各层，`reviewSession.js` 负责共享显示快照和导航，`FurnitureSpatialTree.jsx` 呈现右侧概览。上述状态仅存在于当前标注会话；不新增标注字段、API、数据库迁移或家具类别。
+实现阅读顺序：`hanning/frontend/domain/furnitureInstances/scope.js` 提供空间身份，`hanning/frontend/domain/furnitureInstances/spatialProgress.js` 将既有复核快照汇总到各层，`hanning/frontend/domain/furnitureInstances/reviewSession.js` 负责共享显示快照和导航，`hanning/frontend/components/furnitureInstances/FurnitureSpatialTree.jsx` 呈现右侧概览。上述状态仅存在于当前标注会话；不新增标注字段、API、数据库迁移或家具类别。
 
 ## 使用组团轮廓新增实例
 
@@ -71,3 +71,7 @@ L4 上级参考不再常驻显示文字。右侧“本区上级参考”区分 L
 本地验收材料保存在工作区的 `work/spatial-progress-audit`，包含一致性数据库备份、原始测试日志、数据对比和前后截图；真实研究数据不进入 Git。QA 使用独立 Compose 项目 `label-studio-l4-spatial-progress-qa` 和独立卷，服务仅绑定 `127.0.0.1:18087`，图片只读挂载。
 
 发布阶段不代表生产已升级：8080 的切换须在用户确认保存并暂停后，重新备份数据库、配置及 Compose，同时替换 app 与 sync worker 镜像。升级前后应核对正式标注、草稿与参考关系指纹。回退镜像为 `label-studio-window-l4:plant-533bcc0de`；回退只替换镜像和部署配置，不恢复旧数据库。QA 验收结束停止服务，保留卷、镜像和本地记录。
+
+## 当前代码与运行入口
+
+定制实现集中在仓库根目录 `hanning/`。按函数的来源、保留接入点及测试见 [架构入口](../hanning/README.md)；新目录开发、部署与回退命令见 [运行指南](../deploy/Hanning-runtime.md)。上面的空间进度记录为历史发布证据，当前验收进度见 [本次迁移记录](releases/hanning-boundary-20260914.md)。

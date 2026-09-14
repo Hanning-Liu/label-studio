@@ -30,20 +30,21 @@ The single category source is `catalog/furniture.json`. Frontend adapters are
 are independent fields. The migration-only `verify_catalog_baseline` command
 compares against Git history; it is not required for future category additions.
 
-The function-level source and integration map is maintained here as extraction
-proceeds. Historical motivation is not inferred from a file name or UI appearance.
+The function-level source and integration map below describes the extracted
+implementation. Historical motivation is not inferred from a file name or UI appearance.
 
 ## Verified source map and extraction destinations
 
-Status: baseline inventory, before business extraction. The destinations below
-are the implementation map, not a claim that those modules have already moved.
+Status: catalog, domains, models, components, shape policies, backend services
+and CLI implementations have moved. Paths in the destination column are relative
+to this directory. Original Python module/CLI paths remain compatibility entries.
 Classification comes from `git diff` against the upstream commit and the baseline
 history. Pure custom paths do not exist at that upstream commit.
 
 | User workflow | Baseline function / module | Upstream behavior and custom difference | Destination | Retained integration and reason | Existing regression |
 |---|---|---|---|---|---|
 | Save geometry, category and direction | `regions/Result.js: serialize` | Upstream merges result and area metadata; added ownership rules keep L2/L3 geometry context, window projection/context and L4 role/provenance on the correct result | `frontend/domain/resultMetadata.js` | `Result.serialize` retains the upstream merge and delegates immediately after it | Image windows, occupancy, whole-room and furniture tests; schemaContract |
-| Select room and constrain zones/openings | `Image.js: roomConstraintControls` through `constrainRectangle`; `csvNames`, `rectangleToInternalPolygon`, `regionToInternalPolygon`, `vectorToInternalSegment`, `canvasRectangleFromEdge` | Custom views and geometry helpers added after upstream `suggestions`; upstream coordinate conversion and region models remain | `frontend/models/roomViews.js`, `frontend/domain/roomGeometry.js` | Image views registration must preserve getters rather than evaluate them while spreading | Image.roomConstraints, roomConstraintGeometry |
+| Select room and constrain zones/openings | `Image.js: roomConstraintControls` through `constrainRectangle`; `csvNames`, `rectangleToInternalPolygon`, `regionToInternalPolygon`, `vectorToInternalSegment`, `canvasRectangleFromEdge` | Custom views and geometry helpers added after upstream `suggestions`; upstream coordinate conversion and region models remain | `frontend/models/roomViews.js`, `frontend/domain/rooms/imageGeometry.js` | Image views registration must preserve getters rather than evaluate them while spreading | Image.roomConstraints, roomConstraintGeometry |
 | Update room/opening and review metadata | `Image.js: refreshRoomV3Metadata`, `refreshGeometryReviewMetadata`, `validateFunctionZoneV3`, `invalidateGeometryReviews` | Added room graph, opening evidence, partition validation and review invalidation | `frontend/models/roomActions.js` | Existing MST actions registration preserves transaction/history boundaries | Image.roomV3Config, Image.roomConstraints, whole-room tests |
 | Focus and drawing availability | `Image.js: setFocusedRoom`, `setRoomConstraintNotice`, `updateRoomConstraintTools` | Custom focus state and tool eligibility | `frontend/models/roomActions.js` | Image volatile state, attach cleanup and tool lifecycle remain in upstream host | DrawingTool, tools Manager/Base, Image tests |
 | Prepare and validate submission | `Image.js: beforeSend`, `validate` | Modified upstream lifecycle dispatches L4, L3 and L1/L2 preparation/validation | Existing Image integration | Keep branching, order and lifecycle in place; only import/delegate policies | submitValidation, AppStore and Image tests |
@@ -51,13 +52,13 @@ history. Pure custom paths do not exist at that upstream commit.
 | L3 occupancy, barriers and references | `Occupancy`; occupancy domain, constraints, geometry, transform, operations and UI | Pure custom; no upstream counterpart | `frontend/models/Occupancy.js`, `frontend/domain/occupancy/`, `frontend/components/occupancy/` | Original region/tool events perform mutations and history | Occupancy and Image.occupancy suites |
 | Window geometry, pairing and provenance | `RoomWindows`; windows domain/geometry/pairing/fingerprint | Pure custom; no upstream counterpart | `frontend/models/RoomWindows.js`, `frontend/domain/windows/` | Vector model and drawing lifecycle retain event writes | Windows domain/geometry and Image.windows |
 | Whole-room inheritance and vector review | `WholeRoomInheritance`, `VectorReview`, associated controls and helpers | Pure custom; no upstream counterpart | `frontend/models/`, `frontend/components/`, `frontend/domain/` | Image model composition and ImageView slots retain order and context | WholeRoomInheritance, VectorReviewControls, referenceReview |
-| Read-only reference display and Focus selector | `ImageView: RoomFocusSelector`, reference controls, occupancy/furniture layer partition policies | Custom component/policies added around upstream Stage/Regions | `frontend/components/`, existing custom display domain modules | `ImageView`, `StageContent`, `RegionsLayer` retain layer order, events and context | ReferenceSyncControls, FurnitureInstanceLayer, spatial progress |
-| Shape constraints and appearance | `RectRegion`, `PolygonRegion`, `VectorRegion`, `DrawingTool` delegate to room/occupancy/furniture policies | Modified upstream events plus custom geometry/appearance functions | `frontend/domain/` | Official shape models, Transformer and drawing lifecycle retain model writes and history | constraints, appearance, geometry, drawing tests |
-| Furniture catalog/template/upgrade | `FURNITURE_TYPES`, `FURNITURE_TYPE_GROUPS`, `catalogDetails`, `FURNITURE_TYPE_CHOICES`, `ADDITIONS` | Pure custom, currently five manually maintained sources | `catalog/furniture.json`, frontend/backend catalog adapters | Existing names/shapes stay available; five historical additions retain their separate order | appearance, presentation, template, catalog_upgrade, aggregation |
+| Read-only reference display and Focus selector | `ImageView: RoomFocusSelector`, reference controls, occupancy/furniture layer partition policies | Custom component/policies added around upstream Stage/Regions | `frontend/components/references/RoomFocusSelector.jsx`, `frontend/components/references/`, `frontend/domain/furnitureInstances/referenceDisplay.js` | `ImageView`, `StageContent`, `RegionsLayer` retain layer order, events and context | ReferenceSyncControls, FurnitureInstanceLayer, spatial progress |
+| Shape constraints and appearance | `RectRegion`, `PolygonRegion`, `VectorRegion`, `DrawingTool` delegate to room/occupancy/furniture policies | Modified upstream events plus custom geometry/appearance functions | `frontend/domain/rooms/regionPolicies.js`, occupancy/furniture constraints and geometry | Official shape models, Transformer and drawing lifecycle retain model writes and history | constraints, appearance, geometry, drawing tests |
+| Furniture catalog/template/upgrade | `FURNITURE_TYPES`, `FURNITURE_TYPE_GROUPS`, `catalogDetails`, `FURNITURE_TYPE_CHOICES`, `ADDITIONS` | Pure custom; five baseline sources now read one released catalog | `catalog/furniture.json`, frontend/backend catalog adapters | Existing names/shapes stay available; five historical additions retain their separate order | appearance, presentation, template, catalog_upgrade, aggregation |
 | Window/furniture/occupancy save validation | `tasks.windows`, `tasks.furniture_instances`, `tasks.occupancy` | Pure custom validation/preparation/provenance modules | `backend/validation/` | Existing API/serializers/permission checks and actual save locations remain | Backend geometry/reference/validation and API tests |
 | Safe source synchronization | `reference_sync.service: sync_atomic`, `prepare_write`, `finalize_saved_result`, `process_binding`; lineage/results modules | Pure custom; explicit source identity, stale checks, locks and provenance | `backend/reference_sync/` | `tasks.reference_sync.models`, migrations and API/command entry points remain; dispatch UIDs unchanged | Reference sync, lineage, concurrency and draft revision tests |
 | Frontend asset freshness | `core.context_processors.frontend_asset_revision` | Added SHA-256 of four built entrypoint files; upstream injects versions | `backend/adapters/frontend_assets.py` | Context processor keeps cached wrapper and settings injection | test_frontend_asset_revision |
-| Research export and round trip | `scripts/furniture_instances_to_unified.py`, lineage bundle, room/zone exporters | Pure custom CLIs and geometry aggregation | `scripts/`, `backend/` as applicable | Old script names/arguments, `--lineage-manifest`, atomic output and exact source evidence retained | scripts/tests and schemaContract |
+| Research export and round trip | `scripts/furniture_instances_to_unified.py`, lineage bundle, room/zone exporters | Pure custom CLIs and geometry aggregation | `scripts/`, `backend/reference_sync/lineage_bundle.py` | Old script names/arguments, `--lineage-manifest`, atomic output and exact source evidence retained | scripts/tests and schemaContract |
 
 The core write lifecycle remains in `AppStore.persistAnnotation`,
 `Annotation.saveDraft`, DataManager `lsf-sdk`, `appDraftGuard`, `ImageTransformer`
@@ -67,3 +68,28 @@ History anchors: `c49c5f2d4` (room constraints), `9112915cb` (Room v3),
 `c61a14dc6` / `c5b961591` (occupancy), `1b6b7aff2` (windows), `4683100a7`
 (furniture), `c5f577307` (integration), `e105fd3ad` (hierarchy/geometry).
 These establish implementation provenance; they do not prove unrecorded motives.
+
+## Reading route
+
+1. `frontend/components/furnitureInstances/` and `frontend/components/references/`
+   expose the custom UI; ImageView retains slots, contexts and layer placement.
+2. `frontend/domain/furnitureInstances/` contains catalog presentation, identity,
+   constraints, operations, review and progress rules; `frontend/models/` composes
+   them into the existing Image model. `adapters/mstViews.js` preserves getter
+   descriptors and override order without eager evaluation.
+3. Original `Result.serialize`, Image `beforeSend`/`validate`, AppStore persistence
+   and Annotation drafts retain serialization and save lifecycle responsibilities.
+4. Original task API/serializers call `backend/validation/` and
+   `backend/reference_sync/`; database models/migrations stay in `tasks`.
+5. Existing management commands and repository `scripts/*.py` delegate to
+   `backend/adapters/management_commands/` and `scripts/` respectively.
+
+Python module forwarding uses the same module object, including private helpers
+and existing test patch targets. Signal registration retains the original
+`TasksConfig.ready` entry and dispatch UIDs. CLI forwarding keeps the original
+arguments and exit conventions. Synthetic business tests live under
+`tests/frontend`; host integration tests stay in Editor/DataManager, and backend
+and CLI compatibility regressions stay at their original entry paths.
+
+Development, deployment and rollback commands are maintained in
+[the runtime guide](../deploy/Hanning-runtime.md), not duplicated here.
