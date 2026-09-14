@@ -1,37 +1,3 @@
-"""L4 furniture-instance validation and manual L3 reference synchronization."""
+"""Compatibility exports for the released furniture catalog."""
 
-FURNITURE_TYPE_CHOICES = (
-    ('bed', '床'),
-    ('bedside_table', '床头柜'),
-    ('wardrobe', '衣柜'),
-    ('dressing_table', '梳妆台'),
-    ('desk', '书桌'),
-    ('office_chair', '办公椅'),
-    ('sofa', '沙发'),
-    ('armchair', '扶手椅'),
-    ('coffee_table', '茶几'),
-    ('dining_table', '餐桌'),
-    ('dining_chair', '餐椅'),
-    ('bar_counter', '吧台/餐吧台'),
-    ('cabinet', '柜体'),
-    ('bookshelf', '书架'),
-    ('tv_stand', '电视柜'),
-    ('television', '电视'),
-    ('refrigerator', '冰箱'),
-    ('stove', '灶具'),
-    ('kitchen_cabinet', '橱柜'),
-    ('sink', '水槽'),
-    ('toilet', '坐便器'),
-    ('washbasin', '洗手盆'),
-    ('bathtub', '浴缸'),
-    ('shower', '淋浴设施'),
-    ('washing_machine', '洗衣机'),
-    ('dryer', '烘干机'),
-    ('shoe_cabinet', '鞋柜'),
-    ('other', '其他'),
-    ('potted_plant', '绿植盆栽'),
-    ('drying_rack', '晾衣架'),
-    ('piano', '钢琴'),
-)
-
-FURNITURE_TYPES = frozenset(value for value, _label in FURNITURE_TYPE_CHOICES)
+from hanning.backend.catalog import FURNITURE_TYPE_CHOICES, FURNITURE_TYPES

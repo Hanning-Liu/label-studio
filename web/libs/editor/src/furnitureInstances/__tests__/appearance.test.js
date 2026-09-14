@@ -8,7 +8,7 @@ import {
 import { instanceHitGeometry, furnitureScreenTransform } from "../FurnitureInstanceLayer";
 import { furnitureReferenceStyles } from "../referenceDisplay";
 import { FURNITURE_TYPES } from "../domain";
-import details from "../catalogDetails.json";
+import details from "@hanning/frontend/domain/catalogDetails";
 
 test("all 31 classes have definitions, aliases and valid disambiguation links", () => {
   expect(Object.keys(details).sort()).toEqual(Object.keys(FURNITURE_TYPES).sort());

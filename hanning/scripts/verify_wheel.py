@@ -24,7 +24,8 @@ def main():
             'import json,sys; from pathlib import Path; '
             'sys.path.insert(0,sys.argv[1]); import hanning; '
             'assert Path(hanning.__file__).is_relative_to(sys.argv[1]); '
-            'print(json.dumps({"installed_package":hanning.__file__}))'
+            'from hanning.backend.catalog import CATALOG; '
+            'print(json.dumps({"installed_package":hanning.__file__, "categories":len(CATALOG["categories"])}))'
         )
         result = subprocess.run([sys.executable, '-I', '-c', code, installation], cwd=installation,
                                 check=True, text=True, capture_output=True)

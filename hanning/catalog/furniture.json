@@ -1,0 +1,661 @@
+{
+  "groups": [
+    {
+      "id": "sleeping_dressing",
+      "name": "睡眠与更衣",
+      "color": "#7C3AED",
+      "order": 0
+    },
+    {
+      "id": "work_study",
+      "name": "工作学习",
+      "color": "#2563EB",
+      "order": 1
+    },
+    {
+      "id": "living_dining",
+      "name": "会客与用餐",
+      "color": "#16A34A",
+      "order": 2
+    },
+    {
+      "id": "storage_display",
+      "name": "收纳与展示",
+      "color": "#475569",
+      "order": 3
+    },
+    {
+      "id": "kitchen",
+      "name": "厨房设施",
+      "color": "#EA580C",
+      "order": 4
+    },
+    {
+      "id": "sanitary",
+      "name": "卫浴设施",
+      "color": "#0F766E",
+      "order": 5
+    },
+    {
+      "id": "appliances",
+      "name": "家用设备",
+      "color": "#C026D3",
+      "order": 6
+    },
+    {
+      "id": "instruments",
+      "name": "乐器",
+      "color": "#9F1239",
+      "order": 7
+    },
+    {
+      "id": "other",
+      "name": "其他",
+      "color": "#6B7280",
+      "order": 8
+    }
+  ],
+  "categories": [
+    {
+      "id": "bed",
+      "label": "床",
+      "group": "sleeping_dressing",
+      "display_order": 0,
+      "template_order": 0,
+      "definition": "用于睡眠的床体。",
+      "aliases": [
+        "床铺"
+      ],
+      "confusable": [
+        "sofa"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / BED",
+        "condition": "直接对应"
+      }
+    },
+    {
+      "id": "bedside_table",
+      "label": "床头柜",
+      "group": "sleeping_dressing",
+      "display_order": 1,
+      "template_order": 1,
+      "definition": "床旁放置日用品的独立小柜。",
+      "aliases": [
+        "床边柜"
+      ],
+      "confusable": [
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / USERDEFINED",
+        "condition": "项目约定；保留 bedside_table 语义"
+      }
+    },
+    {
+      "id": "wardrobe",
+      "label": "衣柜",
+      "group": "sleeping_dressing",
+      "display_order": 2,
+      "template_order": 2,
+      "definition": "用于悬挂或收纳衣物的柜体。",
+      "aliases": [
+        "衣橱"
+      ],
+      "confusable": [
+        "cabinet",
+        "dressing_table"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / USERDEFINED",
+        "condition": "项目约定；不把整个衣帽间作为单件衣柜"
+      }
+    },
+    {
+      "id": "dressing_table",
+      "label": "梳妆台",
+      "group": "sleeping_dressing",
+      "display_order": 3,
+      "template_order": 3,
+      "definition": "用于梳妆的家具台体；镜面与衣柜不能代替台体。",
+      "aliases": [
+        "梳妆桌",
+        "化妆台"
+      ],
+      "confusable": [
+        "desk",
+        "wardrobe"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / DESK / USERDEFINED",
+        "condition": "单人台面满足 DESK 定义时可映射；否则 USERDEFINED；始终保留研究类别"
+      },
+      "legacy_addition_order": 0
+    },
+    {
+      "id": "desk",
+      "label": "书桌",
+      "group": "work_study",
+      "display_order": 0,
+      "template_order": 4,
+      "definition": "用于书写、阅读或办公的工作台。",
+      "aliases": [
+        "写字台",
+        "办公桌"
+      ],
+      "confusable": [
+        "dressing_table",
+        "bar_counter"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / DESK",
+        "condition": "单人工作台符合定义；多人工作台需另核对"
+      }
+    },
+    {
+      "id": "office_chair",
+      "label": "办公椅",
+      "group": "work_study",
+      "display_order": 1,
+      "template_order": 5,
+      "definition": "用于桌前办公或学习的单人座椅。",
+      "aliases": [
+        "工作椅"
+      ],
+      "confusable": [
+        "dining_chair",
+        "armchair"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / CHAIR",
+        "condition": "直接对应座椅；办公用途为研究细分"
+      }
+    },
+    {
+      "id": "sofa",
+      "label": "沙发",
+      "group": "living_dining",
+      "display_order": 0,
+      "template_order": 6,
+      "definition": "可供多人就座的软座家具。",
+      "aliases": [
+        "长沙发"
+      ],
+      "confusable": [
+        "armchair",
+        "bed"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / SOFA",
+        "condition": "多人座具；单人软椅归 armchair"
+      }
+    },
+    {
+      "id": "armchair",
+      "label": "扶手椅",
+      "group": "living_dining",
+      "display_order": 1,
+      "template_order": 7,
+      "definition": "带扶手的单人休闲座椅。",
+      "aliases": [
+        "单人沙发",
+        "休闲椅"
+      ],
+      "confusable": [
+        "sofa",
+        "office_chair"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / CHAIR",
+        "condition": "单人座具；保留扶手椅细分"
+      }
+    },
+    {
+      "id": "coffee_table",
+      "label": "茶几",
+      "group": "living_dining",
+      "display_order": 2,
+      "template_order": 8,
+      "definition": "会客座位旁或前方放置饮品、杂物的矮桌。",
+      "aliases": [
+        "咖啡桌"
+      ],
+      "confusable": [
+        "dining_table",
+        "bedside_table"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / TABLE / USERDEFINED",
+        "condition": "多人使用桌面满足 TABLE；独立边几需核对"
+      }
+    },
+    {
+      "id": "dining_table",
+      "label": "餐桌",
+      "group": "living_dining",
+      "display_order": 3,
+      "template_order": 9,
+      "definition": "以就餐为主要用途的桌体。",
+      "aliases": [
+        "饭桌"
+      ],
+      "confusable": [
+        "bar_counter",
+        "desk"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / TABLE",
+        "condition": "多人餐桌符合定义"
+      }
+    },
+    {
+      "id": "dining_chair",
+      "label": "餐椅",
+      "group": "living_dining",
+      "display_order": 4,
+      "template_order": 10,
+      "definition": "配合餐桌使用的单人椅。",
+      "aliases": [
+        "饭椅"
+      ],
+      "confusable": [
+        "office_chair",
+        "armchair"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / CHAIR",
+        "condition": "直接对应；用途为研究细分"
+      }
+    },
+    {
+      "id": "bar_counter",
+      "label": "吧台/餐吧台",
+      "group": "living_dining",
+      "display_order": 5,
+      "template_order": 11,
+      "definition": "用于饮用、简餐或就座交流的台体；备餐橱柜另标。",
+      "aliases": [
+        "餐吧",
+        "吧桌"
+      ],
+      "confusable": [
+        "kitchen_cabinet",
+        "dining_table",
+        "desk"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / TABLE / USERDEFINED",
+        "condition": "多人台面满足 TABLE 时可映射；固定服务吧台需证据，不自动映射 WORKSURFACE"
+      },
+      "legacy_addition_order": 1
+    },
+    {
+      "id": "cabinet",
+      "label": "柜体",
+      "group": "storage_display",
+      "display_order": 0,
+      "template_order": 12,
+      "definition": "无法归入专用柜类的收纳柜体。",
+      "aliases": [
+        "储物柜",
+        "收纳柜"
+      ],
+      "confusable": [
+        "wardrobe",
+        "kitchen_cabinet",
+        "shoe_cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / USERDEFINED",
+        "condition": "项目约定；不默认 FILECABINET 或 TECHNICALCABINET"
+      }
+    },
+    {
+      "id": "bookshelf",
+      "label": "书架",
+      "group": "storage_display",
+      "display_order": 1,
+      "template_order": 13,
+      "definition": "用于存放书籍或展示物品的层架。",
+      "aliases": [
+        "书柜",
+        "置物架"
+      ],
+      "confusable": [
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / SHELF",
+        "condition": "符合层架定义；保留研究细分"
+      }
+    },
+    {
+      "id": "tv_stand",
+      "label": "电视柜",
+      "group": "storage_display",
+      "display_order": 2,
+      "template_order": 14,
+      "definition": "承托电视及附属设备的柜体。",
+      "aliases": [
+        "地柜"
+      ],
+      "confusable": [
+        "television",
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / USERDEFINED / TECHNICALCABINET",
+        "condition": "默认项目约定；技术设备柜结构与用途有证据时才选 TECHNICALCABINET"
+      }
+    },
+    {
+      "id": "television",
+      "label": "电视",
+      "group": "appliances",
+      "display_order": 0,
+      "template_order": 15,
+      "definition": "用于显示视听内容的电视设备。",
+      "aliases": [
+        "电视机"
+      ],
+      "confusable": [
+        "tv_stand"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcAudioVisualAppliance / DISPLAY",
+        "condition": "直接对应显示设备"
+      }
+    },
+    {
+      "id": "refrigerator",
+      "label": "冰箱",
+      "group": "kitchen",
+      "display_order": 0,
+      "template_order": 16,
+      "definition": "用于低温储存食物的冷藏设备。",
+      "aliases": [
+        "电冰箱"
+      ],
+      "confusable": [
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcElectricAppliance / REFRIGERATOR / FRIDGE_FREEZER",
+        "condition": "需区分纯冷藏与冷冻冷藏组合；图中不足以判定时保留候选"
+      }
+    },
+    {
+      "id": "stove",
+      "label": "灶具",
+      "group": "kitchen",
+      "display_order": 1,
+      "template_order": 17,
+      "definition": "用于烹饪的灶面或炉灶设备。",
+      "aliases": [
+        "灶台",
+        "炉灶"
+      ],
+      "confusable": [
+        "kitchen_cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcElectricAppliance（条件性） / ELECTRICCOOKER",
+        "condition": "仅有电烹饪证据时使用；燃气或能源未知时不强制映射电器"
+      }
+    },
+    {
+      "id": "kitchen_cabinet",
+      "label": "橱柜",
+      "group": "kitchen",
+      "display_order": 2,
+      "template_order": 18,
+      "definition": "厨房备餐或收纳柜体，可包含其工作台面轮廓。",
+      "aliases": [
+        "厨柜",
+        "备餐台"
+      ],
+      "confusable": [
+        "bar_counter",
+        "cabinet",
+        "sink"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / USERDEFINED",
+        "condition": "项目约定；不把任意厨房台面作为系统家具 WORKSURFACE"
+      }
+    },
+    {
+      "id": "sink",
+      "label": "水槽",
+      "group": "kitchen",
+      "display_order": 3,
+      "template_order": 19,
+      "definition": "接收厨房等清洗用水的槽体。",
+      "aliases": [
+        "洗菜盆",
+        "洗涤槽"
+      ],
+      "confusable": [
+        "washbasin",
+        "kitchen_cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcSanitaryTerminal / SINK",
+        "condition": "直接对应；与柜体分别标注，允许二维重叠"
+      }
+    },
+    {
+      "id": "toilet",
+      "label": "坐便器",
+      "group": "sanitary",
+      "display_order": 0,
+      "template_order": 20,
+      "definition": "用于排泄的坐便器主体。",
+      "aliases": [
+        "马桶"
+      ],
+      "confusable": [
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcSanitaryTerminal / TOILETPAN",
+        "condition": "对应便器主体；不使用已弃用的 WCSEAT"
+      }
+    },
+    {
+      "id": "washbasin",
+      "label": "洗手盆",
+      "group": "sanitary",
+      "display_order": 1,
+      "template_order": 21,
+      "definition": "用于洗手、洗脸等个人清洁的盆体。",
+      "aliases": [
+        "洗脸盆",
+        "面盆"
+      ],
+      "confusable": [
+        "sink",
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcSanitaryTerminal / WASHHANDBASIN",
+        "condition": "直接对应；柜体可另标"
+      }
+    },
+    {
+      "id": "bathtub",
+      "label": "浴缸",
+      "group": "sanitary",
+      "display_order": 2,
+      "template_order": 22,
+      "definition": "可容纳人体浸浴的缸体。",
+      "aliases": [
+        "浴盆"
+      ],
+      "confusable": [
+        "shower"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcSanitaryTerminal / BATH",
+        "condition": "直接对应"
+      }
+    },
+    {
+      "id": "shower",
+      "label": "淋浴设施",
+      "group": "sanitary",
+      "display_order": 3,
+      "template_order": 23,
+      "definition": "可识别的淋浴装置或其设施轮廓。",
+      "aliases": [
+        "淋浴",
+        "花洒设施"
+      ],
+      "confusable": [
+        "bathtub"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcSanitaryTerminal / SHOWER",
+        "condition": "需要设施证据；仅淋浴空间或隔断不能直接当作卫生终端实体"
+      }
+    },
+    {
+      "id": "washing_machine",
+      "label": "洗衣机",
+      "group": "appliances",
+      "display_order": 1,
+      "template_order": 24,
+      "definition": "用于洗涤衣物的设备。",
+      "aliases": [
+        "洗衣设备"
+      ],
+      "confusable": [
+        "dryer"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcElectricAppliance / WASHINGMACHINE",
+        "condition": "直接对应；洗烘一体需补充设备能力证据"
+      }
+    },
+    {
+      "id": "dryer",
+      "label": "烘干机",
+      "group": "appliances",
+      "display_order": 2,
+      "template_order": 25,
+      "definition": "用于干燥衣物的设备。",
+      "aliases": [
+        "干衣机"
+      ],
+      "confusable": [
+        "washing_machine"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcElectricAppliance / TUMBLEDRYER（条件性）",
+        "condition": "仅滚筒式干衣设备直接对应；其他形式需核对"
+      }
+    },
+    {
+      "id": "shoe_cabinet",
+      "label": "鞋柜",
+      "group": "storage_display",
+      "display_order": 3,
+      "template_order": 26,
+      "definition": "用于收纳鞋类的柜体。",
+      "aliases": [
+        "鞋橱"
+      ],
+      "confusable": [
+        "cabinet",
+        "wardrobe"
+      ],
+      "ifc_comparison": {
+        "candidate": "IfcFurniture / USERDEFINED",
+        "condition": "项目约定；保留专用类别"
+      }
+    },
+    {
+      "id": "other",
+      "label": "其他",
+      "group": "other",
+      "display_order": 0,
+      "template_order": 27,
+      "definition": "已辨识为家具或设施但当前类别表无法覆盖的对象。",
+      "aliases": [
+        "其他家具"
+      ],
+      "confusable": [
+        "cabinet"
+      ],
+      "ifc_comparison": {
+        "candidate": "待确定 / 待确定",
+        "condition": "需要人工说明与证据；不将未知对象自动伪造成 IFC 实体"
+      }
+    },
+    {
+      "id": "potted_plant",
+      "label": "绿植盆栽",
+      "group": "other",
+      "display_order": 1,
+      "template_order": 28,
+      "definition": "带种植容器的独立绿植，沿图中可辨认的盆栽整体平面轮廓标注；不包括成片种植区、花坛或单独空花盆。",
+      "aliases": [
+        "盆栽",
+        "盆栽绿植",
+        "室内绿植"
+      ],
+      "confusable": [
+        "other"
+      ],
+      "ifc_comparison": {
+        "candidate": "暂不指定",
+        "condition": "本项目新增语义类别；IFC 映射待额外证据确认，本轮仅用于标注与聚合"
+      },
+      "legacy_addition_order": 2
+    },
+    {
+      "id": "drying_rack",
+      "label": "晾衣架",
+      "group": "sanitary",
+      "display_order": 4,
+      "template_order": 29,
+      "definition": "用于晾晒衣物的落地、壁挂或吊装架体；标注可辨识的设施整体平面轮廓，不以整个晾晒区域代替架体。",
+      "aliases": [
+        "晾晒架",
+        "晾衣杆"
+      ],
+      "confusable": [
+        "dryer",
+        "wardrobe"
+      ],
+      "ifc_comparison": {
+        "candidate": "暂不指定",
+        "condition": "界面归入“卫浴设施”；分组不代表 IFC 卫生终端实体，映射待额外证据确认"
+      },
+      "legacy_addition_order": 3
+    },
+    {
+      "id": "piano",
+      "label": "钢琴",
+      "group": "instruments",
+      "display_order": 0,
+      "template_order": 30,
+      "definition": "用于演奏的钢琴主体，包括立式、三角及明确可辨识的电钢琴；按琴体完整平面轮廓标注，琴凳单独标注，不以整个练琴区域代替琴体。",
+      "aliases": [
+        "立式钢琴",
+        "三角钢琴",
+        "电钢琴"
+      ],
+      "confusable": [
+        "desk",
+        "cabinet",
+        "other"
+      ],
+      "ifc_comparison": {
+        "candidate": "暂不指定",
+        "condition": "界面归入“乐器”；不从二维形状推断 IFC 实体，映射待额外证据确认"
+      },
+      "legacy_addition_order": 4
+    }
+  ]
+}

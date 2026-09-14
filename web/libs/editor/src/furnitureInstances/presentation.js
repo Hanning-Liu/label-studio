@@ -1,21 +1,8 @@
 import { GROUP_TYPES } from "../occupancy/domain";
 import { FURNITURE_TYPES } from "./domain";
 
-export const FURNITURE_TYPE_GROUPS = Object.freeze([
-  { name: "睡眠与更衣", color: "#7C3AED", types: ["bed", "bedside_table", "wardrobe", "dressing_table"] },
-  { name: "工作学习", color: "#2563EB", types: ["desk", "office_chair"] },
-  {
-    name: "会客与用餐",
-    color: "#16A34A",
-    types: ["sofa", "armchair", "coffee_table", "dining_table", "dining_chair", "bar_counter"],
-  },
-  { name: "收纳与展示", color: "#475569", types: ["cabinet", "bookshelf", "tv_stand", "shoe_cabinet"] },
-  { name: "厨房设施", color: "#EA580C", types: ["refrigerator", "stove", "kitchen_cabinet", "sink"] },
-  { name: "卫浴设施", color: "#0F766E", types: ["toilet", "washbasin", "bathtub", "shower", "drying_rack"] },
-  { name: "家用设备", color: "#C026D3", types: ["television", "washing_machine", "dryer"] },
-  { name: "乐器", color: "#9F1239", types: ["piano"] },
-  { name: "其他", color: "#6B7280", types: ["other", "potted_plant"] },
-]);
+import { FURNITURE_TYPE_GROUPS } from "@hanning/frontend/domain/catalog";
+export { FURNITURE_TYPE_GROUPS };
 
 const controlName = (result) => result?.from_name?.name || result?.from_name;
 export const shortFurnitureId = (value) =>

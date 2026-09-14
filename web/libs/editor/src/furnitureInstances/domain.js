@@ -24,39 +24,8 @@ export const ALL_CONTROLS = new Set([...GEOMETRY_CONTROLS, CONTROLS.type, ...ORI
 
 // Label configs show the Chinese value and persist the stable English alias.
 // Never rename an alias after production annotations have used it.
-export const FURNITURE_TYPES = Object.freeze({
-  bed: "床",
-  bedside_table: "床头柜",
-  wardrobe: "衣柜",
-  dressing_table: "梳妆台",
-  desk: "书桌",
-  office_chair: "办公椅",
-  sofa: "沙发",
-  armchair: "扶手椅",
-  coffee_table: "茶几",
-  dining_table: "餐桌",
-  dining_chair: "餐椅",
-  bar_counter: "吧台/餐吧台",
-  cabinet: "柜体",
-  bookshelf: "书架",
-  tv_stand: "电视柜",
-  television: "电视",
-  refrigerator: "冰箱",
-  stove: "灶具",
-  kitchen_cabinet: "橱柜",
-  sink: "水槽",
-  toilet: "坐便器",
-  washbasin: "洗手盆",
-  bathtub: "浴缸",
-  shower: "淋浴设施",
-  washing_machine: "洗衣机",
-  dryer: "烘干机",
-  shoe_cabinet: "鞋柜",
-  other: "其他",
-  potted_plant: "绿植盆栽",
-  drying_rack: "晾衣架",
-  piano: "钢琴",
-});
+import { FURNITURE_TYPES } from "@hanning/frontend/domain/catalog";
+export { FURNITURE_TYPES };
 
 export const ROLE_BY_CONTROL = Object.freeze({
   [CONTROLS.rectangle]: "geometry",

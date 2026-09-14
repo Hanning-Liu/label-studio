@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal, Tooltip } from "antd";
 import { Button } from "@humansignal/ui";
-import catalogDetails from "./catalogDetails.json";
+import catalogDetails from "@hanning/frontend/domain/catalogDetails";
 import { useFurnitureReviewSession } from "./reviewSession";
 import { furnitureParentUpdate } from "./parentUpdate";
 import { FurnitureGeometryControls } from "./FurnitureGeometryControls";

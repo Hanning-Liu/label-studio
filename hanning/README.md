@@ -24,6 +24,12 @@ package does not enable custom behavior on ordinary projects.
 - [Furniture catalog and explicit project upgrades](../deploy/L4-furniture-catalog.md)
 - [Window lineage](../deploy/L1-L4-window-lineage.md)
 
+The single category source is `catalog/furniture.json`. Frontend adapters are
+`frontend/domain/catalog.js`; installed Python code uses `backend/catalog` and
+`importlib.resources`. Template order, button order and historical additions
+are independent fields. The migration-only `verify_catalog_baseline` command
+compares against Git history; it is not required for future category additions.
+
 The function-level source and integration map is maintained here as extraction
 proceeds. Historical motivation is not inferred from a file name or UI appearance.
 
