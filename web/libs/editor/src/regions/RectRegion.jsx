@@ -1,3 +1,4 @@
+import { referenceShapeStyles, rectangleCandidate, activeTransformerAnchor } from "@hanning/frontend/domain/rooms/regionPolicies";
 import Konva from "konva";
 import { getRoot, isAlive, types } from "mobx-state-tree";
 import { useContext } from "react";
@@ -19,10 +20,6 @@ import { AliveRegion } from "./AliveRegion";
 import { EditableRegion } from "./EditableRegion";
 import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
-import { withAlpha } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
-import { occupancyZoneReferenceStyles } from "@hanning/frontend/domain/occupancy/referenceDisplay";
-import { lockRectangleToActiveAnchor } from "@hanning/frontend/domain/occupancy/transform";
-import { furnitureReferenceStyles } from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 import {
   furnitureGeometryRegion,
   furnitureNativePartActive,
@@ -245,13 +242,7 @@ const Model = types
         height: self.height,
         rotation: self.rotation,
       };
-      const constrained = self.parent?.occupancyConstrains?.(self);
-      const target = constrained ? lockRectangleToActiveAnchor(previous, rawTarget, activeAnchor, self.parent) : rawTarget;
-      const accepted = constrained
-        ? self.parent.constrainOccupancyRectangle(self, previous, target)
-        : self.control?.constrainto
-          ? self.parent?.constrainRectangle?.(self, previous, target) || previous
-          : target;
+      const accepted = rectangleCandidate(self, previous, rawTarget, activeAnchor);
 
       self.x = accepted.x;
       self.y = accepted.y;
@@ -445,43 +436,13 @@ const RectRegionModel = types.compose(
   Model,
 );
 
-// Konva fires a Transformer's `transformend` before the selected Rectangle's
-// `transformend`, and clears its active handle afterwards. Read the handle
-// while it is still available so the model commit preserves the three
-// stationary edges exactly. This matters for a small L4 instance that already
-// shares a parent boundary: a sub-pixel round trip must not turn a one-edge
-// resize into an invalid four-edge move on mouse-up.
-function activeTransformerAnchor(node) {
-  const transformer = node.getStage?.()?.findOne((candidate) => {
-    if (candidate === node || typeof candidate.getActiveAnchor !== "function") return false;
-    const nodes = candidate.nodes?.();
-
-    return Array.isArray(nodes) && nodes.includes(node);
-  });
-
-  return transformer?.getActiveAnchor?.() || "";
-}
-
 const HtxRectangleView = ({ item, setShapeRef }) => {
   const { store } = item;
 
   const { suggestion } = useContext(ImageViewContext) ?? {};
   const regionStyles = useRegionStyles(item, { suggestion });
   const isReference = shouldRenderRoomReference(item);
-  const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
-  const occupancyReferenceStyles = occupancyZoneReferenceStyles(item, regionStyles);
-  const furnitureInstanceReferenceStyles = furnitureReferenceStyles(item, regionStyles);
-  const displayStyles =
-    furnitureInstanceReferenceStyles ||
-    occupancyReferenceStyles ||
-    (isReference
-      ? {
-          ...regionStyles,
-          fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
-          strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
-          strokeWidth: isFocused ? 2 : 1,
-        }
-      : regionStyles);
+  const displayStyles = referenceShapeStyles(item, regionStyles);
   const stage = item.parent?.stageRef;
 
   const eventHandlers = {};

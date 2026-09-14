@@ -1,3 +1,4 @@
+import { vectorReferenceStyles } from "@hanning/frontend/domain/rooms/regionPolicies";
 import { getRoot, isAlive, types } from "mobx-state-tree";
 import NormalizationMixin from "../mixins/Normalization";
 import RegionsMixin from "../mixins/Regions";
@@ -642,16 +643,7 @@ const HtxVectorView = observer(({ item, suggestion }) => {
   const selected = !disabled; // Invert disabled to selected for KonvaVector
   // Completely disable all interactions when readonly (includes locked, e.g., in View All mode), or Pan tool is active
   const isDisabled = item.isReadOnly() || item.parent?.getSkipInteractions(item);
-  const isReference = item.isOpeningReference;
-  const isFocusedOpening = isReference && item.roomGraphEdge?.room_ids?.includes(item.parent?.focusedRoom?.cleanId);
-  const referenceOpacity = isFocusedOpening ? 0.9 : 0.4;
-  const invalidBarrier = item.results.some(
-    (result) =>
-      result.from_name?.name === "occupancy_barrier_vector" && result.meta?.occupancy_barrier_context?.match_error,
-  );
-  const invalidWindow =
-    item.parent?.windowEnabled && item.results.some((result) => result.meta?.window_context?.derivation_error);
-  const vectorStroke = invalidBarrier || invalidWindow ? "#dc2626" : regionStyles.strokeColor;
+  const { isReference, isFocusedOpening, referenceOpacity, vectorStroke } = vectorReferenceStyles(item, regionStyles);
 
   // Wait for stage to be properly initialized
   if (!item.parent?.stageWidth || !item.parent?.stageHeight) {

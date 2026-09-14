@@ -1,3 +1,4 @@
+import { referenceShapeStyles, polygonCandidate } from "@hanning/frontend/domain/rooms/regionPolicies";
 import Konva from "konva";
 import { memo, useContext, useEffect, useMemo } from "react";
 import { Group, Line } from "react-konva";
@@ -20,13 +21,9 @@ import { observer } from "mobx-react";
 import { createDragBoundFunc } from "../utils/image";
 import { ImageViewContext } from "../components/ImageView/ImageViewContext";
 import {
-  clampPolygonTransform,
   isSimplePolygon,
   polygonInsidePolygon,
-  withAlpha,
 } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
-import { occupancyZoneReferenceStyles } from "@hanning/frontend/domain/occupancy/referenceDisplay";
-import { furnitureReferenceStyles } from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 import {
   furnitureGeometryRegion,
   furnitureNativePartActive,
@@ -226,12 +223,7 @@ const Model = types
       setPoints(points) {
         const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
         let target = self.points.map((_, index) => ({ x: points[index * 2], y: points[index * 2 + 1] }));
-        if (self.parent?.occupancyConstrains?.(self))
-          target = self.parent.constrainOccupancyPolygon(self, previous, target);
-        if (self.control?.constrainto) {
-          const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
-          if (room) target = clampPolygonTransform(previous, target, room);
-        }
+        target = polygonCandidate(self, previous, target);
         self.points.forEach((point, index) => {
           point.x = target[index].x;
           point.y = target[index].y;
@@ -244,12 +236,7 @@ const Model = types
         const dy = self.parent.canvasToInternalY(offsetY);
         const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
         let target = previous.map((point) => ({ x: point.x + dx, y: point.y + dy }));
-        if (self.parent?.occupancyConstrains?.(self))
-          target = self.parent.constrainOccupancyPolygon(self, previous, target);
-        if (self.control?.constrainto) {
-          const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
-          if (room) target = clampPolygonTransform(previous, target, room);
-        }
+        target = polygonCandidate(self, previous, target);
         self.points.forEach((point, index) => {
           point.x = target[index].x;
           point.y = target[index].y;
@@ -702,20 +689,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
     useStrokeAsFill: true,
   });
   const isReference = shouldRenderRoomReference(item);
-  const isFocused = isReference && item.parent?.focusedRoom?.cleanId === item.cleanId;
-  const occupancyReferenceStyles = occupancyZoneReferenceStyles(item, regionStyles);
-  const furnitureInstanceReferenceStyles = furnitureReferenceStyles(item, regionStyles);
-  const displayStyles =
-    furnitureInstanceReferenceStyles ||
-    occupancyReferenceStyles ||
-    (isReference
-      ? {
-          ...regionStyles,
-          fillColor: withAlpha(regionStyles.fillColor || regionStyles.strokeColor, isFocused ? 0.12 : 0.05),
-          strokeColor: withAlpha(regionStyles.strokeColor, isFocused ? 0.95 : 0.35),
-          strokeWidth: isFocused ? 2 : 1,
-        }
-      : regionStyles);
+  const displayStyles = referenceShapeStyles(item, regionStyles);
 
   function renderCircle({ points, idx }) {
     const name = `anchor_${points.length}_${idx}`;

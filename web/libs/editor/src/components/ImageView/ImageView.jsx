@@ -1,3 +1,5 @@
+import { RoomFocusSelector } from "@hanning/frontend/components/references/RoomFocusSelector";
+import hanningStyles from "@hanning/frontend/components/references/RoomFocusSelector.module.scss";
 import { Component, createRef, forwardRef, Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Layer, Line, Rect, Stage, Image as KonvaImage, Circle } from "react-konva";
 import { observer } from "mobx-react";
@@ -23,7 +25,6 @@ import { fixRectToFit, mapKonvaBrightness } from "../../utils/image";
 import { FF_DEV_1442, FF_LSDV_4930, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
 import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
-import { WholeRoomInheritanceControls } from "@hanning/frontend/components/references/WholeRoomInheritanceControls";
 import { ReferenceSyncControls } from "@hanning/frontend/components/references/ReferenceSyncControls";
 import { ReferenceLineageStatus } from "@hanning/frontend/components/references/ReferenceLineageStatus";
 import { OccupancyControls } from "@hanning/frontend/components/occupancy/OccupancyControls";
@@ -546,38 +547,6 @@ const CanvasOverlay = observer(({ item }) => {
   );
 });
 
-const RoomFocusSelector = observer(({ item, compact = false }) => {
-  if (!item.hasRoomConstraints) return null;
-  const selectedId = item.focusedRoom?.cleanId || "";
-  const focusControl = (
-    <div className={styles.roomFocusRow}>
-      <label htmlFor={`room-focus-${item.name}`}>Focus room</label>
-      <select
-        id={`room-focus-${item.name}`}
-        value={selectedId}
-        disabled={!!item.vectorReviewBusy}
-        onChange={(event) => item.setFocusedRoom(event.target.value)}
-      >
-        <option value="">Select a room…</option>
-        {item.focusRoomOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {item.roomConstraintNotice ? <span role="alert">{item.roomConstraintNotice}</span> : null}
-    </div>
-  );
-  return (
-    <div
-      className={`${styles.roomFocus} ${item.wholeRoomInheritanceEnabled ? styles.roomFocusDocked : ""} ${compact ? styles.roomFocusCompact : ""}`}
-      data-testid="room-focus-selector"
-    >
-      {!compact && focusControl}
-      <WholeRoomInheritanceControls item={item} compact={compact} focusControl={compact ? focusControl : null} />
-    </div>
-  );
-});
 
 export default observer(
   class ImageView extends Component {
@@ -1147,7 +1116,7 @@ export default observer(
               <OccupancyControls item={item} />
             ) : item.wholeRoomInheritanceEnabled && item.hasRoomConstraints ? (
               <section
-                className={styles.reviewDock}
+                className={hanningStyles.reviewDock}
                 data-testid="function-zone-review-dock"
                 aria-label="功能分区复核工具条"
               >

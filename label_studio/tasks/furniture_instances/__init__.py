@@ -1,3 +1,3 @@
-"""Compatibility exports for the released furniture catalog."""
+"""Compatibility exports; implementation lives in hanning.backend.validation.furniture_instances."""
 
-from hanning.backend.catalog import FURNITURE_TYPE_CHOICES, FURNITURE_TYPES
+from hanning.backend.validation.furniture_instances import *  # noqa: F403

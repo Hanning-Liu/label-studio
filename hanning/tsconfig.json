@@ -4,9 +4,12 @@
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
-    "types": [],
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "types": ["node"],
     "typeRoots": ["../web/node_modules/@types"]
   },
-  "include": ["frontend/**/*.js", "frontend/**/*.jsx", "frontend/**/*.ts", "frontend/**/*.tsx"],
+  "files": ["../web/node_modules/@nx/react/typings/cssmodule.d.ts", "../web/node_modules/@nx/react/typings/image.d.ts"],
+  "include": ["frontend/**/*.js", "frontend/**/*.jsx", "frontend/**/*.ts", "frontend/**/*.tsx", "../web/libs/editor/src/types/**/*.d.ts"],
   "exclude": ["**/__tests__/**", "**/*.test.*"]
 }

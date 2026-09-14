@@ -8,8 +8,7 @@ import { FF_LSDV_4930, FF_TAXONOMY_LABELING, isFF } from "../utils/feature-flags
 
 let ouid = 1;
 
-export const shouldRenderRoomReference = (region) =>
-  Boolean(region?.isRoomReference && region?.parent?.hasRoomConstraints);
+export { shouldRenderRoomReference } from "@hanning/frontend/domain/rooms/regionPolicies";
 
 export const AreaMixinBase = types
   .model({
