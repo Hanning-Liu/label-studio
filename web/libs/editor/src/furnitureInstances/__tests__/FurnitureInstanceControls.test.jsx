@@ -288,7 +288,7 @@ test("unconfigured classes are disabled and selecting another instance resets an
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
 });
 
-test("renders canvas-first status cards and all 29 grouped palette choices", () => {
+test("renders canvas-first status cards and all 30 grouped palette choices", () => {
   const { item, rerender } = setup();
   expect(screen.getByRole("region", { name: "当前 Focus 家具组团" })).toHaveTextContent(
     "学习办公 · 窗边 · 房间 书房 · 分区 学习办公 · group-g",

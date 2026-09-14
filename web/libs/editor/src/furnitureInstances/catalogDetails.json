@@ -139,6 +139,11 @@
     "aliases": ["其他家具"],
     "confusable": ["cabinet"]
   },
+  "drying_rack": {
+    "definition": "用于晾晒衣物的落地、壁挂或吊装架体；标注可辨识的设施整体平面轮廓，不以整个晾晒区域代替架体。",
+    "aliases": ["晾晒架", "晾衣杆"],
+    "confusable": ["dryer", "wardrobe"]
+  },
   "potted_plant": {
     "definition": "带种植容器的独立绿植，沿图中可辨认的盆栽整体平面轮廓标注；不包括成片种植区、花坛或单独空花盆。",
     "aliases": ["盆栽", "盆栽绿植", "室内绿植"],
