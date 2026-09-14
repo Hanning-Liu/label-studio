@@ -13,6 +13,7 @@ export const FURNITURE_TYPE_GROUPS = Object.freeze([
   { name: "厨房设施", color: "#EA580C", types: ["refrigerator", "stove", "kitchen_cabinet", "sink"] },
   { name: "卫浴设施", color: "#0F766E", types: ["toilet", "washbasin", "bathtub", "shower", "drying_rack"] },
   { name: "家用设备", color: "#C026D3", types: ["television", "washing_machine", "dryer"] },
+  { name: "乐器", color: "#9F1239", types: ["piano"] },
   { name: "其他", color: "#6B7280", types: ["other", "potted_plant"] },
 ]);
 

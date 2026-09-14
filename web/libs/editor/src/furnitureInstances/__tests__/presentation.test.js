@@ -6,11 +6,12 @@ import {
   furnitureTypeColor,
 } from "../presentation";
 
-test("palette contains all and only the 30 stable furniture values exactly once", () => {
+test("palette contains all and only the 31 stable furniture values exactly once", () => {
   const values = FURNITURE_TYPE_GROUPS.flatMap((group) => group.types);
-  expect(values).toHaveLength(30);
+  expect(values).toHaveLength(31);
   expect(new Set(values)).toEqual(new Set(Object.keys(FURNITURE_TYPES)));
-  expect(new Set(values)).toHaveProperty("size", 30);
+  expect(new Set(values)).toHaveProperty("size", 31);
+  expect(FURNITURE_TYPE_GROUPS).toHaveLength(9);
   expect(assertFurniturePaletteCoverage()).toBe(true);
 });
 
@@ -23,6 +24,7 @@ test("palette groups retain the approved presentation colors", () => {
     厨房设施: "#EA580C",
     卫浴设施: "#0F766E",
     家用设备: "#C026D3",
+    乐器: "#9F1239",
     其他: "#6B7280",
   });
   expect(furnitureTypeColor("bed")).toBe("#7C3AED");
@@ -31,6 +33,8 @@ test("palette groups retain the approved presentation colors", () => {
     "toilet", "washbasin", "bathtub", "shower", "drying_rack",
   ]);
   expect(furnitureTypeColor("drying_rack")).toBe("#0F766E");
+  expect(FURNITURE_TYPE_GROUPS.find((group) => group.name === "乐器").types).toEqual(["piano"]);
+  expect(furnitureTypeColor("piano")).toBe("#9F1239");
 });
 
 test("focus identity resolves Chinese group, room and zone descriptions without changing ids", () => {

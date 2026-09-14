@@ -144,6 +144,11 @@
     "aliases": ["晾晒架", "晾衣杆"],
     "confusable": ["dryer", "wardrobe"]
   },
+  "piano": {
+    "definition": "用于演奏的钢琴主体，包括立式、三角及明确可辨识的电钢琴；按琴体完整平面轮廓标注，琴凳单独标注，不以整个练琴区域代替琴体。",
+    "aliases": ["立式钢琴", "三角钢琴", "电钢琴"],
+    "confusable": ["desk", "cabinet", "other"]
+  },
   "potted_plant": {
     "definition": "带种植容器的独立绿植，沿图中可辨认的盆栽整体平面轮廓标注；不包括成片种植区、花坛或单独空花盆。",
     "aliases": ["盆栽", "盆栽绿植", "室内绿植"],
