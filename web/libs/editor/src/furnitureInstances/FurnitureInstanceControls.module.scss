@@ -268,6 +268,27 @@
 .reviewList > section { flex: 0 0 auto; }
 .reviewList > p { margin: 2px 0; }
 
+.spatialOverview {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-wrap: anywhere;
+  select { max-width: 100%; }
+  small { display: block; }
+}
+.spatialNode { min-width: 0; }
+.spatialHeading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  button { width: auto; margin-top: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  button:nth-child(2) { flex: 1; min-width: 70px; }
+  button[aria-current="location"] { font-weight: 700; border: 2px solid var(--color-primary-border); }
+}
+.spatialCounts { font-size: 12px; }
+.spatialChildren { margin-left: 8px; border-left: 1px solid var(--color-neutral-border); padding-left: 4px; }
+
 .reviewBar select {
   max-width: 100%;
   color: var(--color-neutral-content);

@@ -103,7 +103,7 @@ test("continuous review crosses groups, wraps and skips current valid reviews", 
   expect(state.selected).toBe("c");
   await session.confirm(["c"], { advance: true });
   expect(session.active).toBe(false);
-  expect(session.notice).toContain("全部已复核");
+  expect(session.notice).toContain("已有实例均已复核");
   expect(item.confirmFurnitureInstanceReviews).toHaveBeenCalledTimes(3);
 });
 
@@ -266,7 +266,7 @@ test("blocked and orphan results never count as complete, unknown direction is e
   expect(session.snapshot.globalIssues.length).toBeGreaterThan(0);
   expect(session.blockReason).toContain("无法归属");
   await session.start();
-  expect(session.notice).not.toContain("全部已复核");
+  expect(session.notice).not.toContain("已有实例均已复核");
 });
 
 test("view navigation preserves annotations and delegates all-part focus", async () => {

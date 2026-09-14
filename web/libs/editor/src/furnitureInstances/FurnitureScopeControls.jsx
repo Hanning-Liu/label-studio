@@ -2,6 +2,7 @@ import { observer } from "mobx-react";
 import { GROUP_TYPES } from "../occupancy/domain";
 import { useFurnitureReviewSession } from "./reviewSession";
 import { referenceInScope } from "./scope";
+import { spatialBrief, uniqueSpaceName } from "./spatialProgress";
 import styles from "./FurnitureInstanceControls.module.scss";
 
 export const FurnitureScopeNavigation = observer(({ item }) => {
@@ -10,6 +11,7 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
   if (!scope) return null;
   const change = (fn) => {
     try {
+      review.stop();
       fn();
       review.clear();
     } catch (error) {
@@ -21,7 +23,7 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
   const groups = scope.groups.filter(
     (g) => g.roomId === item.furnitureInstanceRoomId && g.zoneId === item.furnitureInstanceZoneId,
   );
-  const reason = review.navigationBlock;
+  const reason = review.scopeNavigationBlock;
   return (
     <nav className={styles.scopeNavigation} aria-label="L4 空间层级" data-testid="furniture-scope-navigation">
       <div className={styles.row}>
@@ -36,7 +38,7 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
             <option value="">选择房间</option>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.label} · {r.id}
+                {uniqueSpaceName(r, rooms)} · {spatialBrief(review.spatialCounts.rooms.get(r.id))}
               </option>
             ))}
           </select>
@@ -53,7 +55,7 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
             <option value="">选择功能分区</option>
             {zones.map((z) => (
               <option key={z.id} value={z.id}>
-                {z.label} · {z.id}
+                {uniqueSpaceName(z, zones)} · {spatialBrief(review.spatialCounts.zones.get(z.id))}
               </option>
             ))}
           </select>
@@ -70,7 +72,8 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
             <option value="">选择家具组团</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
-                {GROUP_TYPES[g.groupType] || g.groupType} · {g.groupNote || g.id}
+                {GROUP_TYPES[g.groupType] || g.groupType} · {g.groupNote || g.id} ·{" "}
+                {spatialBrief(review.spatialCounts.groups.get(g.id))}
               </option>
             ))}
           </select>

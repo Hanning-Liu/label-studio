@@ -312,6 +312,8 @@ export const FurnitureInstances = types
       }
     },
     setFurnitureInstanceFocus(id) {
+      if (self.furnitureInstanceGeometryPreview || self.furnitureInstanceTransformCandidate)
+        throw new Error("请先应用或取消几何预览");
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons) throw new Error("请先完成或取消绘制");
       if (id && !self.furnitureInstanceParents.some((parent) => parent.id === id))
         throw new Error("Focus 家具组团不存在");
@@ -330,6 +332,10 @@ export const FurnitureInstances = types
     },
     selectFurnitureInstance(id) {
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons || self.furnitureInstanceBusy) return;
+      if (self.furnitureInstanceGeometryPreview || self.furnitureInstanceTransformCandidate) {
+        self.furnitureInstanceEditNotice = "请先应用或取消几何预览";
+        return;
+      }
       if (!id) {
         self.furnitureInstanceSelectedId = "";
         self.furnitureInstanceDrawingControl = "";
@@ -367,6 +373,8 @@ export const FurnitureInstances = types
       self.updateRoomConstraintTools?.();
     },
     setFurnitureInstanceSpace(roomId = "", zoneId = "") {
+      if (self.furnitureInstanceGeometryPreview || self.furnitureInstanceTransformCandidate)
+        throw new Error("请先应用或取消几何预览");
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons || self.furnitureInstanceBusy)
         throw new Error("请先完成绘制或等待保存结束");
       if (getFurnitureReviewSession(self).unsaved) throw new Error("请先重试保存或导出窗口备份");

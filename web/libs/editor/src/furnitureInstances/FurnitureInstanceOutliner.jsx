@@ -6,6 +6,7 @@ import { FURNITURE_TYPES } from "./domain";
 import { REVIEW_LABELS } from "./review";
 import { useFurnitureReviewSession } from "./reviewSession";
 import { FurnitureReferencePanel } from "./FurnitureScopeControls";
+import { FurnitureSpatialTree } from "./FurnitureSpatialTree";
 import styles from "./FurnitureInstanceControls.module.scss";
 
 const short = (value) => (value?.length > 22 ? `${value.slice(0, 11)}…${value.slice(-8)}` : value || "—");
@@ -71,7 +72,7 @@ export const FurnitureReviewBar = observer(({ item, review }) => {
       <div aria-label="全任务复核进度">全任务：{progress(review.counts.total)}</div>
       <div aria-label="本组复核进度">本组：{progress(review.groupCounts)}</div>
       <label>
-        显示状态
+        实例复核筛选
         <select
           aria-label="家具复核状态筛选"
           value={review.filter}
@@ -175,7 +176,7 @@ export const FurnitureReviewBar = observer(({ item, review }) => {
 
 export const FurnitureInstanceOutliner = observer(({ item }) => {
   const review = useFurnitureReviewSession(item);
-  const blocked = !!review.navigationBlock;
+  const blocked = !!review.scopeNavigationBlock;
   const parents = item.furnitureInstanceParents;
   const rows = review.snapshot.rows;
   const visible = (row) =>
@@ -211,7 +212,9 @@ export const FurnitureInstanceOutliner = observer(({ item }) => {
             type="button"
             disabled={blocked}
             aria-pressed={item.furnitureInstanceEffectiveSelectedId === row.id}
-            onClick={() => review.locate(row.id)}
+            onClick={() =>
+              item.furnitureInstanceScope ? review.navigateSpatial("instance", row.id) : review.locate(row.id)
+            }
           >
             {name} · {waiting ? "确认待保存" : REVIEW_LABELS[row.status]}
           </button>
@@ -232,34 +235,39 @@ export const FurnitureInstanceOutliner = observer(({ item }) => {
       <div className={styles.reviewList}>
         <FurnitureReferencePanel item={item} />
         <p>家具实例 {rows.length} · 父级链只读且不可由当前 Focus 覆盖</p>
-        {parents.map((parent) => {
-          const own = rows.filter((row) => row.groupId === parent.id);
-          if (!own.length) return null;
-          const focused = item.furnitureInstanceFocusId === parent.id;
-          return (
-            <section
-              key={parent.id}
-              className={styles.reviewGroup}
-              aria-label={`${GROUP_TYPES[parent.groupType] || parent.groupType}组团`}
-            >
-              <button
-                type="button"
-                disabled={blocked}
-                aria-expanded={focused}
-                onClick={() => review.focusGroup(parent.id)}
+        {item.furnitureInstanceScope ? (
+          <FurnitureSpatialTree item={item} review={review} renderRow={renderRow} visibleRow={visible} />
+        ) : (
+          parents.map((parent) => {
+            const own = rows.filter((row) => row.groupId === parent.id);
+            if (!own.length) return null;
+            const focused = item.furnitureInstanceFocusId === parent.id;
+            return (
+              <section
+                key={parent.id}
+                className={styles.reviewGroup}
+                aria-label={`${GROUP_TYPES[parent.groupType] || parent.groupType}组团`}
               >
-                {GROUP_TYPES[parent.groupType] || parent.groupType} · {short(parent.id)}
-                <br />
-                房间 {short(parent.roomId)} / 分区 {short(parent.zoneId)}
-                <br />
-                {progress(review.counts.groups[parent.id] || { reviewed: 0, pending: 0, blocked: 0 })}
-              </button>
-              {focused &&
-                (own.some(visible) ? own.filter(visible).map(renderRow) : <span>本组没有符合筛选的实例</span>)}
-            </section>
-          );
-        })}
-        {rows.filter((row) => !parents.some((parent) => parent.id === row.groupId) && visible(row)).map(renderRow)}
+                <button
+                  type="button"
+                  disabled={blocked}
+                  aria-expanded={focused}
+                  onClick={() => review.focusGroup(parent.id)}
+                >
+                  {GROUP_TYPES[parent.groupType] || parent.groupType} · {short(parent.id)}
+                  <br />
+                  房间 {short(parent.roomId)} / 分区 {short(parent.zoneId)}
+                  <br />
+                  {progress(review.counts.groups[parent.id] || { reviewed: 0, pending: 0, blocked: 0 })}
+                </button>
+                {focused &&
+                  (own.some(visible) ? own.filter(visible).map(renderRow) : <span>本组没有符合筛选的实例</span>)}
+              </section>
+            );
+          })
+        )}
+        {!item.furnitureInstanceScope &&
+          rows.filter((row) => !parents.some((parent) => parent.id === row.groupId) && visible(row)).map(renderRow)}
       </div>
     </div>
   );

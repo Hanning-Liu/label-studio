@@ -7,6 +7,8 @@ import { GROUP_TYPES } from "../occupancy/domain";
 import { resultGeometry, union } from "../occupancy/geometry";
 import { pathData } from "../occupancy/OccupancyLayer";
 import { withAlpha } from "../utils/roomConstraintGeometry";
+import { getFurnitureReviewSession } from "./reviewSession";
+import { spatialBadge } from "./spatialProgress";
 import { FF_ZOOM_OPTIM, isFF } from "../utils/feature-flags";
 import { furnitureTypeColor } from "./presentation";
 import { furnitureInstanceInteractionLayerListening } from "./referenceDisplay";
@@ -307,7 +309,7 @@ export const FurnitureInstanceLabels = observer(({ item }) => {
     if (box)
       candidates.push({
         id: `space:${space.id}`,
-        text: space.label,
+        text: `${space.label} · ${spatialBadge((space.roomId ? getFurnitureReviewSession(item).spatialCounts.zones : getFurnitureReviewSession(item).spatialCounts.rooms).get(space.id))}`,
         bounds: box,
         color: space.roomId ? "#0891b2" : "#2563eb",
         priority: 2,

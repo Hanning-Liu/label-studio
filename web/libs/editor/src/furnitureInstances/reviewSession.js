@@ -10,6 +10,7 @@ import {
 } from "./review";
 import { focusFurnitureReview, furnitureReviewPoints } from "./reviewFocus";
 import { acceptFurnitureParentUpdate } from "./parentUpdate";
+import { spatialProgress, spatialPath, spatialTodoOrder } from "./spatialProgress";
 
 const sessions = new WeakMap();
 
@@ -37,6 +38,13 @@ export class FurnitureReviewSession {
         notice: "",
         problems: [],
         referenceStatus: this.annotation.store.referenceSyncController?.state?.status,
+        spatialFilter: "all",
+        spatialOnlyTodo: false,
+        spatialExpanded: {},
+        todoVisited: [],
+        todoWithin: "",
+        todoCycleEnded: false,
+        spatialNotice: "",
       },
       {
         item: observable.ref,
@@ -46,6 +54,8 @@ export class FurnitureReviewSession {
         pending: observable.ref,
         referenceStatus: observable.ref,
         problems: observable.ref,
+        spatialExpanded: observable.ref,
+        todoVisited: observable.ref,
       },
     );
   }
@@ -72,6 +82,114 @@ export class FurnitureReviewSession {
       status?.error,
     ]);
   }
+  get spatialSnapshot() {
+    return spatialProgress(
+      this.item.furnitureInstanceScope || {
+        rooms: [],
+        zones: [],
+        groups: this.item.furnitureInstanceParents,
+        issues: [],
+      },
+      this.snapshot,
+    );
+  }
+  get spatialCounts() {
+    return this.frozenCounts?.spatial || this.spatialSnapshot;
+  }
+  get scopeNavigationBlock() {
+    return (
+      this.navigationBlock ||
+      (this.item.furnitureInstanceGeometryPreview || this.item.furnitureInstanceTransformCandidate
+        ? "请先应用或取消几何预览"
+        : "")
+    );
+  }
+  freezeProgress() {
+    const snapshot = this.snapshot;
+    this.frozenCounts = { total: { ...snapshot.total }, groups: { ...snapshot.groups }, spatial: this.spatialSnapshot };
+  }
+  setSpatialFilter(filter, onlyTodo = this.spatialOnlyTodo) {
+    this.spatialFilter = filter;
+    this.spatialOnlyTodo = onlyTodo;
+  }
+  toggleSpatial(key) {
+    this.spatialExpanded = { ...this.spatialExpanded, [key]: !this.spatialExpanded[key] };
+  }
+  expandSpatialPath(key) {
+    this.spatialExpanded = {
+      ...this.spatialExpanded,
+      ...Object.fromEntries(spatialPath(this.spatialSnapshot, key).map((k) => [k, true])),
+    };
+  }
+  async navigateSpatial(kind, id) {
+    if (this.scopeNavigationBlock) {
+      this.spatialNotice = this.scopeNavigationBlock;
+      return;
+    }
+    this.stop();
+    this.spatialNotice = "";
+    try {
+      if (kind === "instance") await this.locate(id);
+      else if (kind === "group") {
+        await this.focusGroup(id);
+        const manager = this.item.getToolsManager?.();
+        const move = manager?.allTools().find((tool) => tool.fullName === "MoveTool");
+        if (move) manager.selectTool(move, true);
+      } else {
+        const target = this.spatialSnapshot.nodes.get(`${kind}:${id}`);
+        if (!target) throw new Error("目标空间已不存在");
+        this.item.setFurnitureInstanceSpace(kind === "room" ? id : target.source.roomId, kind === "zone" ? id : "");
+        this.clear();
+      }
+      const key = kind === "instance" ? `group:${this.item.furnitureInstanceFocusId}` : `${kind}:${id}`;
+      this.expandSpatialPath(key);
+    } catch (error) {
+      runInAction(() => {
+        this.spatialNotice = error.message;
+      });
+    }
+  }
+  async nextSpatialTodo(within = "") {
+    if (this.scopeNavigationBlock) {
+      this.spatialNotice = this.scopeNavigationBlock;
+      return;
+    }
+    this.stop();
+    if (this.todoWithin !== within || this.todoCycleEnded) {
+      this.todoVisited = [];
+      this.todoWithin = within;
+      this.todoCycleEnded = false;
+    }
+    const queue = spatialTodoOrder(this.spatialSnapshot, {
+      within,
+      roomId: this.item.furnitureInstanceRoomId,
+      zoneId: this.item.furnitureInstanceZoneId,
+    });
+    const next = queue.find((entry) => !this.todoVisited.includes(entry.key));
+    if (!next) {
+      this.todoCycleEnded = true;
+      this.spatialNotice = queue.length
+        ? `本轮已浏览；仍有空组团 ${queue.filter((e) => e.type === "empty").length}、待复核实例 ${queue.filter((e) => e.type === "pending").length}、问题项 ${queue.filter((e) => ["blocked", "issue"].includes(e.type)).length}。再次点击从头检查，浏览不代表已处理。`
+        : "当前范围没有可定位待办；已有实例复核状态不代表已排除漏标。";
+      return;
+    }
+    this.todoVisited = [...this.todoVisited, next.key];
+    if (next.type === "issue") {
+      this.spatialNotice = next.message;
+      if (next.nodeKey) this.expandSpatialPath(next.nodeKey);
+      return;
+    }
+    await this.navigateSpatial(
+      next.type === "empty" ? "group" : "instance",
+      next.type === "empty" ? next.groupId : next.id,
+    );
+    if (next.type === "blocked") {
+      const row = this.snapshot.rows.find((r) => r.id === next.id);
+      runInAction(() => {
+        this.spatialNotice = row?.errors.map((e) => e.message).join("；") || "此实例需处理，请查看详情";
+      });
+    }
+  }
   get referenceBlock() {
     return furnitureReferenceBlock(this.item, this.referenceStatus);
   }
@@ -91,7 +209,7 @@ export class FurnitureReviewSession {
   }
   get blockReason() {
     return (
-      this.navigationBlock ||
+      this.scopeNavigationBlock ||
       (this.annotation.isReadOnly() ? "当前标注为只读" : "") ||
       this.referenceBlock ||
       (this.snapshot.globalIssues.length ? "存在无法归属实例的校验错误，请先处理" : "")
@@ -148,6 +266,11 @@ export class FurnitureReviewSession {
           this.checked = {};
           this.filter = "pending";
           this.order = [];
+          this.spatialFilter = "all";
+          this.spatialOnlyTodo = false;
+          this.spatialExpanded = {};
+          this.todoVisited = [];
+          this.todoCycleEnded = false;
         });
       }
     };
@@ -180,6 +303,8 @@ export class FurnitureReviewSession {
     if (this.lastReference && this.lastReference !== this.referenceToken) this.active = false;
     this.lastFocus = this.item.furnitureInstanceFocusId;
     this.lastReference = this.referenceToken;
+    if (changedScope && this.item.furnitureInstanceFocusId)
+      this.expandSpatialPath(`group:${this.item.furnitureInstanceFocusId}`);
   }
   setFilter(value) {
     if (this.navigationBlock) return;
@@ -221,7 +346,7 @@ export class FurnitureReviewSession {
     this.active = false;
   }
   async locate(id) {
-    if (this.navigationBlock) return;
+    if (this.scopeNavigationBlock) return;
     const instance = this.snapshot.rows.find((row) => row.id === id)?.instance;
     if (!instance) return;
     this.item.selectFurnitureInstance(id);
@@ -238,7 +363,7 @@ export class FurnitureReviewSession {
     }
   }
   async focusGroup(id) {
-    if (this.navigationBlock) return;
+    if (this.scopeNavigationBlock) return;
     const parent = this.item.furnitureInstanceParents.find((candidate) => candidate.id === id);
     if (!parent) return;
     this.item.setFurnitureInstanceFocus(id);
@@ -285,7 +410,7 @@ export class FurnitureReviewSession {
     this.notice = snapshot.total.blocked
       ? `剩余 ${snapshot.total.blocked} 个实例需处理`
       : snapshot.total.total
-        ? "全部已复核，待正式提交"
+        ? `已有实例均已复核，待正式提交${this.spatialCounts.root.empty ? `；仍有 ${this.spatialCounts.root.empty} 个空组团待检查` : ""}`
         : "尚无家具实例可复核";
   }
   async run(operation, { rethrow = false, retry = false } = {}) {
@@ -294,6 +419,7 @@ export class FurnitureReviewSession {
       this.error = "请先重试保存或导出窗口备份";
       return false;
     }
+    if (!retry && !this.frozenCounts) this.freezeProgress();
     this.busy = true;
     this.item.setFurnitureInstanceBusy(true);
     this.error = "";
@@ -316,6 +442,7 @@ export class FurnitureReviewSession {
       runInAction(() => {
         this.busy = false;
         this.item.setFurnitureInstanceBusy(false);
+        if (!this.unsaved) this.frozenCounts = null;
         this.reconcile();
       });
     }
@@ -325,8 +452,7 @@ export class FurnitureReviewSession {
       this.error = this.blockReason;
       return;
     }
-    const snapshot = this.snapshot;
-    this.frozenCounts = { total: { ...snapshot.total }, groups: { ...snapshot.groups } };
+    this.freezeProgress();
     const ok = await this.run(() => acceptFurnitureParentUpdate(this.item, id));
     runInAction(() => {
       if (ok || !this.unsaved) this.frozenCounts = null;
@@ -370,7 +496,7 @@ export class FurnitureReviewSession {
     };
     this.pending = request;
     this.problems = [];
-    this.frozenCounts = { total: { ...snapshot.total }, groups: { ...snapshot.groups } };
+    this.freezeProgress();
     const ok = await this.run(() =>
       applyFurnitureInstanceOperation(this.item, () => {
         const current = this.snapshot;
@@ -456,6 +582,15 @@ export class FurnitureReviewSession {
 decorate(FurnitureReviewSession, {
   current: computed,
   snapshot: computed,
+  spatialSnapshot: computed,
+  spatialCounts: computed,
+  scopeNavigationBlock: computed,
+  freezeProgress: action.bound,
+  setSpatialFilter: action.bound,
+  toggleSpatial: action.bound,
+  expandSpatialPath: action.bound,
+  navigateSpatial: action.bound,
+  nextSpatialTodo: action.bound,
   referenceToken: computed,
   referenceBlock: computed,
   navigationBlock: computed,
