@@ -1,0 +1,12 @@
+{
+  "extends": "../web/tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "types": [],
+    "typeRoots": ["../web/node_modules/@types"]
+  },
+  "include": ["frontend/**/*.js", "frontend/**/*.jsx", "frontend/**/*.ts", "frontend/**/*.tsx"],
+  "exclude": ["**/__tests__/**", "**/*.test.*"]
+}

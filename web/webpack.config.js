@@ -275,6 +275,8 @@ module.exports = composePlugins(
       "@humansignal/core": path.resolve(__dirname, "libs/core"),
     };
 
+    require("./tools/hanning-webpack.cjs")(config);
+
     return merge(config, {
       devtool,
       mode,

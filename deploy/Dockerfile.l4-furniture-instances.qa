@@ -41,6 +41,7 @@ RUN --mount=type=cache,target=/root/web/.yarn,id=yarn-cache-l4-qa-debian,sharing
     yarn install --prefer-offline --no-progress --pure-lockfile --frozen-lockfile --ignore-engines --non-interactive --production=false
 
 COPY web/ .
+COPY hanning/ ../hanning/
 COPY pyproject.toml ../pyproject.toml
 RUN --mount=type=cache,target=/root/web/.yarn,id=yarn-cache-l4-qa-debian,sharing=locked \
     --mount=type=cache,target=/root/web/.nx,id=nx-cache-l4-qa-debian,sharing=locked \
@@ -99,6 +100,7 @@ RUN --mount=type=cache,target=/.poetry-cache,id=poetry-cache-l4-qa-debian,sharin
     fi
 
 COPY label_studio label_studio
+COPY hanning hanning
 RUN --mount=type=cache,target=/.poetry-cache,id=poetry-cache-l4-qa-debian,sharing=locked \
     poetry install --only-root --extras uwsgi && \
     python3 label_studio/manage.py collectstatic --no-input

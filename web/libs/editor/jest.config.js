@@ -2,7 +2,7 @@ const { pathsToModuleNameMapper } = require("ts-jest");
 const tsconfig = require("../../tsconfig.base.json");
 /** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
 module.exports = {
-  roots: ["<rootDir>/src"],
+  roots: ["<rootDir>/src", "<rootDir>/../../../hanning/frontend", "<rootDir>/../../../hanning/tests/frontend"],
   preset: "../../jest.preset.js",
   setupFilesAfterEnv: ["./jest.setup.js"],
   testEnvironment: "jsdom",
@@ -61,7 +61,7 @@ module.exports = {
     ],
   },
   moduleFileExtensions: ["js", "ts", "jsx", "tsx"],
-  moduleDirectories: ["node_modules"],
+  moduleDirectories: ["node_modules", "<rootDir>/../../node_modules"],
   moduleNameMapper: {
     "^konva": "konva/konva",
     "^keymaster": "identity-obj-proxy",

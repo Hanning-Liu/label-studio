@@ -194,8 +194,11 @@ target-version = ['py310']
 
 packages = [
     { include = "label_studio" },
+    { include = "hanning" },
 ]
 include = [
+    { path = "hanning/catalog/*.json", format = ["sdist", "wheel"] },
+    { path = "hanning/backend/**/*.json", format = ["sdist", "wheel"] },
     { path = "web/dist/libs/datamanager/**/*", format = ["sdist", "wheel"] },
     { path = "web/dist/libs/editor/**/*", format = ["sdist", "wheel"] },
     { path = "web/dist/apps/labelstudio/**/*", format = ["sdist", "wheel"] },

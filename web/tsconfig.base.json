@@ -1,7 +1,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "..",
     "sourceMap": true,
     "declaration": false,
     "moduleResolution": "node",
@@ -23,6 +23,8 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@hanning/*": ["../hanning/*"],
+      "@humansignal/editor/*": ["libs/editor/src/*"],
       "@humansignal/app-common": [
         "libs/app-common/src/index.ts"
       ],

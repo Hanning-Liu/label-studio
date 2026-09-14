@@ -11,6 +11,10 @@
     "test": {
       "inputs": ["default", "^production", "{workspaceRoot}/jest.preset.js"]
     },
+    "unit": {
+      "cache": true,
+      "inputs": ["default", "^production", "{workspaceRoot}/jest.preset.js"]
+    },
     "version": {
       "cache": true,
       "inputs": ["default", "^production", "{workspaceRoot}/tools/version.mjs"],
@@ -36,7 +40,12 @@
       "!{projectRoot}/**/node_modules",
       "!{workspaceRoot}/node_modules"
     ],
-    "sharedGlobals": ["{workspaceRoot}/babel.config.json"]
+    "sharedGlobals": [
+      "{workspaceRoot}/babel.config.json",
+      "{workspaceRoot}/tools/hanning-webpack.cjs",
+      "{workspaceRoot}/tools/hanning-hash.mjs",
+      { "runtime": "node tools/hanning-hash.mjs" }
+    ]
   },
   "generators": {
     "@nx/react": {
