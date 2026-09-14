@@ -5,8 +5,8 @@ import { kebabCase } from "@humansignal/core/lib/utils/string";
 import {
   furnitureInstanceToolBlockReason,
   isFurnitureInstanceGeometryTool,
-} from "../furnitureInstances/referenceDisplay";
-import { occupancyToolBlockReason } from "../occupancy/editing";
+} from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
+import { occupancyToolBlockReason } from "@hanning/frontend/domain/occupancy/editing";
 
 const ToolView = observer(({ item }) => {
   const occupancyBlockReason = occupancyToolBlockReason(item);

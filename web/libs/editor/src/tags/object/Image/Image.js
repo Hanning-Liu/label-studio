@@ -7,13 +7,13 @@ import InfoModal from "../../../components/Infomodal/Infomodal";
 import { customTypes } from "../../../core/CustomTypes";
 import Registry from "../../../core/Registry";
 import { AnnotationMixin } from "../../../mixins/AnnotationMixin";
-import { WholeRoomInheritance } from "../../../mixins/WholeRoomInheritance";
-import { VectorReview } from "../../../mixins/VectorReview";
-import { Occupancy } from "../../../mixins/Occupancy";
-import { RoomWindows } from "../../../windows/RoomWindows";
-import { FurnitureInstances } from "../../../mixins/FurnitureInstances";
+import { WholeRoomInheritance } from "@hanning/frontend/models/WholeRoomInheritance";
+import { VectorReview } from "@hanning/frontend/models/VectorReview";
+import { Occupancy } from "@hanning/frontend/models/Occupancy";
+import { RoomWindows } from "@hanning/frontend/models/RoomWindows";
+import { FurnitureInstances } from "@hanning/frontend/models/FurnitureInstances";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
-import { showFurnitureInstanceValidationWarning } from "../../../furnitureInstances/submitValidation";
+import { showFurnitureInstanceValidationWarning } from "@hanning/frontend/components/furnitureInstances/submitValidation";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
 import { KeyPointRegionModel } from "../../../regions/KeyPointRegion";
@@ -26,7 +26,7 @@ import { parseValue } from "../../../utils/data";
 import { FF_DEV_3377, FF_DEV_3391, FF_LSDV_4583, FF_ZOOM_OPTIM, isFF } from "../../../utils/feature-flags";
 import { guidGenerator } from "../../../utils/unique";
 import { clamp, isDefined } from "../../../utils/utilities";
-import { formatFunctionZoneRoomLabel } from "../../../utils/functionZoneValidationLabels";
+import { formatFunctionZoneRoomLabel } from "@hanning/frontend/domain/rooms/functionZoneValidationLabels";
 import ObjectBase from "../Base";
 import { DrawingRegion } from "./DrawingRegion";
 import { ImageEntityMixin } from "./ImageEntityMixin";
@@ -48,7 +48,7 @@ import {
   rotatedRectanglePoints,
   segmentInsidePolygon,
   snapSegmentToOpening,
-} from "../../../utils/roomConstraintGeometry";
+} from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
 
 const IMAGE_PRELOAD_COUNT = 3;
 const ZOOM_INTENSITY = 0.009;

@@ -14,8 +14,8 @@ import { RelationsControls } from "./RelationsControls";
 import { EmptyState } from "../Components/EmptyState";
 import { IconCursor, IconRelationLink } from "@humansignal/icons";
 import { getDocsUrl } from "../../../utils/docs";
-import { OccupancyDetails } from "../../../occupancy/OccupancyOutliner";
-import { FurnitureInstanceDetails } from "../../../furnitureInstances/FurnitureInstanceOutliner";
+import { OccupancyDetails } from "@hanning/frontend/components/occupancy/OccupancyOutliner";
+import { FurnitureInstanceDetails } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceOutliner";
 
 interface DetailsPanelProps extends PanelProps {
   regions: any;

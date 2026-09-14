@@ -19,15 +19,15 @@ import { AliveRegion } from "./AliveRegion";
 import { EditableRegion } from "./EditableRegion";
 import { RegionWrapper } from "./RegionWrapper";
 import { RELATIVE_STAGE_HEIGHT, RELATIVE_STAGE_WIDTH } from "../components/ImageView/Image";
-import { withAlpha } from "../utils/roomConstraintGeometry";
-import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
-import { lockRectangleToActiveAnchor } from "../occupancy/transform";
-import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
+import { withAlpha } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
+import { occupancyZoneReferenceStyles } from "@hanning/frontend/domain/occupancy/referenceDisplay";
+import { lockRectangleToActiveAnchor } from "@hanning/frontend/domain/occupancy/transform";
+import { furnitureReferenceStyles } from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 import {
   furnitureGeometryRegion,
   furnitureNativePartActive,
   syncFurnitureHalo,
-} from "../furnitureInstances/appearance";
+} from "@hanning/frontend/domain/furnitureInstances/appearance";
 
 /**
  * Rectangle object for Bounding Box

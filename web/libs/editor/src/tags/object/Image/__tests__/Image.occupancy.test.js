@@ -35,7 +35,7 @@ import {
   logicalRegions,
   GEOMETRY,
   resultsForGeometry,
-} from "../../../../occupancy/domain";
+} from "@hanning/frontend/domain/occupancy/domain";
 
 const CONFIG = readFileSync(
   resolve(__dirname, "../../../../../../../../examples/occupancy-v1/furniture-group-v1.xml"),

@@ -5,7 +5,7 @@ import { destroy, detach, flow, getEnv, getParent, getSnapshot, isAlive, isRoot,
 import { uniqBy } from "@humansignal/core/lib/utils/lodash-replacements";
 import InfoModal from "../components/Infomodal/Infomodal";
 import { Hotkey } from "../core/Hotkey";
-import { GEOMETRY_CONTROLS, ORIENTATION_CONTROLS } from "../furnitureInstances/domain";
+import { GEOMETRY_CONTROLS, ORIENTATION_CONTROLS } from "@hanning/frontend/domain/furnitureInstances/domain";
 import { destroy as destroySharedStore } from "../mixins/SharedChoiceStore/mixin";
 import ToolsManager from "../tools/Manager";
 import Utils from "../utils";

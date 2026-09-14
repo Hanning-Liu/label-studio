@@ -12,7 +12,7 @@ import { isActive, FF_FIT_720_LAZY_LOAD_ANNOTATIONS } from "@humansignal/core/li
 import { isDefined } from "../utils/utils";
 import { Modal } from "../components/Common/Modal/Modal";
 import { CommentsSdk } from "./comments-sdk";
-import { ReferenceSyncController } from "./reference-sync";
+import { ReferenceSyncController } from "@hanning/frontend/adapters/referenceSyncController";
 // import { LSFHistory } from "./lsf-history";
 import { annotationToServer, taskToLSFormat } from "./lsf-utils";
 import { runInAction } from "mobx";

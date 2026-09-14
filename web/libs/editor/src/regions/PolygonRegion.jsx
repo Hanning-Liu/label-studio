@@ -24,14 +24,14 @@ import {
   isSimplePolygon,
   polygonInsidePolygon,
   withAlpha,
-} from "../utils/roomConstraintGeometry";
-import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
-import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
+} from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
+import { occupancyZoneReferenceStyles } from "@hanning/frontend/domain/occupancy/referenceDisplay";
+import { furnitureReferenceStyles } from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 import {
   furnitureGeometryRegion,
   furnitureNativePartActive,
   syncFurnitureHalo,
-} from "../furnitureInstances/appearance";
+} from "@hanning/frontend/domain/furnitureInstances/appearance";
 
 const Model = types
   .model({

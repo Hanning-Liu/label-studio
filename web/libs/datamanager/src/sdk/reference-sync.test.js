@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { ReferenceSyncController, hasReferenceEdits, isReferenceBusy } from "./reference-sync";
+import { ReferenceSyncController, hasReferenceEdits, isReferenceBusy } from "@hanning/frontend/adapters/referenceSyncController";
 
 const annotation = () => ({
   pk: null, draftId: 7, referenceVersion: "old", baseManualHash: "manual", draftSelected: true,

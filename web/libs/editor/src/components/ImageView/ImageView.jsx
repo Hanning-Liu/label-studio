@@ -23,26 +23,26 @@ import { fixRectToFit, mapKonvaBrightness } from "../../utils/image";
 import { FF_DEV_1442, FF_LSDV_4930, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
 import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
-import { WholeRoomInheritanceControls } from "./WholeRoomInheritanceControls";
-import { ReferenceSyncControls } from "./ReferenceSyncControls";
-import { ReferenceLineageStatus } from "./ReferenceLineageStatus";
-import { OccupancyControls } from "../../occupancy/OccupancyControls";
-import { OccupancyLayer } from "../../occupancy/OccupancyLayer";
-import { occupancyToolbarTools } from "../../occupancy/editing";
-import { partitionOccupancyBarrierRegions } from "../../occupancy/barriers";
+import { WholeRoomInheritanceControls } from "@hanning/frontend/components/references/WholeRoomInheritanceControls";
+import { ReferenceSyncControls } from "@hanning/frontend/components/references/ReferenceSyncControls";
+import { ReferenceLineageStatus } from "@hanning/frontend/components/references/ReferenceLineageStatus";
+import { OccupancyControls } from "@hanning/frontend/components/occupancy/OccupancyControls";
+import { OccupancyLayer } from "@hanning/frontend/components/occupancy/OccupancyLayer";
+import { occupancyToolbarTools } from "@hanning/frontend/domain/occupancy/editing";
+import { partitionOccupancyBarrierRegions } from "@hanning/frontend/domain/occupancy/barriers";
 import {
   partitionOccupancyZoneReferenceRegions,
   shouldRenderOccupancyReferenceRegion,
-} from "../../occupancy/referenceDisplay";
-import { FurnitureInstanceControls } from "../../furnitureInstances/FurnitureInstanceControls";
-import { FurnitureInstanceLayer, FurnitureInstanceLabels } from "../../furnitureInstances/FurnitureInstanceLayer";
-import { FurnitureScopeNavigation } from "../../furnitureInstances/FurnitureScopeControls";
-import { visibleFurnitureReferenceRegions } from "../../furnitureInstances/referenceDisplay";
+} from "@hanning/frontend/domain/occupancy/referenceDisplay";
+import { FurnitureInstanceControls } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceControls";
+import { FurnitureInstanceLayer, FurnitureInstanceLabels } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceLayer";
+import { FurnitureScopeNavigation } from "@hanning/frontend/components/furnitureInstances/FurnitureScopeControls";
+import { visibleFurnitureReferenceRegions } from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 import {
   furnitureInstanceMultiRegionSelection,
   furnitureInstanceToolbarTools,
   partitionFurnitureReferenceRegions,
-} from "../../furnitureInstances/referenceDisplay";
+} from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 
 Konva.showWarnings = false;
 

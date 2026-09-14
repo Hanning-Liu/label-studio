@@ -4,7 +4,7 @@ import { getBoundingBoxAfterChanges } from "../../utils/image";
 import LSTransformer from "./LSTransformer";
 import LSTransformerOld from "./LSTransformerOld";
 import { FF_DEV_2671, FF_ZOOM_OPTIM, isFF } from "../../utils/feature-flags";
-import { constrainOccupancyBox, constrainOccupancyDragPosition } from "../../occupancy/transform";
+import { constrainOccupancyBox, constrainOccupancyDragPosition } from "@hanning/frontend/domain/occupancy/transform";
 
 const EPSILON = 0.001;
 

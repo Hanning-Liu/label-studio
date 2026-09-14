@@ -5,9 +5,9 @@ import keymaster from "keymaster";
 import { NodeViews } from "../../../../components/Node/Node";
 import { cn } from "../../../../utils/bem";
 
-import { confirmFurnitureInstances, orientationForInstance } from "../../../../furnitureInstances/constraints";
-import { CONTROLS, context, controlName } from "../../../../furnitureInstances/domain";
-import { groupCreationState } from "../../../../furnitureInstances/creation";
+import { confirmFurnitureInstances, orientationForInstance } from "@hanning/frontend/domain/furnitureInstances/constraints";
+import { CONTROLS, context, controlName } from "@hanning/frontend/domain/furnitureInstances/domain";
+import { groupCreationState } from "@hanning/frontend/domain/furnitureInstances/creation";
 import {
   makeInstance,
   makeOccupancy,
@@ -15,11 +15,11 @@ import {
   SOURCE,
   square,
   stampProvenance,
-} from "../../../../furnitureInstances/__tests__/helpers";
+} from "@hanning/tests/frontend/furnitureInstances/helpers";
 import {
   furnitureInstanceToolbarTools,
   partitionFurnitureReferenceRegions,
-} from "../../../../furnitureInstances/referenceDisplay";
+} from "@hanning/frontend/domain/furnitureInstances/referenceDisplay";
 
 global.TextEncoder = TextEncoder;
 if (!globalThis.structuredClone) globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));

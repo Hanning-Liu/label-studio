@@ -4,7 +4,7 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { ImageViewContext } from "../components/ImageView/ImageViewContext";
 import Constants, { defaultStyle } from "../core/Constants";
 import { isDefined } from "../utils/utilities";
-import { furnitureGeometryStyles } from "../furnitureInstances/appearance";
+import { furnitureGeometryStyles } from "@hanning/frontend/domain/furnitureInstances/appearance";
 
 const defaultStyles = {
   defaultOpacity: defaultStyle.opacity,

@@ -9,8 +9,8 @@ import { IconInfo } from "@humansignal/icons";
 import { IconLsLabeling } from "@humansignal/ui";
 import { EmptyState } from "../Components/EmptyState";
 import { getDocsUrl } from "../../../utils/docs";
-import { OccupancyOutliner } from "../../../occupancy/OccupancyOutliner";
-import { FurnitureInstanceOutliner } from "../../../furnitureInstances/FurnitureInstanceOutliner";
+import { OccupancyOutliner } from "@hanning/frontend/components/occupancy/OccupancyOutliner";
+import { FurnitureInstanceOutliner } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceOutliner";
 
 // Local type definitions based on ViewControls and RegionStore
 type GroupingOptions = "manual" | "label" | "type";

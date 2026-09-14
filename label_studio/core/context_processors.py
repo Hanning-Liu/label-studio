@@ -1,8 +1,8 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 """
-import hashlib
 from functools import lru_cache
-from pathlib import Path
+
+from hanning.backend.adapters.frontend_assets import asset_revision
 
 from core.feature_flags import all_flags
 from core.utils.common import collect_versions
@@ -12,13 +12,7 @@ from django.conf import settings as django_settings
 @lru_cache(maxsize=1)
 def frontend_asset_revision():
     """Invalidate entrypoint caches when a custom frontend replaces the base image build."""
-    digest = hashlib.sha256()
-    try:
-        for name in ('runtime.js', 'vendor.js', 'main.js', 'main.css'):
-            digest.update((Path(django_settings.REACT_APP_ROOT) / name).read_bytes())
-    except OSError:
-        return ''
-    return digest.hexdigest()[:16]
+    return asset_revision(django_settings.REACT_APP_ROOT)
 
 
 def sentry_fe(request):

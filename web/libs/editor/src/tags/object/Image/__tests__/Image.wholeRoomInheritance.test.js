@@ -21,8 +21,8 @@ import "../../../control/Choices";
 import "../../../control/Choice";
 import "../../../visual/Header";
 import AppStore from "../../../../stores/AppStore";
-import { geometryValue } from "../../../../utils/wholeRoomInheritance";
-import { ReferenceSyncController } from "../../../../../../datamanager/src/sdk/reference-sync";
+import { geometryValue } from "@hanning/frontend/domain/rooms/wholeRoomInheritance";
+import { ReferenceSyncController } from "@hanning/frontend/adapters/referenceSyncController";
 
 const CONFIG = readFileSync(
   resolve(__dirname, "../../../../../../../../examples/room-v3/function-zone-v3.xml"),

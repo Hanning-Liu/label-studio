@@ -1,3 +1,4 @@
+import { applyResultMetadataOwnership } from "@hanning/frontend/domain/resultMetadata";
 import { getParent, getRoot, getSnapshot, types } from "mobx-state-tree";
 import { ff } from "@humansignal/core";
 import { guidGenerator } from "../core/Helpers";
@@ -378,67 +379,9 @@ const Result = types
         // `meta` is used for lead_time which is stored in one result, while area's `meta` is used for meta text,
         // and this text is duplicated in every connected result, so we should prefer area's `meta` for actual value.
         data.meta = { ...meta, ...self.area.meta };
-        if (type === "labels" && from_name === "function_zone" && self.to_name.wholeRoomInheritanceEnabled) {
-          // Do not add geometry-owned metadata to existing paired category
-          // results merely by opening/saving a whole-room enabled project.
-          const shared = { ...self.area.meta };
-          for (const key of [
-            "partition_context",
-            "zone_inheritance",
-            "room_graph_node",
-            "room_graph_edge",
-            "geometry_review",
-            "reference_review",
-          ])
-            delete shared[key];
-          data.meta = { ...meta, ...shared };
-        }
-        // Inheritance belongs to the geometry result, not the shared area's
-        // initial metadata snapshot or its paired Labels result. Otherwise a
-        // later confirmation is overwritten by the imported pending state.
-        if (meta?.zone_inheritance && (type === "rectangle" || type === "polygon")) {
-          data.meta.zone_inheritance = meta.zone_inheritance;
-          if (meta.partition_context) data.meta.partition_context = meta.partition_context;
-        } else if (data.meta.zone_inheritance) {
-          delete data.meta.zone_inheritance;
-        }
-        // L3 ownership/review metadata belongs only to the physical geometry.
-        // Area-level imported metadata is an initial snapshot and must not
-        // overwrite a later review invalidation or confirmation.
-        if (meta?.occupancy_context && (type === "rectangle" || type === "polygon")) {
-          data.meta.occupancy_context = meta.occupancy_context;
-        } else if (data.meta.occupancy_context) {
-          delete data.meta.occupancy_context;
-        }
-          // Downstream window relations are server-owned geometry metadata. An
-        // area's shared snapshot must never copy them onto paired Labels.
-        for (const key of ["window_projections", "window_projection_state"]) {
-          if (meta?.[key] && (type === "rectangle" || type === "polygon")) data.meta[key] = meta[key];
-          else if (data.meta[key]) delete data.meta[key];
-        }
-        // Window ownership and pairing evidence belong to the VectorLabels
-        // result. An area's imported metadata is only an initial snapshot and
-        // must not overwrite a refreshed/stale context after vertex editing.
-        if (self.to_name.windowEnabled && meta?.window_context && type === "vectorlabels") {
-          data.meta.window_context = meta.window_context;
-        } else if (self.to_name.windowEnabled && data.meta.window_context) {
-          delete data.meta.window_context;
-          }
-          // L4 identity belongs to every explicit instance result (geometry,
-        // category, or orientation evidence). Never let another result's
-        // area-level metadata overwrite its role/provenance during a refresh.
-        if (
-          meta?.furniture_instance_context &&
-          ["rectangle", "polygon", "choices", "vectorlabels"].includes(type)
-        ) {
-          data.meta.furniture_instance_context = meta.furniture_instance_context;
-          if (meta.furniture_instance_provenance)
-            data.meta.furniture_instance_provenance = meta.furniture_instance_provenance;
-          else delete data.meta.furniture_instance_provenance;
-        } else {
-          delete data.meta.furniture_instance_context;
-          delete data.meta.furniture_instance_provenance;
-          }
+        applyResultMetadataOwnership(data, {
+          meta, type, fromName: from_name, image: self.to_name, areaMeta: self.area.meta,
+        });
         if (!Object.keys(data.meta).length && !meta) delete data.meta;
       }
 
