@@ -54,6 +54,7 @@ export const FURNITURE_TYPES = Object.freeze({
   shoe_cabinet: "鞋柜",
   other: "其他",
   potted_plant: "绿植盆栽",
+  drying_rack: "晾衣架",
 });
 
 export const ROLE_BY_CONTROL = Object.freeze({

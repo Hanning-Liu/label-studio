@@ -6,11 +6,11 @@ import {
   furnitureTypeColor,
 } from "../presentation";
 
-test("palette contains all and only the 29 stable furniture values exactly once", () => {
+test("palette contains all and only the 30 stable furniture values exactly once", () => {
   const values = FURNITURE_TYPE_GROUPS.flatMap((group) => group.types);
-  expect(values).toHaveLength(29);
+  expect(values).toHaveLength(30);
   expect(new Set(values)).toEqual(new Set(Object.keys(FURNITURE_TYPES)));
-  expect(new Set(values)).toHaveProperty("size", 29);
+  expect(new Set(values)).toHaveProperty("size", 30);
   expect(assertFurniturePaletteCoverage()).toBe(true);
 });
 
@@ -27,6 +27,10 @@ test("palette groups retain the approved presentation colors", () => {
   });
   expect(furnitureTypeColor("bed")).toBe("#7C3AED");
   expect(furnitureTypeColor("sink")).toBe("#EA580C");
+  expect(FURNITURE_TYPE_GROUPS.find((group) => group.name === "卫浴设施").types).toEqual([
+    "toilet", "washbasin", "bathtub", "shower", "drying_rack",
+  ]);
+  expect(furnitureTypeColor("drying_rack")).toBe("#0F766E");
 });
 
 test("focus identity resolves Chinese group, room and zone descriptions without changing ids", () => {

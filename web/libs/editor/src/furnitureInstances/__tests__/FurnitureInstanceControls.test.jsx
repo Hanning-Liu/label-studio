@@ -202,7 +202,7 @@ test("keyboard focus exposes category definitions with an accessible description
   expect(item.setFurnitureInstanceDraft).not.toHaveBeenCalled();
 });
 
-test.each([['dressing_table', '梳妆台'], ['potted_plant', '绿植盆栽']])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
+test.each([['dressing_table', '梳妆台'], ['potted_plant', '绿植盆栽'], ['drying_rack', '晾衣架']])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
   const { item, rerender } = setup();
   item.furnitureInstanceAvailableTypes = item.furnitureInstanceAvailableTypes.filter(
     (type) => type !== category,

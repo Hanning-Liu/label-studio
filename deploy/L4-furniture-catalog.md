@@ -28,6 +28,7 @@
 | `washbasin` | 洗手盆 | 用于洗手、洗脸等个人清洁的盆体。 别称：洗脸盆、面盆 | `sink`、`cabinet` | IfcSanitaryTerminal / WASHHANDBASIN | 直接对应；柜体可另标 |
 | `bathtub` | 浴缸 | 可容纳人体浸浴的缸体。 别称：浴盆 | `shower` | IfcSanitaryTerminal / BATH | 直接对应 |
 | `shower` | 淋浴设施 | 可识别的淋浴装置或其设施轮廓。 别称：淋浴、花洒设施 | `bathtub` | IfcSanitaryTerminal / SHOWER | 需要设施证据；仅淋浴空间或隔断不能直接当作卫生终端实体 |
+| `drying_rack` | 晾衣架 | 用于晾晒衣物的落地、壁挂或吊装架体，按可辨识的设施整体平面轮廓标注；不将整个晾晒区域或单个衣服挂钩作为架体。别称：晾晒架、晾衣杆 | `dryer`、`wardrobe` | 暂不指定 | 界面归入“卫浴设施”；分组不代表 IFC 卫生终端实体，映射待额外证据确认 |
 | `washing_machine` | 洗衣机 | 用于洗涤衣物的设备。 别称：洗衣设备 | `dryer` | IfcElectricAppliance / WASHINGMACHINE | 直接对应；洗烘一体需补充设备能力证据 |
 | `dryer` | 烘干机 | 用于干燥衣物的设备。 别称：干衣机 | `washing_machine` | IfcElectricAppliance / TUMBLEDRYER（条件性） | 仅滚筒式干衣设备直接对应；其他形式需核对 |
 | `shoe_cabinet` | 鞋柜 | 用于收纳鞋类的柜体。 别称：鞋橱 | `cabinet`、`wardrobe` | IfcFurniture / USERDEFINED | 项目约定；保留专用类别 |
@@ -45,8 +46,8 @@
 
 ## 类别升级与人工改类
 
-新模板包含 29 类，绿植盆栽追加在现有“其他”分组末尾，沿用该组颜色。旧项目先执行 `manage.py upgrade_furniture_instance_choices --project-id ID --dry-run`，审查配置差异并备份；再加 `--apply --expected-title TITLE --expected-config-sha256 HASH`。命令仅追加缺少的梳妆台、吧台和绿植盆栽，不重建模板、不更改标注。原有 28 类项目只会增加绿植盆栽；已存在相同选项时无操作；冲突必须人工处理。
+新模板包含 30 类，晾衣架追加在现有“卫浴设施”分组末尾，沿用该组绿色 `#0F766E`；绿植盆栽仍在“其他”分组。旧项目先执行 `manage.py upgrade_furniture_instance_choices --project-id ID --dry-run`，审查配置差异并备份；再加 `--apply --expected-title TITLE --expected-config-sha256 HASH`。命令仅追加缺少的梳妆台、吧台、绿植盆栽和晾衣架，不重建模板、不更改标注。当前 29 类项目仅追加晾衣架；已存在相同选项时无操作；冲突必须人工处理。
 
 待绘制按钮只影响下一次创建。选中现有实例后使用“当前实例类别 → 应用类别”，统一修改所有分块和方向证据上下文，保留几何和来源，重新进行人工复核。绝不根据所在房间自动重分类 desk。
 
-使用绿植盆栽后，回退镜像也必须支持 `potted_plant`（29 类），并保留新增选项及标注。仅含梳妆台、吧台等旧 28 类结果时，可以回退到支持对应类别的版本；不得恢复不支持已保存类别的镜像。
+使用晾衣架后，回退镜像也必须支持 `drying_rack`（30 类），并保留新增选项及标注；使用绿植盆栽的结果同样要求支持 `potted_plant`。不得恢复不支持已保存类别的镜像，也不使用旧数据库覆盖后续标注。

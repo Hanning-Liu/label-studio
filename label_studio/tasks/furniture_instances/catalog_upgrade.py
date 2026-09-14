@@ -6,7 +6,10 @@ from xml.parsers import expat
 
 from lxml import etree
 
-ADDITIONS = (('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'), ('potted_plant', '绿植盆栽'))
+ADDITIONS = (
+    ('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'),
+    ('potted_plant', '绿植盆栽'), ('drying_rack', '晾衣架'),
+)
 
 
 def config_sha256(config):

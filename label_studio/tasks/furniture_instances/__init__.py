@@ -30,6 +30,7 @@ FURNITURE_TYPE_CHOICES = (
     ('shoe_cabinet', '鞋柜'),
     ('other', '其他'),
     ('potted_plant', '绿植盆栽'),
+    ('drying_rack', '晾衣架'),
 )
 
 FURNITURE_TYPES = frozenset(value for value, _label in FURNITURE_TYPE_CHOICES)
