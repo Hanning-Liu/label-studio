@@ -289,13 +289,15 @@
 .spatialCounts { font-size: 12px; }
 .spatialChildren { margin-left: 8px; border-left: 1px solid var(--color-neutral-border); padding-left: 4px; }
 
-.reviewBar select {
+.reviewBar select,
+.spatialOverview select {
   max-width: 100%;
   color: var(--color-neutral-content);
   background: var(--color-neutral-surface);
 }
 
 .reviewBar button,
+.spatialOverview button,
 .reviewGroup > button {
   padding: 5px 7px;
   color: var(--color-neutral-content);
@@ -306,12 +308,16 @@
 }
 
 .reviewBar button:disabled,
+.spatialOverview button:disabled,
 .reviewGroup button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
 .reviewBar button:focus-visible,
+.spatialOverview button:focus-visible,
+.spatialOverview select:focus-visible,
+.spatialOverview input:focus-visible,
 .reviewGroup button:focus-visible,
 .reviewRow input:focus-visible {
   outline: 2px solid var(--color-neutral-content);
