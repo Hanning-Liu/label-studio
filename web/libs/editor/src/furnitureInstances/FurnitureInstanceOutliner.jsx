@@ -233,8 +233,6 @@ export const FurnitureInstanceOutliner = observer(({ item }) => {
     <div className={`${styles.outliner} ${styles.reviewOutliner}`} aria-label="L4 家具实例列表">
       <FurnitureReviewBar item={item} review={review} />
       <div className={styles.reviewList}>
-        <FurnitureReferencePanel item={item} />
-        <p>家具实例 {rows.length} · 父级链只读且不可由当前 Focus 覆盖</p>
         {item.furnitureInstanceScope ? (
           <FurnitureSpatialTree item={item} review={review} renderRow={renderRow} visibleRow={visible} />
         ) : (
@@ -268,6 +266,8 @@ export const FurnitureInstanceOutliner = observer(({ item }) => {
         )}
         {!item.furnitureInstanceScope &&
           rows.filter((row) => !parents.some((parent) => parent.id === row.groupId) && visible(row)).map(renderRow)}
+        <FurnitureReferencePanel item={item} />
+        <p>家具实例 {rows.length} · 父级链只读且不可由当前 Focus 覆盖</p>
       </div>
     </div>
   );

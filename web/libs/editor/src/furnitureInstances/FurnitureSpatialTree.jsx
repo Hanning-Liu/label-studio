@@ -69,7 +69,7 @@ export const FurnitureSpatialTree = observer(({ item, review, renderRow, visible
           <div>
             已复核 {n.counts.reviewed} / 待复核 {n.counts.pending} / 需处理 {n.counts.blocked}
           </div>
-          {reviewedSpace(n) && <small>已有实例均已复核；不代表已排除漏标</small>}
+          {reviewedSpace(n) && <small title="复核只针对已有实例，不代表已排除漏标">已有实例均已复核</small>}
           {!n.groupTotal && !n.issues.length && <small>无家具组团</small>}
           {!!n.unresolved && <small className={styles.error}>归属异常组团 {n.unresolved}</small>}
           {currentPath.includes(n.key) && !matches(n) && <small>当前路径 · 不符合当前筛选</small>}
