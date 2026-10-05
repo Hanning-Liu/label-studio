@@ -299,3 +299,28 @@ test.each([["connection", "Door", "connection_vector"], ["visual", "Visual only"
     expect(screen.getByRole("combobox")).not.toBeDisabled();
   },
 );
+
+test("measures the enclosing sticky dock and follows wrapping and review-panel changes", () => {
+  const { image } = setup();
+  const originalObserver = global.ResizeObserver;
+  const disconnect = jest.fn();
+  let resized;
+  global.ResizeObserver = jest.fn((callback) => {
+    resized = callback;
+    return { observe: jest.fn(), disconnect };
+  });
+  const bounds = jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 215.5 });
+  const onDockResize = jest.fn();
+  try {
+    const view = render(<div><L2Controls item={image} onDockResize={onDockResize} /></div>);
+    expect(onDockResize).toHaveBeenLastCalledWith(216);
+    bounds.mockReturnValue({ height: 320 });
+    act(() => resized());
+    expect(onDockResize).toHaveBeenLastCalledWith(320);
+    view.unmount();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  } finally {
+    bounds.mockRestore();
+    global.ResizeObserver = originalObserver;
+  }
+});

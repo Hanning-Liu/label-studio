@@ -1,12 +1,23 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { isAlive } from "mobx-state-tree";
 import { observer } from "mobx-react";
 import { l1Categories, L1_SHAPES } from "@hanning/frontend/domain/rooms/l1Tools";
 import { L2_FAMILIES } from "@hanning/frontend/domain/rooms/l2Tools";
 import styles from "./L1Controls.module.scss";
 
-export const L2Controls = observer(({ item }) => {
+export const L2Controls = observer(({ item, onDockResize }) => {
   const annotation = item.annotation;
+  const dockRow = useRef(null);
+  useLayoutEffect(() => {
+    const dock = dockRow.current?.parentElement;
+    if (!dock || !onDockResize) return;
+    const measure = () => onDockResize(Math.ceil(dock.getBoundingClientRect().height));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [item.l2ToolbarEnabled, onDockResize]);
   useEffect(() => {
     if (isAlive(item)) item.initializeL2Tools();
   }, [item, annotation.id, annotation.store.task?.id]);
@@ -48,7 +59,7 @@ export const L2Controls = observer(({ item }) => {
   const categories = l1Categories(item.l2Config, item.l2Family);
   const families = L2_FAMILIES;
   return (
-    <section className={`${styles.dock} ${styles.embedded}`} aria-label="L2 标注工具" data-testid="l2-tools">
+    <section ref={dockRow} className={`${styles.dock} ${styles.embedded}`} aria-label="L2 标注工具" data-testid="l2-tools">
       <strong>L2 标注</strong>
       <div className={styles.families} role="group" aria-label="标注对象">
         {families

@@ -12,7 +12,7 @@ import "./Tool.scss";
 import "./Toolbar.scss";
 
 export const Toolbar = inject("store")(
-  observer(({ store, tools, expanded }) => {
+  observer(({ store, tools, expanded, stickyTop }) => {
     const [toolbar, setToolbar] = useState(null);
     const windowSize = useWindowSize();
 
@@ -45,7 +45,7 @@ export const Toolbar = inject("store")(
 
     return (
       <ToolbarProvider value={{ expanded, alignment }}>
-        <div ref={(el) => setToolbar(el)} className={cn("toolbar").mod({ alignment, expanded }).toClassName()}>
+        <div ref={(el) => setToolbar(el)} style={stickyTop === undefined ? undefined : { top: stickyTop }} className={cn("toolbar").mod({ alignment, expanded }).toClassName()}>
           {Object.entries(toolGroups).map(([name, tools], i) => {
             const visibleTools = tools.filter((t) => t.viewClass);
 

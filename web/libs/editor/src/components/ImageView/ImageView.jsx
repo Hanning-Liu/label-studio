@@ -560,6 +560,7 @@ export default observer(
     lastOffsetWidth = -1;
     lastOffsetHeight = -1;
     state = {
+      l2DockHeight: 0,
       imgStyle: {},
       pointer: [0, 0],
     };
@@ -1049,6 +1050,10 @@ export default observer(
       if (item.isReady !== imageRef.current.complete) item.setReady(imageRef.current.complete);
     }
 
+    onL2DockResize = (height) => {
+      if (height !== this.state.l2DockHeight) this.setState({ l2DockHeight: height });
+    };
+
     renderTools() {
       const { item, store } = this.props;
 
@@ -1062,7 +1067,7 @@ export default observer(
       return (
         <>
           {!item.wholeRoomInheritanceEnabled && <RoomFocusSelector item={item} />}
-          <Toolbar tools={l2ToolbarTools(l1ToolbarTools(tools, item), item)} />
+          <Toolbar tools={l2ToolbarTools(l1ToolbarTools(tools, item), item)} stickyTop={item.l2ToolbarEnabled ? this.state.l2DockHeight + 8 : undefined} />
         </>
       );
     }
@@ -1127,7 +1132,7 @@ export default observer(
               >
                 <ReferenceSyncControls item={item} compact />
                 <RoomFocusSelector item={item} compact />
-                <L2Controls item={item} />
+                <L2Controls item={item} onDockResize={this.onL2DockResize} />
               </section>
             ) : (
               <ReferenceSyncControls item={item} />
