@@ -8,6 +8,16 @@ export const L1Controls = observer(({ item }) => {
   useEffect(() => {
     item.resetL1Tools();
   }, [item, annotation.id, annotation.store.task?.id]);
+  useEffect(() => {
+    const cancel = (event) => {
+      if (event.key === "Escape" && item.cancelL1Drawing()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("keydown", cancel, true);
+    return () => document.removeEventListener("keydown", cancel, true);
+  }, [item]);
   if (!item.l1ToolbarEnabled) return null;
   const blocked = item.l1SwitchBlockReason;
   const categories = l1Categories(item.l1Config, item.l1Family);
@@ -58,14 +68,14 @@ export const L1Controls = observer(({ item }) => {
         </select>
       </label>
       <span>画法：{L1_SHAPES[item.l1Selection.shape]} · 右侧切换</span>
-      {(blocked || passage) && (
-        <span className={styles.notice} role="status">
-          {blocked ||
-            (item.l1Selection.shape === "vector"
+      <span className={styles.notice} role="status">
+        {blocked ||
+          (passage
+            ? item.l1Selection.shape === "vector"
               ? "无墙体进深：沿共享边界绘制开放通道"
-              : "有墙体进深：矩形短边表示墙体进深")}
-        </span>
-      )}
+              : "有墙体进深：矩形短边表示墙体进深"
+            : "顶部选择仅用于后续绘制；已有区域请在右侧区域属性中编辑")}
+      </span>
     </section>
   );
 });

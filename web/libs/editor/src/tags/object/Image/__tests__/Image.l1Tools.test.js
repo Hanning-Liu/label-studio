@@ -246,6 +246,24 @@ describe("L1 tool dock", () => {
     expect(l1HiddenControl(annotation.names.get("custom_choice"))).toBe(false);
   });
 
+  test("Escape cancels only the in-progress polygon and restores the dock", () => {
+    const { image, annotation, tools } = setup();
+    render(<L1Controls item={image} />);
+    act(() => image.selectL1Category("Bedroom"));
+    const polygon = tools.find((t) => t.toolName === "PolygonTool" && t.control?.name === "room_polygon" && !t.dynamic);
+    act(() => {
+      image.getToolsManager().selectTool(polygon, true);
+      polygon.startDrawing(10, 10);
+      polygon.listenForClose();
+    });
+    expect(annotation.isDrawing).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(annotation.isDrawing).toBe(false);
+    expect(annotation.areas.size).toBe(0);
+    expect(image.l1Selection).toEqual({ category: "Bedroom", shape: "polygon" });
+    expect(screen.getByRole("combobox").disabled).toBe(false);
+  });
+
   test("L2 template keeps its existing UI", () => {
     expect(setup(loadConfig("function-zone-v3.xml")).image.l1ToolbarEnabled).toBe(false);
   });

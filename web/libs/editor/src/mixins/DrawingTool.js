@@ -212,7 +212,8 @@ const DrawingTool = types
         self.annotation.regionStore.selection.drawingSelect(self.currentArea);
         self.listenForClose?.();
         if (self.manager.findSelectedTool() !== self) {
-          self.manager.selectTool(self, true);
+          const resumingL1 = self.obj.l1ToolbarEnabled && self.obj.resumeL1Drawing(self, existingUnclosedPolygon);
+          self.manager.selectTool(self, true, resumingL1);
         }
       },
       commitDrawingRegion() {

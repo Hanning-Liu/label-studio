@@ -96,6 +96,38 @@ export const L1Tools = types
         const entry = self.l1Config?.controls.find((entry) => entry.name === control.name);
         return entry ? choose(entry.family, l1LabelKey(label), entry.shape) : false;
       },
+      resumeL1Drawing(tool, area) {
+        const entry = self.l1Config?.controls.find((entry) => entry.name === tool.control?.name);
+        const category = area.results.find((result) => result.from_name.name === entry?.name)?.mainValue?.[0];
+        if (!entry || !category || self.annotation.isReadOnly()) return false;
+        self.l1Family = entry.family;
+        self.l1Selections = { ...self.l1Selections, [entry.family]: { category, shape: entry.shape } };
+        return true;
+      },
+      cancelL1Drawing() {
+        if (
+          !self.l1ToolbarEnabled ||
+          self.annotation.isReadOnly() ||
+          self.annotation.store?.annotationStore?.viewingAll
+        )
+          return false;
+        const tool = self
+          .getToolsManager()
+          .allTools()
+          .find(
+            (tool) =>
+              tool.isDrawingTool &&
+              tool.getCurrentArea?.() &&
+              self.l1Config.controls.some((entry) => entry.name === tool.control?.name),
+          );
+        if (!tool || (!self.annotation.isDrawing && !self.annotation.hasIncompletePolygons)) return false;
+        tool.stopListening?.();
+        if (tool.cancelDrawing) tool.cancelDrawing();
+        else tool.deleteRegion();
+        tool._resetState?.();
+        self.syncL1DrawingLabels(tool);
+        return true;
+      },
       syncL1DrawingLabels(tool) {
         if (!self.l1ToolbarEnabled) return;
         clearLabels();
