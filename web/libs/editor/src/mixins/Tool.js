@@ -108,6 +108,10 @@ const ToolMixin = types
       const isCtrlPressed = e.evt && (e.evt.metaKey || e.evt.ctrlKey);
       const hasSelection = self.control?.annotation?.hasSelection;
 
+      // In the L1 drawing mode, room fills must not capture boundary clicks
+      // intended for a portal or window. Move and selected-region editing keep
+      // the existing interaction path.
+      if (self.isDrawingTool && self.obj?.l1ToolbarEnabled && !hasSelection && !self.obj.l1ToolBlockReason(self, true)) return true;
       return !!isCtrlPressed && !hasSelection;
     },
 

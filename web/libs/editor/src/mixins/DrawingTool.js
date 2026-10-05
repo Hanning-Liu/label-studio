@@ -213,7 +213,8 @@ const DrawingTool = types
         self.listenForClose?.();
         if (self.manager.findSelectedTool() !== self) {
           const resumingL1 = self.obj.l1ToolbarEnabled && self.obj.resumeL1Drawing(self, existingUnclosedPolygon);
-          self.manager.selectTool(self, true, resumingL1);
+          if (resumingL1) self.manager.selectTool(self, true, true);
+          else self.manager.selectTool(self, true);
         }
       },
       commitDrawingRegion() {
