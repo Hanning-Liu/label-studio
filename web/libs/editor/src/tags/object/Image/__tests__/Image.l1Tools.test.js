@@ -206,7 +206,7 @@ describe("L1 tool dock", () => {
   });
 
   test("V respects input focus, IME and modified shortcuts", () => {
-    const { image } = setup();
+    const { image, store } = setup();
     render(<><L1Controls item={image} /><input aria-label="notes" /><div role="dialog"><button>dialog action</button></div></>);
     act(() => image.selectL1Category("Bedroom"));
     const selected = image.getToolsManager().findSelectedTool();
@@ -218,6 +218,9 @@ describe("L1 tool dock", () => {
       fireEvent.keyDown(document.body, { key: "v", [modifier]: true });
       expect(image.getToolsManager().findSelectedTool()).toBe(selected);
     }
+    act(() => store.settings.toggleHotkeys());
+    fireEvent.keyDown(document.body, { key: "v" });
+    expect(image.getToolsManager().findSelectedTool()).toBe(selected);
   });
 
   test("changing pending type preserves existing result geometry, metadata and label", () => {

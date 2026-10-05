@@ -14,6 +14,7 @@ export const L1Controls = observer(({ item }) => {
       if (
         isAlive(item) &&
         item.l1ToolbarEnabled &&
+        item.annotation.store.settings.enableHotkeys &&
         event.key?.toLowerCase() === "v" &&
         !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.isComposing &&
         !event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='dialog'], [role='alertdialog'], [role='combobox'], dialog")
