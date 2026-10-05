@@ -64,7 +64,9 @@ const gitBranch = async (options = []) => {
  * @returns {Promise<CommitVersion>}
  */
 const getVersionData = async () => {
-  const latestCommitInfo = await gitLog(["-n 1", "-p", "src/*"]);
+  // Only commit metadata is used below. A patch needlessly fetches historical
+  // blobs in partial clones and makes an otherwise local build depend on GitHub.
+  const latestCommitInfo = await gitLog(["-n 1", "src/*"]);
   const commitInfo = latestCommitInfo.split("\n");
   const commit =
     commitInfo
