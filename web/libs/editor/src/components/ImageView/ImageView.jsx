@@ -1,4 +1,6 @@
 import { RoomFocusSelector } from "@hanning/frontend/components/references/RoomFocusSelector";
+import { L1Controls } from "@hanning/frontend/components/rooms/L1Controls";
+import { l1ToolbarTools } from "@hanning/frontend/domain/rooms/l1Tools";
 import hanningStyles from "@hanning/frontend/components/references/RoomFocusSelector.module.scss";
 import { Component, createRef, forwardRef, Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Layer, Line, Rect, Stage, Image as KonvaImage, Circle } from "react-konva";
@@ -1058,7 +1060,7 @@ export default observer(
       return (
         <>
           {!item.wholeRoomInheritanceEnabled && <RoomFocusSelector item={item} />}
-          <Toolbar tools={tools} />
+          <Toolbar tools={l1ToolbarTools(tools, item)} />
         </>
       );
     }
@@ -1108,6 +1110,7 @@ export default observer(
       return (
         <>
           {!isViewingAll && <ReferenceLineageStatus item={item} />}
+          {!isViewingAll && item.l1ToolbarEnabled && <L1Controls item={item} />}
           {!isViewingAll && item.furnitureInstancesEnabled && <FurnitureScopeNavigation item={item} />}
           {!isViewingAll &&
             (item.furnitureInstancesEnabled ? (

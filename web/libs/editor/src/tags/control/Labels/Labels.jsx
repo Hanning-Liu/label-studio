@@ -1,4 +1,5 @@
 import { observer } from "mobx-react";
+import { l1HiddenControl } from "@hanning/frontend/domain/rooms/l1Tools";
 import { cast, types } from "mobx-state-tree";
 
 import { defaultStyle } from "../../../core/Constants";
@@ -145,6 +146,7 @@ const LabelsModel = types.compose(
 );
 
 const HtxLabels = observer(({ item }) => {
+  if (l1HiddenControl(item)) return null;
   return (
     <div className={cn("labels").mod({ hidden: !item.visible, inline: item.showinline }).toClassName()}>
       {Tree.renderChildren(item, item.annotation)}

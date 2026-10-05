@@ -123,6 +123,8 @@ class ToolsManager {
   }
 
   selectTool(tool, selected, isInitial = false) {
+    if (selected && !isInitial && tool?.isDrawingTool && tool.obj?.l1ToolbarEnabled && !tool.obj.prepareL1Tool(tool))
+      return;
     const currentTool = this.findSelectedTool();
     const newSelection = tool?.group;
 

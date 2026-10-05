@@ -11,7 +11,7 @@ import { occupancyToolBlockReason } from "@hanning/frontend/domain/occupancy/edi
 const ToolView = observer(({ item }) => {
   const occupancyBlockReason = occupancyToolBlockReason(item);
   const furnitureBlockReason = furnitureInstanceToolBlockReason(item);
-  const blockReason = occupancyBlockReason || furnitureBlockReason;
+  const blockReason = item.obj?.l1ToolBlockReason?.(item) || occupancyBlockReason || furnitureBlockReason;
   const label = blockReason ? `${item.viewTooltip || "绘制工具"}：${blockReason}` : item.viewTooltip;
 
   return (
@@ -65,7 +65,7 @@ const BaseTool = types
         return null;
       },
       get shouldRenderView() {
-        return (self.isSeparated || self.smartEnabled) && self.iconClass;
+        return (self.obj?.l1ToolbarEnabled || self.isSeparated || self.smartEnabled) && self.iconClass;
       },
       get iconClass() {
         if (self.iconComponent) {

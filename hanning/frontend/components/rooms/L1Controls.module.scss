@@ -1,0 +1,29 @@
+.dock {
+  position: sticky;
+  top: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  background: var(--color-neutral-background, #fff);
+  color: var(--color-neutral-content, #222);
+  border: 1px solid var(--color-neutral-border, #d5dfda);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px #0001;
+
+  button, select {
+    min-height: 32px;
+    border: 1px solid var(--color-neutral-border, #b9bec9);
+    border-radius: 4px;
+    background: var(--color-neutral-background, #fff);
+    color: inherit;
+    padding: 4px 8px;
+  }
+  button[aria-pressed="true"] { border-color: #7371dc; background: var(--color-primary-emphasis-subtle, #eeeeff); }
+  button:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
+}
+.families { display: flex; gap: 4px; }
+.category { display: flex; align-items: center; gap: 6px; select { width: 180px; max-width: 100%; } }
+.notice { flex-basis: 100%; font-size: 12px; }

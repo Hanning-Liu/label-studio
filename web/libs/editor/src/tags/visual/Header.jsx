@@ -1,4 +1,5 @@
 import { types } from "mobx-state-tree";
+import { l1HiddenHeader } from "@hanning/frontend/domain/rooms/l1Tools";
 import { observer } from "mobx-react";
 
 import ProcessAttrsMixin from "../../mixins/ProcessAttrs";
@@ -42,6 +43,7 @@ const Model = types.model({
 const HeaderModel = types.compose("HeaderModel", Model, ProcessAttrsMixin);
 
 const HtxHeader = observer(({ item }) => {
+  if (l1HiddenHeader(item)) return null;
   const size = clamp(Number.parseInt(item.size), 1, 5);
   const style = item.style ? Tree.cssConverter(item.style) : { margin: "10px 0" };
   const sizeMap = {

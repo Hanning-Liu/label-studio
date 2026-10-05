@@ -1,6 +1,7 @@
 import { mergeViewDefinitions } from "@hanning/frontend/adapters/mstViews";
 import { roomAttributes } from "@hanning/frontend/models/roomAttributes";
 import { roomViews } from "@hanning/frontend/models/roomViews";
+import { L1Tools } from "@hanning/frontend/models/L1Tools";
 import { roomMetadataActions, roomFocusActions } from "@hanning/frontend/models/roomActions";
 import { ff } from "@humansignal/core";
 import { inject } from "mobx-react";
@@ -1425,6 +1426,7 @@ const ImageModel = types.compose(
   Occupancy,
   RoomWindows,
   FurnitureInstances,
+  L1Tools,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),

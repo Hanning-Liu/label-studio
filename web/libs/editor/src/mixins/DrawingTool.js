@@ -186,6 +186,7 @@ const DrawingTool = types
   .actions((self) => {
     return {
       createDrawingRegion(opts) {
+        self.obj.syncL1DrawingLabels?.(self);
         const control = self.control;
         const resultValue = control.getResultValue();
 
@@ -269,6 +270,7 @@ const DrawingTool = types
         return newArea;
       },
       createRegion(opts, skipAfterCreate = false) {
+        self.obj.syncL1DrawingLabels?.(self);
         const control = self.control;
         const resultValue = control.getResultValue();
         const activeStates = drawingActiveStates(self);
@@ -310,6 +312,7 @@ const DrawingTool = types
       },
 
       canStartDrawing() {
+        if (self.obj?.l1ToolBlockReason?.(self, true)) return false;
         if (
           self.obj?.occupancyEnabled &&
           (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason(self.control?.name))

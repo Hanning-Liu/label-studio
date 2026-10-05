@@ -272,6 +272,9 @@ const Model = types
 
     onHotKey() {
       const image = self.annotation?.names?.get(self.parent?.toname);
+      if (image?.l1ToolbarEnabled && image.l1Config.managed.has(self.parent?.name)) {
+        return image.selectL1Label(self.parent, self);
+      }
       // Room references stay registered for deserialization/constraints, but their
       // hidden category buttons must not activate drawing or relabel selection.
       if (image?.functionzonev3validate && image.roomControlNames?.has(self.parent?.name)) return;
