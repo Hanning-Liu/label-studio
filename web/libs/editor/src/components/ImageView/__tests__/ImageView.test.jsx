@@ -115,7 +115,7 @@ jest.mock("mobx-state-tree", () => ({
   isAlive: jest.fn((x) => !!x),
 }));
 
-function createItem(overrides = {}) {
+function createItem({ annotation = {}, ...overrides } = {}) {
   return {
     value: "image",
     currentSrc: "https://example.com/img.png",
@@ -181,12 +181,15 @@ function createItem(overrides = {}) {
     updateSkipInteractions: jest.fn(),
     fixZoomedCoords: (c) => c,
     annotation: {
+      // Real annotations resolve their root store even when reference sync is disabled.
+      store: createStore(),
       isReadOnly: () => false,
       selectedRegions: [],
       unselectAll: jest.fn(),
       unselectAreas: jest.fn(),
       isDrawing: false,
       isLinkingMode: false,
+      ...annotation,
     },
     grid: false,
     sizeUpdated: true,
@@ -200,6 +203,7 @@ function createItem(overrides = {}) {
 
 function createStore(overrides = {}) {
   return {
+    referenceSyncController: null,
     task: { id: "task-1" },
     settings: { setSmoothing: jest.fn(), enableSmoothing: true, fullscreen: true },
     annotationStore: { viewingAll: false, addErrors: jest.fn() },
