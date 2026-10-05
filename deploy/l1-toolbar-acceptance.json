@@ -1,0 +1,261 @@
+{
+  "source_sha": "d272ea9c3f6deccad69e20fcdd56691750c861c2",
+  "editor": {
+    "passed": 3799,
+    "failed": 61,
+    "skipped": 5,
+    "new_failures": 0,
+    "exact_test_names_and_error_text_match": true,
+    "known_failures": {
+      "ImageView renders ObjectTag with content when item and store are valid": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders Pagination when item is multi-image": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders toolbar when image is loaded and not viewing all": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders gallery thumbnails when item has multiple images": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView calls store.settings.setSmoothing when item.smoothingEnabled is boolean": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView applies container maxWidth/maxHeight when getRoot settings fullscreen is false": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView applies imageRendering pixelated when smoothing disabled and zoomed": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView calls item.event on stage click when handler runs": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView passes handleZoom to stage when item.zoom is true": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleZoom with ctrlKey calls item.handleZoom when invoked via ref": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleZoom without ctrlKey calls item.setZoomPosition when zoomed": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView calls item.setZoomPosition on wheel without ctrlKey when zoomed": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView calls item.event mouseup on stage mouseup": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView calls item.event mousemove on stage mousemove": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseMove with bitmask region runs RAF branch and calls tool enable/disable and region updateCursor": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseMove with shift and zoomScale > 1 calls setZoomPosition and setSkipInteractions": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseMove with mouse wheel button (buttons === 4) and zoomScale > 1 calls setZoomPosition": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseMove with isDrawing region does not run RAF tool enable/disable branch": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseMove with isTransforming region does not run RAF tool branch": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseMove with no bitmask regions skips RAF branch": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleError adds error to store when called via ref": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView updateGridSize calls item.setGridSize when called via ref": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders ImageGrid when item.grid and item.sizeUpdated are true": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders crosshair when item.crosshair is true": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView updateCrosshair calls crosshairRef.current.updatePointer when crosshairRef is set": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView updateCrosshair with different positions invokes crosshair updatePointer branches": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView stage mouseenter calls crosshair updateVisibility(true)": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView CursorLayer renders Circle when tool.strokeWidth > 2 and stage mouseenter fires": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders PixelGridLayer when smoothing disabled and zoomScale > 20": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders with selectionArea active (SelectionRect)": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders with regs and suggestions for Regions coverage": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders with selectedRegions and selectedRegionsBBox for selection layer": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renders DrawingRegion when item has drawingRegion": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView verticalalignment and horizontalalignment apply correct class names": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView gallery thumbnail click calls item.setCurrentImage": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView triggerMouseUp with skipNextMouseUp does not call item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView resetDeferredClickTimeout clears timeouts": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView renderRulers returns ruler Group when called via ref": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView unmount removes resize listener and detaches observer": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView re-render calls componentDidUpdate and onResize": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseDown with target as stageRef calls item.event mousedown": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseDown with button 1 (middle click) runs path and calls item.event mousedown": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseDown when annotation.isReadOnly and not pan tool returns without calling item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseDown when target.getParent is Transformer returns without calling item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleMouseDown with bitmask layer target adds global listeners and calls item.event mousedown": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleGlobalMouseUp when target is CANVAS returns without calling item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleGlobalMouseMove when target is CANVAS returns without calling item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleGlobalMouseMove when target is not CANVAS calls item.event mousemove": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleOnClick when skipNextClick is true returns without calling item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleOnClick with hoveredRegion calls region.onClickRegion and tool disable/enable": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView constructor does not call setSmoothing when smoothingEnabled is undefined": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView imagePositionClassnames use verticalalignment and horizontalalignment": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView updateReadyStatus calls item.setReady when imageRef.current.complete differs from item.isReady": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView updateReadyStatus does not call setReady when imageRef.current is null": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView updateReadyStatus does not call setReady when isReady already matches imageRef.current.complete": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView handleGlobalMouseUp fires when mouseup outside canvas after mousedown on stage": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView DrawingRegion returns null when multiImage and currentImage !== drawingRegion.item_index": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView with feature flags FF_LSDV_4930 click uses mouseDownPoint check": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView with feature flags FF_LSDV_4930 click when position differs from mouseDownPoint returns without calling item.event": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView with feature flags FF_DEV_1442 handleMouseUp calls resetDeferredClickTimeout": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ],
+      "ImageView with feature flags FF_DEV_1442 handleDeferredClick timeout calls handleDeferredMouseDown(false) and then mousedown": [
+        "TypeError: Cannot read properties of undefined (reading 'referenceSyncController')"
+      ]
+    }
+  },
+  "l1_tests": 18,
+  "typescript": {
+    "typed_passed": true,
+    "compat_diagnostics": 55,
+    "compat_output_byte_identical_to_baseline": true
+  },
+  "rollback": {
+    "original_task": 5,
+    "original_annotation": 4,
+    "original_unchanged": true,
+    "qa_task": 6,
+    "qa_annotation": 5,
+    "result_count": 7,
+    "controls": {
+      "room_rectangle": 2,
+      "room_polygon": 1,
+      "portal_rectangle": 2,
+      "portal_vector": 1,
+      "window_vector": 1
+    },
+    "result_sha256": "50dca10b3f66266c5752ba47b8912caec68c4834f03636089130cee8eb2d19fa"
+  },
+  "sqlite_integrity": "ok",
+  "status": "implemented_deployed_final_chrome_layout_acceptance_pending_mac_unlock",
+  "image": {
+    "tag": "hanning-label-studio:1.23.2-l1-d272ea9c",
+    "id": "sha256:5ccc13c02ffed80aa1528634d0583f316627d8bfd647516ae6f7fe762b7e6382",
+    "platform": "linux/arm64",
+    "production_build_passed": true
+  },
+  "services": [
+    "/hanning-1232-qa-app-1 sha256:5ccc13c02ffed80aa1528634d0583f316627d8bfd647516ae6f7fe762b7e6382 healthy",
+    "/hanning-1232-qa-worker-1 sha256:5ccc13c02ffed80aa1528634d0583f316627d8bfd647516ae6f7fe762b7e6382 healthy",
+    "/hanning-1232-qa-gateway-1 sha256:5ccc13c02ffed80aa1528634d0583f316627d8bfd647516ae6f7fe762b7e6382 healthy"
+  ],
+  "final_readback_matches_rollback": true,
+  "browser": {
+    "application": "Google Chrome (native)",
+    "tested_source": "71c043ee82dc0549ead7085881caa64fff288437",
+    "saved_and_reopened": [
+      "room Rectangle",
+      "room Polygon",
+      "Door Rectangle",
+      "Open passage Rectangle",
+      "Open passage Vector",
+      "Window Vector"
+    ],
+    "additional_checks": [
+      "family and shape selection",
+      "selected region unaffected by pending choice",
+      "region properties edit",
+      "Escape cancel",
+      "drawing lock",
+      "label shortcuts g and 1",
+      "compare mode blocks drawing",
+      "managed sections hidden",
+      "sticky on native half-width window"
+    ],
+    "pending": [
+      "final source submission-choice persistence in Chrome",
+      "1280x900 final light and dark layout and submit visibility",
+      "refresh Chrome onto final source and leave it visible"
+    ],
+    "blocker": "Mac locked; native automation cannot unlock it. User asked to unlock.",
+    "layout_observation": "Earlier 1280x900 100% emulation clipped content including footer; 90% and native half-width checks showed footer. Final strict viewport check remains open."
+  }
+}
