@@ -944,7 +944,7 @@ const Model = types
     setZoom(scale, { reviewFit = false } = {}) {
       scale = clamp(
         scale,
-        reviewFit && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? 0.1 : 1,
+        reviewFit && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled || self.l1ToolbarEnabled) ? 0.1 : 1,
         Number.POSITIVE_INFINITY,
       );
       self.currentZoom = scale;
@@ -1020,8 +1020,8 @@ const Model = types
 
       // Review navigation may center an edge line without zooming in. Only view
       // translation gets extra space; normal drawing/panning retains its limits.
-      const extraX = reviewFocus && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? width : 0;
-      const extraY = reviewFocus && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled) ? height : 0;
+      const extraX = reviewFocus && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled || self.l1ToolbarEnabled) ? width : 0;
+      const extraY = reviewFocus && (self.wholeRoomInheritanceEnabled || self.occupancyEnabled || self.l1ToolbarEnabled) ? height : 0;
       self.zoomingPositionX = clamp(x, minX - extraX, extraX);
       self.zoomingPositionY = clamp(y, minY - extraY, extraY);
     },

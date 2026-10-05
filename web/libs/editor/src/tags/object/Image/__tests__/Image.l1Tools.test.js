@@ -86,6 +86,14 @@ describe("L1 tool dock", () => {
     expect(annotation.serializeAnnotation()).toEqual(before);
   });
 
+  test("L1 issue navigation can fit below 100 percent without changing normal zoom limits", () => {
+    const { image } = setup();
+    image.setZoom(0.5, { reviewFit: true });
+    expect(image.currentZoom).toBe(0.5);
+    image.setZoom(0.5);
+    expect(image.currentZoom).toBe(1);
+  });
+
   test("recognizes current template without changing the stored configuration", () => {
     const { image, annotation, store } = setup();
     expect(image.l1ToolbarEnabled).toBe(true);
