@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-05",
+  "status": "verified_in_local_chrome_qa",
+  "source_sha": "ddea466c78221c223e4856270205a165d49ecc42",
+  "image": {
+    "tag": "hanning-label-studio:1.23.2-l1-ddea466c",
+    "id": "sha256:b9575ddff2d796bc8b231ddeee28efabde30f4988ea66be3d41261c868873f7d",
+    "platform": "linux/arm64",
+    "production_frontend_build": "passed"
+  },
+  "editor_full": {
+    "source_sha": "9427a22572d63a48cc1caa17272cf6e57f661c4f",
+    "numPassedTests": 3811,
+    "numFailedTests": 61,
+    "numPendingTests": 5,
+    "numTotalTestSuites": 179,
+    "baseline_failures_identical": true,
+    "strict_typecheck_empty": true,
+    "compat_diagnostics_identical": true
+  },
+  "final_focused": {
+    "suites": 6,
+    "passed": 164,
+    "failed": 0,
+    "added_tests_since_prior_feature": 10
+  },
+  "final_typescript": {
+    "strict": "passed",
+    "compat_diagnostics": 55,
+    "exact_baseline_match": true
+  },
+  "chrome": {
+    "browser": "local Google Chrome",
+    "task": 5,
+    "new_modal_readable_region_numbers": true,
+    "primary_region_selection_and_visible_focus": true,
+    "related_room_selection_and_visible_focus": true,
+    "top_label_visibility_toggle_absent": true,
+    "existing_settings_label_visibility_retained": true,
+    "geometry_not_edited": true,
+    "annotation_not_submitted": true
+  },
+  "data_comparison": {
+    "annotations": {
+      "unchanged": true,
+      "region_counts": [
+        1
+      ],
+      "sha256": "ab0f67a53d98f22e504576ae229e8129f4848cea6ee0e70c9545c6d45b4742e1"
+    },
+    "drafts": {
+      "unchanged": true,
+      "region_counts": [
+        24
+      ],
+      "sha256": "e81c062037bc0919086c7abc2800030e008d54cca1c294d93fa100de7b3d6284"
+    }
+  },
+  "runtime": {
+    "project": "hanning-1232-qa",
+    "app": "healthy",
+    "worker": "healthy",
+    "gateway": "healthy",
+    "same_data_volume": true
+  },
+  "private_evidence": [
+    "logs/l1-validation-modal.jpg",
+    "logs/l1-validation-door.jpg",
+    "logs/l1-validation-room.jpg",
+    "logs/l1-validation-editor.json",
+    "logs/l1-validation-final-tests.json",
+    "logs/l1-validation-final-typed.log",
+    "logs/l1-validation-final-types.log",
+    "logs/l1-validation-build-final.log",
+    "snapshots/l1-validation-before.sqlite3"
+  ],
+  "rollback_image": "hanning-label-studio:1.23.2-l1-2e009adc",
+  "notes": [
+    "Initial build failed from Docker memory exhaustion; final build ran after tests and passed.",
+    "Geometry checks and tolerances remain unchanged.",
+    "Current QA draft still needs the user to correct the reported geometry before submission.",
+    "No production deployment."
+  ]
+}
