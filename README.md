@@ -5,6 +5,11 @@
 [Website](https://labelstud.io/) • [Docs](https://labelstud.io/guide/) • [Join Slack Community <img src="https://app.heartex.ai/docs/images/slack-mini.png" width="18px"/>](https://slack.labelstud.io/?source=github-1)
 
 
+## Hanning 定制版：macOS 从零部署
+
+本仓库包含 L1–L4 平面图标注定制。新 Mac 请从 **[中文部署指南](deploy/MACOS-SETUP.md)** 开始：安装 Docker、获取正确分支、构建 1.23.2、创建首个项目，以及备份和恢复。
+定制版使用 `deploy/Dockerfile.l4-furniture-instances.qa`；下方官方镜像的通用安装方式不包含这些定制功能。
+
 ## What is Label Studio?
 
 <!-- <a href="https://labelstud.io/blog/release-130.html"><img src="https://github.com/HumanSignal/label-studio/raw/master/docs/themes/htx/source/images/release-130/LS-Hits-v1.3.png" align="right" /></a> -->

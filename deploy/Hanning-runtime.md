@@ -1,5 +1,9 @@
 # Hanning development and runtime entry
 
+**New Mac / macOS 本机部署：从 [中文从零部署指南](MACOS-SETUP.md) 开始。**
+It covers a fresh clone, native image build, empty SQLite volume, first project,
+and backup/restore without using the historical Windows paths below.
+
 For the 1.23.2 upgrade branch, use the [upgrade preparation guide](UPGRADE-1.23.2.md)
 and its acceptance record. The 1.23.0 commands and image below document the prior
 deployment baseline; verify live production identity before preparing a cutover.
@@ -45,8 +49,10 @@ See [the catalog guide](L4-furniture-catalog.md) for explicit project upgrades.
 The broad typecheck includes existing Editor/UI TypeScript dependencies. At this
 migration baseline it reports 55 existing diagnostics, all reproduced in the
 pre-migration image. The typed customization entry passes independently. Editor
-also retains 61 existing ImageView test failures; compare exact diagnostics/test
-names with the release evidence and never accept additional failures as baseline.
+had 61 ImageView fixture failures at that historical baseline. They were fixed
+on 2026-10-05: the full Editor run has 3884 passed, 0 failed and 5 existing skips;
+see [the fix record](EDITOR-TEST-FIX.md). The broad typecheck diagnostics above
+are a separate historical result, not part of those 61 tests.
 
 Build from the new repository root and record the complete executable commit:
 

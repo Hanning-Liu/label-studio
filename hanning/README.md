@@ -25,6 +25,8 @@ package does not enable custom behavior on ordinary projects.
 
 ## Existing operation guides
 
+- [macOS 从零部署](../deploy/MACOS-SETUP.md)
+
 - [Hierarchical annotation](../docs/l4-hierarchical-annotation.md)
 - [Furniture catalog and explicit project upgrades](../deploy/L4-furniture-catalog.md)
 - [Window lineage](../deploy/L1-L4-window-lineage.md)
