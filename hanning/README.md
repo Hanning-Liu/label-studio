@@ -1,10 +1,15 @@
 # Hanning customization boundary
 
 This package contains the opt-in L1–L4 floorplan customization of Label Studio
-1.23.0. It is part of the main repository, not a separate Git repository.
+1.23.2. It is part of the main repository, not a separate Git repository.
 
-Upstream reference: `2a9bfbcbf0a844b999de97e601d16050a893f5fb`.
-Migration baseline: `c015e56a23b090f16f12a559c9be78b94b62a673`.
+Current upstream: `df96d79183156e556d91825d15fa7721f1145e1a` (1.23.2).
+Upgrade baseline: `16de822e75d8cc1b86a15a93e8b4845426349324`.
+The source extraction map below was established against upstream 1.23.0
+(`2a9bfbcbf0a844b999de97e601d16050a893f5fb`) and migration baseline
+`c015e56a23b090f16f12a559c9be78b94b62a673`.
+See the [upgrade acceptance report](../deploy/UPGRADE-1.23.2-REPORT.md) for current
+verification coverage and remaining release gates.
 
 ## Integration boundaries
 

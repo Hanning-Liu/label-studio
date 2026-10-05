@@ -6,6 +6,8 @@ on `integration/occupancy-room-window-l4-20260907`. The upgrade merges the offic
 Use Python 3.13, Poetry 2.3.2 and Node 22. Frontend lockfile changes are not part
 of this upgrade. The machine-readable acceptance record is
 [`upgrade-1.23.2-acceptance.json`](upgrade-1.23.2-acceptance.json).
+The [acceptance report](UPGRADE-1.23.2-REPORT.md) records completed checks and
+the outstanding production-data gates; it currently blocks production release.
 
 ## Build and test
 
@@ -37,7 +39,11 @@ HANNING_QA_HOST=http://localhost:18085
 ```
 
 The Compose project owns a new data volume and an internal network; it never
-mounts production data. Keep the source dataset's document root if it differs
+mounts production data. A fixed-upstream nginx gateway exposes localhost while
+app and worker remain on the internal network without external egress.
+QA uses local FileSystemStorage, so `USE_NGINX_FOR_UPLOADS=false` selects Django's
+authenticated upload response; nginx still proxies that response and its CSP.
+Keep the source dataset's document root if it differs
 from `/nas`, so existing local-storage paths and image URLs remain compatible.
 Copy media to the read-only bind directory. Copy the database using SQLite's
 backup API, not a live copy of the main file without its WAL:
@@ -89,7 +95,8 @@ Keep these and all credentials outside Git. Reconcile them with
 [the runtime guide](Hanning-runtime.md), rather than treating historical image IDs
 or paths in that document as live production state.
 
-After reviewing the trusted host in the normalized input, prepare release files:
+After reviewing the trusted host and pinning both old service images to the
+inspected immutable ID/digest in the normalized input, prepare release files:
 
 ```sh
 python scripts/prepare_hanning_1232_compose.py production.json \

@@ -10,7 +10,7 @@ spec.loader.exec_module(module)
 class PrepareComposeTests(unittest.TestCase):
     def setUp(self):
         self.source = {'name': 'existing-production', 'services': {
-            name: {'image': 'old-image', 'environment': {'LABEL_STUDIO_HOST': 'https://labels.example.test',
+            name: {'image': 'sha256:' + 'b' * 64, 'environment': {'LABEL_STUDIO_HOST': 'https://labels.example.test',
                     'USER_ADDITIONAL_BANNED_SUBNETS': '169.254.0.0/16'},
                    'volumes': [{'type': 'volume', 'source': 'existing-data', 'target': '/label-studio/data'}],
                    'networks': ['existing-network']}
@@ -27,7 +27,7 @@ class PrepareComposeTests(unittest.TestCase):
             self.assertEqual(upgrade['services'][name]['networks'], ['existing-network'])
             self.assertEqual(upgrade['services'][name]['image'], self.image)
             self.assertEqual(upgrade['services'][name]['environment']['SSRF_PROTECTION_ENABLED'], 'true')
-        self.assertEqual(self.source['services']['app']['image'], 'old-image')
+        self.assertEqual(self.source['services']['app']['image'], 'sha256:' + 'b' * 64)
 
     def test_rejects_missing_host_and_mismatched_old_images(self):
         del self.source['services']['app']['environment']['LABEL_STUDIO_HOST']
@@ -40,6 +40,12 @@ class PrepareComposeTests(unittest.TestCase):
     def test_rejects_mutable_image_tag(self):
         with self.assertRaises(ValueError):
             module.prepare(self.source, 'label-studio:latest')
+
+    def test_rejects_mutable_rollback_image(self):
+        for service in self.source['services'].values():
+            service['image'] = 'label-studio:old'
+        with self.assertRaisesRegex(ValueError, 'Pin the old'):
+            module.prepare(self.source, self.image)
 
 
 if __name__ == '__main__':

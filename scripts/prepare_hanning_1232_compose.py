@@ -22,6 +22,8 @@ def prepare(source, image, app='app', worker='worker'):
         raise ValueError('Both selected services must exist and have a recorded image')
     if services[app]['image'] != services[worker]['image']:
         raise ValueError('Inspect the different app/worker images before preparing a release')
+    if not re.fullmatch(r'(?:sha256:|[^\s]+@sha256:)[0-9a-f]{64}', services[app]['image']):
+        raise ValueError('Pin the old app/worker image ID or digest in the reviewed input for rollback')
     upgraded = copy.deepcopy(source)
     for name in (app, worker):
         service = upgraded['services'][name]
