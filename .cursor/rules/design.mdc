@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Label Studio Design System
 
-This rule provides guidance for creating user interfaces consistent with the HumanSignal design language. For complete details, see `DESIGN.md` in the repository root.
+This rule provides guidance for creating user interfaces consistent with the HumanSignal design language. For complete details, see `docs/development/DESIGN.md`.
 
 ## Brand & Personality
 
@@ -324,4 +324,4 @@ export const Primary: Story = {
 - `typescript.mdc` - TypeScript conventions
 - `frontend-unit-tests.mdc` - Testing patterns
 
-**Full Documentation**: See `DESIGN.md` in repository root
+**Full Documentation**: See `docs/development/DESIGN.md`

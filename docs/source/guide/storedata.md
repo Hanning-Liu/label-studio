@@ -60,7 +60,7 @@ An example docker-compose file for this is available in the [Label Studio reposi
 To run MinIO alongside your Label Studio instance, use the following command:
 ````bash
 # Add sudo on Linux if you are not a member of the docker group
-docker compose -f docker-compose.yml -f docker-compose.minio.yml up -d
+docker compose -f docker-compose.yml -f deploy/upstream/docker-compose.minio.yml up -d
 ````
 The MinIO server will be accessible at http://localhost:9000. 
 To configure MinIO settings, create a `.env` file. Remember to override the default credentials.
@@ -71,9 +71,9 @@ MINIO_ROOT_PASSWORD=minio_admin_do_not_use_in_production
 
 # To automatically select the right compose file for minio you can add on of the following lines:
 # Windows
-COMPOSE_FILE=docker-compose.yml;docker-compose.minio.yml
+COMPOSE_FILE=docker-compose.yml;deploy/upstream/docker-compose.minio.yml
 # Linux/Mac
-COMPOSE_FILE=docker-compose.yml:docker-compose.minio.yml
+COMPOSE_FILE=docker-compose.yml:deploy/upstream/docker-compose.minio.yml
 
 # To use a specific minio version you can set the following env var
 # MINIO_VERSION=RELEASE.2025-04-22T22-12-26Z
@@ -99,7 +99,7 @@ After modifying your hosts file, you can connect to your MinIO server with your 
 You can remove your MinIO installation by removing the containers and the associated volumes. 
 This operation is destructive and will remove all data stored in MinIO.
 ```bash
-docker-compose -f docker-compose.minio.yml down --volumes
+docker compose --project-directory . -f deploy/upstream/docker-compose.minio.yml down --volumes
 ```
 
 

@@ -41,7 +41,7 @@ jobs:
     with:
       base_docker_image_version: ${{ inputs.ref_name || github.ref_name }}
       tags: "hf-latest,hf-${{ inputs.ref_name || github.ref_name }}"
-      dockerfile_path: Dockerfile.hgface
+      dockerfile_path: deploy/upstream/Dockerfile.hgface
       ref: ${{ inputs.ref_name || github.ref_name }}
     secrets: inherit
 

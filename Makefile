@@ -21,7 +21,7 @@ env-dev-setup:
 
 docker-dev-override:
 	if [ ! -f docker-compose.override.yml ]; then \
-		cp docker-compose.override.example.yml docker-compose.override.yml; \
+		cp deploy/upstream/docker-compose.override.example.yml docker-compose.override.yml; \
 	fi
 
 # Configure Django dev server with Hot Module Replacement in docker
@@ -66,7 +66,7 @@ test:
 
 # Build image which includes test dependencies, for unit testing within docker
 build-testing-image:
-	docker build -t heartexlabs/label-studio:latest . && docker build -t heartexlabs/label-studio:latest-testing -f Dockerfile.testing .
+	docker build -t heartexlabs/label-studio:latest . && docker build -t heartexlabs/label-studio:latest-testing -f deploy/upstream/Dockerfile.testing .
 
 # Run an interactive shell inside a testing container. Label studio dir will be mounted as a volume
 # to avoid need for rebuilds. Run `make build-testing-image` first.

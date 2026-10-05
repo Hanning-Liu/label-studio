@@ -31,7 +31,7 @@ services:
     #    ports:
     #      - "9090:9090"
     volumes:
-      - "./prometheus/minio/prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "./deploy/upstream/prometheus/minio/prometheus.yml:/etc/prometheus/prometheus.yml"
       - "prometheus-data:/prometheus"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"

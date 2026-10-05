@@ -1,5 +1,7 @@
 # 本机项目目录整理
 
+后续根目录整理见 [维护记录](../docs/development/ROOT-CLEANUP.md)：开发及测试 Dockerfile 已移至 `deploy/upstream/`，下面的 6 个根目录 Dockerfile 为首次整理时的历史数量。
+
 2026-10-05，三个项目目录统一移入 `/Users/Bill_Admin/Research/label-studio-project/`：
 
 - `label-studio-upgrade-1.23.2/`：当前开发仓库。
