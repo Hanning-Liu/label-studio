@@ -197,6 +197,7 @@ packages = [
     { include = "hanning" },
 ]
 include = [
+    { path = "hanning/backend/project_creation/templates/*.xml", format = ["sdist", "wheel"] },
     { path = "hanning/catalog/*.json", format = ["sdist", "wheel"] },
     { path = "hanning/backend/**/*.json", format = ["sdist", "wheel"] },
     { path = "hanning/scripts/**/*.json", format = ["sdist", "wheel"] },

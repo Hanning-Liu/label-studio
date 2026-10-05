@@ -21,6 +21,8 @@ export const API_CONFIG = {
     project: "/projects/:pk",
     updateProject: "PATCH:/projects/:pk",
     createProject: "POST:/projects",
+    hierarchySources: "GET:/projects/hierarchy/",
+    createHierarchyProject: "POST:/projects/hierarchy/",
     deleteProject: "DELETE:/projects/:pk",
     projectResetCache: "POST:/projects/:pk/summary/reset",
 

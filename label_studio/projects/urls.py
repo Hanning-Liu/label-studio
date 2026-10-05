@@ -3,6 +3,7 @@
 from django.urls import include, path
 
 from . import api, views
+from hanning.backend.project_creation.api import HierarchyProjectAPI
 
 app_name = 'projects'
 
@@ -15,6 +16,7 @@ _urlpatterns = [
 
 # reverse for projects:api:name
 _api_urlpatterns = [
+    path('hierarchy/', HierarchyProjectAPI.as_view(), name='hierarchy-create'),
     # CRUD
     path('', api.ProjectListAPI.as_view(), name='project-list'),
     path('<int:pk>/', api.ProjectAPI.as_view(), name='project-detail'),

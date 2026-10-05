@@ -101,8 +101,8 @@ open http://localhost:18085
 
 ## 5. 创建第一个房间与窗项目
 
-1. 点击 **Create Project**，输入项目名，例如「L1 房间与窗」。
-2. 在 **Labeling Setup → Code** 中，完整粘贴仓库 [`examples/room-window-annotation/room-window-v1.xml`](../examples/room-window-annotation/room-window-v1.xml) 的内容并保存。该模板开启本仓库 L1 房间、门通道和窗功能；不要用普通矩形标注模板替代。
+1. 点击 **Create**，选择 **L1 房间、门与窗**，输入项目名，例如「L1 房间与窗」。
+2. 点击 **创建 L1 项目**。系统自动配置房间、门通道与窗模板，不需要粘贴 XML。原来的自定义模板入口保留在 **普通项目 / 自定义模板** 中。
 3. 使用 **Import** 上传自己的 `floorplan.png`，进入任务。默认读取数据字段 `image`。
 4. 顶部选择「房间」及类型，右侧选择 Rectangle 或 Polygon，完成一个合法房间后提交，刷新并重新打开，检查形状和类型仍存在。
 5. 门不能侵入房间净空间；窗需沿房间边界。若提交被几何规则阻止，根据定位提示修正后再提交。Polygon 需要正交化时，选中该区域，使用右侧区域属性中的「正交化（横平竖直）」按钮。
@@ -115,7 +115,17 @@ open http://localhost:18085
 
 1.23.2 会检查所属项目的 Local Files 存储权限，只有挂载和 URL、没有 Source Storage 时图片会返回 404。这是访问规则，不应通过关闭防护绕过。本机媒体是只读挂载，可作为 Source Storage，不可作为写出标注的 Target Storage。
 
-L2–L4 依赖正式上游标注和明确的来源绑定，不会在安装时自动生成。继续参考 [层级标注](../docs/l4-hierarchical-annotation.md)、[参考同步](README.l3-reference-sync.md)、[L4 创建](README.l4-furniture-instances.md#create-an-l4-project-explicitly)及[窗参考链](L1-L4-window-lineage.md)。旧指南中的固定容器名，在本入口下改用：
+### 从同一张图片继续创建 L2–L4
+
+1. 在 L1 图片任务中点击 **Submit / Update**，确保修改已正式提交。
+2. 回到项目列表，点击 **Create → L2 功能分区**。
+3. 选择刚才的 L1 项目和图片，填写新项目名，点击 **创建 L2 项目**。只有一个可用项目及一张图片时会自动选中。
+4. 系统引用原图片、导入只读参考并建立同步绑定；进入新项目后完成 L2 标注并提交。
+5. 再通过 **Create → L3** 选择该 L2 图片；完成并提交 L3 后，通过 **Create → L4** 选择该 L3 图片。
+
+每次创建只带入选中的一张图片。缺少唯一有效正式标注、来源过期或来源链校验失败时，界面显示原因并阻止创建；草稿不能替代正式标注。上游选择后再次修改时，点击“刷新来源”后重新选择。不会自动完成下游人工标注，也不会改动上游结果。图片仍引用上游文件，请保留上游项目及媒体。
+
+L2 的参考更新沿用自动同步，L3/L4 沿用人工检查与应用。继续参考 [层级标注](../docs/l4-hierarchical-annotation.md)、[参考同步](README.l3-reference-sync.md)、[L4 创建](README.l4-furniture-instances.md#create-an-l4-project-explicitly)及[窗参考链](L1-L4-window-lineage.md)。管理命令仍可用于批量维护；旧指南中的固定容器名，在本入口下改用：
 
 ```sh
 ./deploy/macos.sh exec app python /label-studio/label_studio/manage.py COMMAND --help

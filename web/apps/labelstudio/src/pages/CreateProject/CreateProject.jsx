@@ -16,6 +16,47 @@ import { useDraftProject } from "./utils/useDraftProject";
 import { Input, TextArea } from "../../components/Form";
 import { FF_LSDV_E_297, isFF } from "../../utils/feature-flags";
 import { createURL } from "../../components/HeidiTips/utils";
+import { HierarchyProjectForm } from "@hanning/frontend/projectCreation/HierarchyProjectForm";
+
+const hierarchyResponse = async (response) => {
+  if (!response) throw new Error("无法连接服务，请重试。");
+  const data = await response.json();
+  if (!response.ok) {
+    const messages = data.validation_errors || data.detail || data;
+    const text = typeof messages === "string" ? messages : Object.values(messages).flat().join("；");
+    throw new Error(text || "创建失败，请检查来源后重试。");
+  }
+  return data;
+};
+
+export const CreateProject = ({ onClose }) => {
+  const [standard, setStandard] = React.useState(false);
+  const api = useAPI();
+  const history = useHistory();
+  const loadSources = React.useCallback(
+    async (params) => hierarchyResponse(await api.callApi("hierarchySourcesRaw", { params })),
+    [api],
+  );
+  const createProject = React.useCallback(
+    async (body) => {
+      const result = await hierarchyResponse(await api.callApi("createHierarchyProjectRaw", { body }));
+      onClose?.();
+      history.push(`/projects/${result.id}/data`);
+    },
+    [api, history, onClose],
+  );
+  if (standard) return <StandardCreateProject onClose={onClose} />;
+  return (
+    <Modal visible bare allowClose={false} closeOnClickOutside={false} style={{ width: 760, maxWidth: "95vw" }}>
+      <HierarchyProjectForm
+        loadSources={loadSources}
+        createProject={createProject}
+        onCancel={onClose}
+        onStandard={() => setStandard(true)}
+      />
+    </Modal>
+  );
+};
 
 const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, setDescription, show = true }) =>
   !show ? null : (
@@ -85,7 +126,7 @@ const ProjectName = ({ name, setName, onSaveName, onSubmit, error, description, 
     </form>
   );
 
-export const CreateProject = ({ onClose }) => {
+const StandardCreateProject = ({ onClose }) => {
   const [step, _setStep] = React.useState("name"); // name | import | config
   const [waiting, setWaitingStatus] = React.useState(false);
 
