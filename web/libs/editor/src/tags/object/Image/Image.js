@@ -18,6 +18,7 @@ import { Occupancy } from "@hanning/frontend/models/Occupancy";
 import { RoomWindows } from "@hanning/frontend/models/RoomWindows";
 import { FurnitureInstances } from "@hanning/frontend/models/FurnitureInstances";
 import { IsReadyWithDepsMixin } from "../../../mixins/IsReadyMixin";
+import { showRoomValidationWarning } from "@hanning/frontend/components/rooms/submitValidation";
 import { showFurnitureInstanceValidationWarning } from "@hanning/frontend/components/furnitureInstances/submitValidation";
 import { BrushRegionModel } from "../../../regions/BrushRegion";
 import { EllipseRegionModel } from "../../../regions/EllipseRegion";
@@ -791,7 +792,8 @@ const Model = types
         );
         return false;
       }
-      const roomErrors = self.refreshRoomV3Metadata();
+      const roomIssues = [];
+      const roomErrors = self.refreshRoomV3Metadata(roomIssues);
       self.refreshWindowDerivations();
       const windowErrors = self.validateWindows();
       if (windowErrors.length) {
@@ -804,8 +806,13 @@ const Model = types
         );
         return false;
       }
-      const errors = [...roomErrors, ...self.validateFunctionZoneV3(), ...self.validateWholeRoomInheritance()];
+      const otherErrors = [...self.validateFunctionZoneV3(), ...self.validateWholeRoomInheritance()];
+      const errors = [...roomErrors, ...otherErrors];
       if (!errors.length) return true;
+      if (self.l1ToolbarEnabled && roomIssues.length) {
+        showRoomValidationWarning(self, [...roomIssues, ...otherErrors.map((message) => ({ message, regionIds: [] }))]);
+        return false;
+      }
       InfoModal.warning(`v3 几何校验未通过：\n${errors.map((error) => `• ${error}`).join("\n")}`);
       return false;
     },

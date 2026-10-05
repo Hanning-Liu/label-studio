@@ -1,5 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
+import { showRoomValidationWarning } from "@hanning/frontend/components/rooms/submitValidation";
+jest.mock("@hanning/frontend/components/rooms/submitValidation", () => ({ showRoomValidationWarning: jest.fn() }));
 import { L1Controls } from "@hanning/frontend/components/rooms/L1Controls";
 import fs from "fs";
 import path from "path";
@@ -66,6 +68,24 @@ const setup = (xml = config()) => {
 
 describe("L1 tool dock", () => {
   afterEach(cleanup);
+  test("L1 submission uses actionable geometry issues without changing serialized geometry", () => {
+    const { image, annotation } = setup();
+    annotation.deserializeAnnotation([
+      { id: "room-overlap", from_name: "room_rectangle", to_name: "image", type: "rectanglelabels",
+        value: { x: 10, y: 20, width: 40, height: 30, rotation: 0, rectanglelabels: ["Bedroom"] } },
+      { id: "door-overlap", from_name: "portal_rectangle", to_name: "image", type: "rectanglelabels",
+        value: { x: 20, y: 19, width: 10, height: 2, rotation: 0, rectanglelabels: ["Door"] } },
+    ]);
+    image.refreshRoomV3Metadata();
+    image.refreshWindowDerivations();
+    const before = annotation.serializeAnnotation();
+    expect(image.validate()).toBe(false);
+    expect(showRoomValidationWarning).toHaveBeenCalledWith(image, expect.arrayContaining([
+      expect.objectContaining({ regionIds: ["door-overlap", "room-overlap"], message: expect.stringContaining("净空间") }),
+    ]));
+    expect(annotation.serializeAnnotation()).toEqual(before);
+  });
+
   test("recognizes current template without changing the stored configuration", () => {
     const { image, annotation, store } = setup();
     expect(image.l1ToolbarEnabled).toBe(true);

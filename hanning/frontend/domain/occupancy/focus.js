@@ -1,5 +1,5 @@
 import { reviewFocusFit } from "@hanning/frontend/domain/rooms/vectorReviewFocus";
-export async function focusOccupancy(item, geometry) {
+export async function focusOccupancy(item, geometry, dockSelector = '[data-testid="occupancy-review-dock"]') {
   if (item.annotation.isDrawing || item.annotation.hasIncompletePolygons) throw new Error("请先完成绘制");
   const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
   await frame();
@@ -10,7 +10,7 @@ export async function focusOccupancy(item, geometry) {
   const points = geometry.flat(2);
   for (let pass = 0; pass < 3; pass++) {
     const bounds = scroll.getBoundingClientRect(),
-      dock = scroll.querySelector('[data-testid="occupancy-review-dock"]');
+      dock = scroll.querySelector(dockSelector);
     const top = bounds.top + (dock?.getBoundingClientRect().height || 0);
     scroll.scrollTop += container.getBoundingClientRect().top - top;
     await frame();

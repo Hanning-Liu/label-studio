@@ -20,7 +20,7 @@ import { isAlive } from "mobx-state-tree";
 import { formatFunctionZoneRoomLabel } from "@hanning/frontend/domain/rooms/functionZoneValidationLabels";
 
 export const roomMetadataActions = (self) => ({
-    refreshRoomV3Metadata() {
+    refreshRoomV3Metadata(issues = []) {
       if (!self.roomv3validate) return [];
       const tolerance = Number.parseFloat(self.roomv3tolerance) || 0.02;
       const rooms = self.roomV3Regions
@@ -40,13 +40,18 @@ export const roomMetadataActions = (self) => ({
         })
         .filter((room) => room.result);
       const errors = [];
+      // Optional presentation details stay outside annotation/result serialization.
+      const report = (message, regions, hint) => {
+        errors.push(message);
+        issues.push({ message, regionIds: regions.map((region) => region.cleanId), hint });
+      };
       rooms.forEach((room) => {
-        if (!isSimplePolygon(room.polygon)) errors.push(`房间 ${room.id} 的几何无效或存在自交。`);
+        if (!isSimplePolygon(room.polygon)) report(`房间 ${room.id} 的几何无效或存在自交。`, [room.region], "请检查多边形边线是否交叉，或区域是否退化为线。");
       });
       for (let first = 0; first < rooms.length; first++) {
         for (let second = first + 1; second < rooms.length; second++) {
           if (polygonsHavePositiveOverlap(rooms[first].polygon, rooms[second].polygon, tolerance)) {
-            errors.push(`房间 ${rooms[first].id} 与 ${rooms[second].id} 发生面积重叠。`);
+            report(`房间 ${rooms[first].id} 与 ${rooms[second].id} 发生面积重叠。`, [rooms[first].region, rooms[second].region], "请调整两个房间的边界，消除重叠面积。");
           }
         }
       }
@@ -92,7 +97,7 @@ export const roomMetadataActions = (self) => ({
           const polygon = regionToInternalPolygon(portal, self);
           const geometry = rectanglePortalGeometry(polygon, tolerance);
           if (!geometry) {
-            errors.push(`Portal ${portal.cleanId} 的矩形几何无效。`);
+            report(`Portal ${portal.cleanId} 的矩形几何无效。`, [portal], "请检查矩形的宽度和高度。");
           } else {
             const contacts = analyzeBoundaryContacts(geometry.longEdges);
             boundarySegments = contacts.contacts;
@@ -101,20 +106,26 @@ export const roomMetadataActions = (self) => ({
             const duplicatedRoom = connectedRoomIds.some(
               (roomId) => contacts.segmentRooms.filter((roomIds) => roomIds.has(roomId)).length > 1,
             );
-            const overlapsRoomInterior = rooms.some((room) =>
+            const overlappingRooms = rooms.filter((room) =>
               polygonsHavePositiveOverlap(polygon, room.polygon, tolerance),
             );
             if (connectedRoomIds.length === 0 || connectedRoomIds.length > 2) {
-              errors.push(`Portal ${portal.cleanId} 必须连接 1 个室内房间（入户）或 2 个室内房间。`);
+              report(`Portal ${portal.cleanId} 必须连接 1 个室内房间（入户）或 2 个室内房间。`, [portal], "请将门或通道的长边贴合房间边界。");
             }
             if (connectedRoomIds.length === 2 && occupiedLongEdges !== 2) {
-              errors.push(`Portal ${portal.cleanId} 的两条房间侧长边必须分别与两个房间共边。`);
+              report(`Portal ${portal.cleanId} 的两条房间侧长边必须分别与两个房间共边。`, [portal], "请调整位置、旋转或尺寸，让两条长边分别贴合两侧房间。");
             }
             if (connectedRoomIds.length === 1 && occupiedLongEdges !== 1) {
-              errors.push(`入户 Portal ${portal.cleanId} 只能有一条房间侧长边与室内房间共边。`);
+              report(`入户 Portal ${portal.cleanId} 只能有一条房间侧长边与室内房间共边。`, [portal], "请检查入户门是否只与一个室内房间相接。");
             }
-            if (duplicatedRoom) errors.push(`Portal ${portal.cleanId} 的两条长边不能同时连接同一房间。`);
-            if (overlapsRoomInterior) errors.push(`Portal ${portal.cleanId} 不得进入房间净空间内部。`);
+            if (duplicatedRoom) report(`Portal ${portal.cleanId} 的两条长边不能同时连接同一房间。`, [portal], "请检查矩形的朝向与两侧房间边界。");
+            if (overlappingRooms.length) {
+              report(
+                `Portal ${portal.cleanId} 不得进入房间净空间内部。`,
+                [portal, ...overlappingRooms.map((room) => room.region)],
+                "门／通道矩形与下列房间存在面积重叠。请缩小或移动矩形，或修正房间边界，让矩形位于墙体开口内、长边贴合房间边界。",
+              );
+            }
             clearWidthPercent = geometry.clearWidth;
             depthPercent = geometry.depth;
             centerline = geometry.centerline;
@@ -126,7 +137,7 @@ export const roomMetadataActions = (self) => ({
         } else {
           const segment = vectorToInternalSegment(portal, self);
           if (!segment || segmentLength(segment) <= tolerance) {
-            errors.push(`Open passage ${portal.cleanId} 必须是正长度两点 Vector。`);
+            report(`Open passage ${portal.cleanId} 必须是正长度两点 Vector。`, [portal], "请使用两个不同端点绘制开放通道。");
           } else {
             const contacts = analyzeBoundaryContacts([segment]);
             boundarySegments = contacts.contacts;
@@ -139,10 +150,10 @@ export const roomMetadataActions = (self) => ({
               return supportedLength >= segmentLength(segment) - tolerance;
             });
             if (openingType !== "open_passage") {
-              errors.push(`Portal Vector ${portal.cleanId} 只允许标注 Open passage。`);
+              report(`Portal Vector ${portal.cleanId} 只允许标注 Open passage。`, [portal], "门与推拉门请使用 Rectangle；无墙体进深的开放通道才使用 Vector。");
             }
             if (connectedRoomIds.length !== 2 || !fullySupported) {
-              errors.push(`Open passage ${portal.cleanId} 必须完整位于两个房间的共享边界上。`);
+              report(`Open passage ${portal.cleanId} 必须完整位于两个房间的共享边界上。`, [portal], "请将两个端点及整条线段放在两间房的共同边界上。");
             }
             clearWidthPercent = segmentLength(segment);
             clearWidthPx = segmentLength(segment.map(pointToPixels));
