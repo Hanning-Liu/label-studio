@@ -1,3 +1,4 @@
+import { L1RegionCategory } from "@hanning/frontend/components/rooms/L1RegionCategory";
 import React from "react";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { showRoomValidationWarning } from "@hanning/frontend/components/rooms/submitValidation";
@@ -66,6 +67,27 @@ const setup = (xml = config()) => {
   return { store, annotation, image, tools: image.getToolsManager().allTools() };
 };
 
+const polygonSetup = () => {
+  const state = setup();
+  const { image, annotation } = state;
+  image.currentImageEntity.setNaturalWidth(693);
+  image.currentImageEntity.setNaturalHeight(1000);
+  image.currentImageEntity.setDownloading(false);
+  image.currentImageEntity.setDownloaded(true);
+  image.currentImageEntity.setImageLoaded(true);
+  annotation.deserializeAnnotation([
+    { id: "orthogonal-room", from_name: "room_polygon", to_name: "image", type: "polygonlabels",
+      original_width: 693, original_height: 1000,
+      value: { points: [[10, 10], [30, 10.2], [30.3, 40], [10.1, 39.8]], closed: true, polygonlabels: ["Bedroom"] },
+      meta: { room_graph_node: { schema_version: 3, node_id: "orthogonal-room", room_type: "Bedroom", geometry_type: "polygon" }, custom: "keep" } },
+    { id: "other-room", from_name: "room_rectangle", to_name: "image", type: "rectanglelabels",
+      value: { x: 60, y: 60, width: 20, height: 20, rotation: 0, rectanglelabels: ["Kitchen"] } },
+  ]);
+  const region = image.regs.find((r) => r.cleanId === "orthogonal-room");
+  annotation.selectAreas([region]);
+  return { ...state, region };
+};
+
 describe("L1 tool dock", () => {
   afterEach(cleanup);
   test("L1 submission uses actionable geometry issues without changing serialized geometry", () => {
@@ -92,6 +114,70 @@ describe("L1 tool dock", () => {
     expect(image.currentZoom).toBe(0.5);
     image.setZoom(0.5);
     expect(image.currentZoom).toBe(1);
+  });
+
+  test("orthogonalization is one undoable edit and preserves IDs, metadata, labels and other regions", () => {
+    const { image, annotation, region } = polygonSetup();
+    const before = annotation.serializeAnnotation();
+    const pointIds = region.points.map((point) => point.id);
+    expect(image.orthogonalizeL1Room(region)).toBe(true);
+    const after = annotation.serializeAnnotation();
+    expect(region.points.map((point) => point.id)).toEqual(pointIds);
+    expect(after[0].value.points).not.toEqual(before[0].value.points);
+    expect({ ...after[0], value: { ...after[0].value, points: before[0].value.points } }).toEqual(before[0]);
+    expect(after[1]).toEqual(before[1]);
+    annotation.history.undo();
+    expect(annotation.serializeAnnotation()).toEqual(before);
+    annotation.history.redo();
+    expect(annotation.serializeAnnotation()).toEqual(after);
+    annotation.selectAreas([region]);
+    const undoIndex = annotation.history.undoIdx;
+    expect(image.orthogonalizeL1Room(region)).toBe(false);
+    expect(annotation.history.undoIdx).toBe(undoIndex);
+    const reopened = setup();
+    reopened.image.currentImageEntity.setNaturalWidth(693);
+    reopened.image.currentImageEntity.setNaturalHeight(1000);
+    reopened.annotation.deserializeAnnotation(after);
+    expect(reopened.annotation.serializeAnnotation()).toEqual(after);
+  });
+
+  test("orthogonalization rejects incomplete drawing, read-only, saving, multiple selection and wrong shape", () => {
+    const { image, annotation, region } = polygonSetup();
+    const before = annotation.serializeAnnotation();
+    annotation.setIsDrawing(true);
+    expect(() => image.orthogonalizeL1Room(region)).toThrow("完成绘制");
+    annotation.setIsDrawing(false);
+    const readonly = jest.spyOn(region, "isReadOnly").mockReturnValue(true);
+    expect(() => image.orthogonalizeL1Room(region)).toThrow("只读");
+    readonly.mockRestore();
+    annotation.submissionInProgress();
+    expect(() => image.orthogonalizeL1Room(region)).toThrow("正在保存");
+    annotation.submissionFinished();
+    annotation.unselectAreas();
+    expect(() => image.orthogonalizeL1Room(region)).toThrow("只选中一个");
+    annotation.selectAreas(image.regs);
+    expect(() => image.orthogonalizeL1Room(region)).toThrow("只选中一个");
+    expect(() => image.orthogonalizeL1Room(image.regs.find((r) => r.cleanId === "other-room"))).toThrow("Polygon");
+    expect(annotation.serializeAnnotation()).toEqual(before);
+  });
+
+  test("region properties expose the Polygon button and explain no-op and unsafe geometry", () => {
+    const { image, region, annotation } = polygonSetup();
+    render(<L1RegionCategory region={region} />);
+    fireEvent.click(screen.getByRole("button", { name: "正交化选中的 Polygon 房间" }));
+    expect(screen.getByRole("status")).toHaveTextContent("已正交化");
+    fireEvent.click(screen.getByRole("button", { name: "正交化选中的 Polygon 房间" }));
+    expect(screen.getByRole("status")).toHaveTextContent("无需调整");
+    act(() => annotation.history.undo());
+    expect(screen.getByRole("status")).not.toHaveTextContent("已正交化");
+    act(() => { annotation.selectAreas([region]); region.setPoints([10, 10, 30, 40, 30, 10, 10, 40]); });
+    const before = annotation.serializeAnnotation();
+    fireEvent.click(screen.getByRole("button", { name: "正交化选中的 Polygon 房间" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("自交");
+    expect(annotation.serializeAnnotation()).toEqual(before);
+    cleanup();
+    render(<L1RegionCategory region={image.regs.find((r) => r.cleanId === "other-room")} />);
+    expect(screen.queryByRole("button", { name: "正交化选中的 Polygon 房间" })).toBeNull();
   });
 
   test("recognizes current template without changing the stored configuration", () => {

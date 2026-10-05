@@ -1,4 +1,5 @@
-import { types } from "mobx-state-tree";
+import { orthogonalizePolygon } from "@hanning/frontend/domain/rooms/orthogonalize";
+import { applySnapshot, getSnapshot, types } from "mobx-state-tree";
 import { l1Configuration, l1Entries, l1LabelKey, l1ToolShape } from "@hanning/frontend/domain/rooms/l1Tools";
 
 const initial = () => ({
@@ -31,6 +32,18 @@ export const L1Tools = types
         return self.l1Selection.shape === "vector"
           ? "请先按 Enter 完成绘制，或按 Esc 取消"
           : "请先完成绘制或按 Esc 取消";
+      return "";
+    },
+    l1OrthogonalizeBlockReason(region) {
+      if (!self.l1ToolbarEnabled || region?.parent !== self || region?.type !== "polygonregion" ||
+          !region.results.some((result) => self.roomV3RoomControlNames.has(result.from_name?.name)))
+        return "请选择 L1 Polygon 房间";
+      if (self.l1SwitchBlockReason) return self.l1SwitchBlockReason;
+      if (region.isReadOnly()) return "当前区域为只读";
+      if (self.annotation.selectedRegions.length !== 1 || self.annotation.selectedRegions[0] !== region)
+        return "请只选中一个 Polygon 房间";
+      if (!region.closed) return "请先完成多边形绘制";
+      if (!self.imageIsLoaded) return "图片加载完成后才能正交化";
       return "";
     },
     l1ToolBlockReason(tool, starting = false) {
@@ -185,6 +198,28 @@ export const L1Tools = types
         if (!self.l1ToolbarEnabled) return;
         clearLabels();
         tool.control.children.find((label) => l1LabelKey(label) === self.l1Selection.category)?.setSelected(true);
+      },
+      orthogonalizeL1Room(region) {
+        const blocked = self.l1OrthogonalizeBlockReason(region);
+        if (blocked) throw new Error(blocked);
+        const original = region.points.map(({ x, y }) => ({ x, y }));
+        const fitted = orthogonalizePolygon(original, self.naturalWidth, self.naturalHeight);
+        if (!fitted.changed) return false;
+        const previous = getSnapshot(region);
+        const history = self.annotation.history;
+        history.freeze("l1-orthogonalize");
+        try {
+          region.setPoints(fitted.points.flatMap(({ x, y }) => [x, y]));
+          if (region.points.some((p, i) => Math.abs(p.x - fitted.points[i].x) > 1e-7 || Math.abs(p.y - fitted.points[i].y) > 1e-7))
+            throw new Error("当前边界约束不允许完整正交化，已保留原形状。");
+          region.notifyDrawingFinished();
+          return true;
+        } catch (error) {
+          applySnapshot(region, previous);
+          throw error;
+        } finally {
+          history.unfreeze("l1-orthogonalize");
+        }
       },
       setL1RegionCategory(region, category) {
         if (self.l1SwitchBlockReason || region.isReadOnly()) return false;
