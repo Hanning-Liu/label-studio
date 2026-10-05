@@ -674,6 +674,10 @@ const Model = types
     return {
       views: {
         getSkipInteractions(region = null) {
+          if (self.l1ToolbarEnabled && region?.isDrawing) {
+            const tool = self.getToolsManager().findSelectedTool();
+            if (tool?.currentArea === region) return false;
+          }
           if (self.furnitureInstancesEnabled) {
             if (self.furnitureInstanceGeometryPreview || (region && !self.furnitureInstanceRegionInScope(region)))
               return true;

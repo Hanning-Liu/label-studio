@@ -23,7 +23,10 @@ export const L1Tools = types
     get l1SwitchBlockReason() {
       if (self.annotation?.isReadOnly() || self.annotation?.store?.annotationStore?.viewingAll) return "当前标注为只读";
       if (self.annotation?.submissionStarted) return "正在保存，请稍候";
-      if (self.annotation?.isDrawing || self.annotation?.hasIncompletePolygons) return "请先完成绘制或按 Esc 取消";
+      if (self.annotation?.isDrawing || self.annotation?.hasIncompletePolygons)
+        return self.l1Selection.shape === "vector"
+          ? "请先按 Enter 完成绘制，或按 Esc 取消"
+          : "请先完成绘制或按 Esc 取消";
       return "";
     },
     l1ToolBlockReason(tool, starting = false) {
@@ -82,7 +85,7 @@ export const L1Tools = types
           .getToolsManager()
           .allTools()
           .find((tool) => tool.toolName === "MoveTool");
-        if (move) self.getToolsManager().selectTool(move, true);
+        if (move) self.getToolsManager().selectTool(move, true, true);
       },
       selectL1Family(family) {
         const remembered = self.l1Selections[family];
@@ -102,6 +105,14 @@ export const L1Tools = types
         if (!entry || !category || self.annotation.isReadOnly()) return false;
         self.l1Family = entry.family;
         self.l1Selections = { ...self.l1Selections, [entry.family]: { category, shape: entry.shape } };
+        return true;
+      },
+      finishL1Vector() {
+        if (!self.l1ToolbarEnabled || self.annotation.isReadOnly() || !self.annotation.isDrawing) return false;
+        const tool = self.getToolsManager().findSelectedTool();
+        const area = tool?.getCurrentArea?.();
+        if (tool?.toolName !== "VectorTool" || !area || area.incomplete) return false;
+        tool.complete();
         return true;
       },
       cancelL1Drawing() {

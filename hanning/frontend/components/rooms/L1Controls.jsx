@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isAlive } from "mobx-state-tree";
 import { observer } from "mobx-react";
 import { l1Categories, L1_SHAPES } from "@hanning/frontend/domain/rooms/l1Tools";
 import styles from "./L1Controls.module.scss";
@@ -6,11 +7,14 @@ import styles from "./L1Controls.module.scss";
 export const L1Controls = observer(({ item }) => {
   const annotation = item.annotation;
   useEffect(() => {
-    item.resetL1Tools();
+    if (isAlive(item)) item.resetL1Tools();
   }, [item, annotation.id, annotation.store.task?.id]);
   useEffect(() => {
     const cancel = (event) => {
-      if (event.key === "Escape" && item.cancelL1Drawing()) {
+      if (
+        isAlive(item) &&
+        ((event.key === "Escape" && item.cancelL1Drawing()) || (event.key === "Enter" && item.finishL1Vector()))
+      ) {
         event.preventDefault();
         event.stopPropagation();
       }

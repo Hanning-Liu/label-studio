@@ -266,16 +266,23 @@ describe("L1 tool dock", () => {
 
   test("active L1 drawing can start on a room boundary without selecting the room", () => {
     const { image, tools } = setup();
-    const rectangle = tools.find(t => t.control?.name === "room_rectangle" && t.toolName === "RectangleTool" && !t.dynamic);
+    const rectangle = tools.find(
+      (t) => t.control?.name === "room_rectangle" && t.toolName === "RectangleTool" && !t.dynamic,
+    );
     expect(rectangle.shouldSkipInteractions({ evt: {} })).toBe(false);
     image.selectL1Category("Bedroom");
     expect(rectangle.shouldSkipInteractions({ evt: {} })).toBe(true);
     image.selectL1Family("opening");
     image.selectL1Category("Open passage");
-    const vector = tools.find(t => t.control?.name === "portal_vector");
+    const vector = tools.find((t) => t.control?.name === "portal_vector");
     image.getToolsManager().selectTool(vector, true);
     expect(vector.shouldSkipInteractions({ evt: {} })).toBe(true);
-    expect(tools.find(t => t.toolName === "MoveTool").shouldSkipInteractions({ evt: {} })).toBe(false);
+    const area = vector.createRegion(vector.createRegionOptions(), true);
+    area.setDrawing(true);
+    image.setSkipInteractions(true);
+    expect(image.getSkipInteractions()).toBe(true);
+    expect(image.getSkipInteractions(area)).toBe(false);
+    expect(tools.find((t) => t.toolName === "MoveTool").shouldSkipInteractions({ evt: {} })).toBe(false);
   });
 
   test("L2 template keeps its existing UI", () => {
