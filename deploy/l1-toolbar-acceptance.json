@@ -215,7 +215,7 @@
     "result_sha256": "50dca10b3f66266c5752ba47b8912caec68c4834f03636089130cee8eb2d19fa"
   },
   "sqlite_integrity": "ok",
-  "status": "implemented_deployed_final_chrome_layout_acceptance_pending_mac_unlock",
+  "status": "accepted_with_user_manual_verification",
   "image": {
     "tag": "hanning-label-studio:1.23.2-l1-d272ea9c",
     "id": "sha256:5ccc13c02ffed80aa1528634d0583f316627d8bfd647516ae6f7fe762b7e6382",
@@ -250,12 +250,21 @@
       "managed sections hidden",
       "sticky on native half-width window"
     ],
-    "pending": [
+    "layout_observation": "Earlier 1280x900 100% emulation clipped content including footer; 90% and native half-width checks showed footer. This historical observation is retained separately from the subsequent overall user manual acceptance.",
+    "agent_pending_before_manual_acceptance": [
       "final source submission-choice persistence in Chrome",
       "1280x900 final light and dark layout and submit visibility",
       "refresh Chrome onto final source and leave it visible"
     ],
-    "blocker": "Mac locked; native automation cannot unlock it. User asked to unlock.",
-    "layout_observation": "Earlier 1280x900 100% emulation clipped content including footer; 90% and native half-width checks showed footer. Final strict viewport check remains open."
+    "prior_agent_blocker": "Mac locked; native automation cannot unlock it. User asked to unlock.",
+    "pending": [],
+    "manual_acceptance": {
+      "date": "2026-10-05",
+      "reported_by": "user",
+      "statement": "我已经人工测试完成，没有问题。",
+      "result": "passed",
+      "scope": "Overall final UI acceptance; individual viewport/theme steps and new screenshots were not supplied.",
+      "closes_prior_agent_pending": true
+    }
   }
 }
