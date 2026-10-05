@@ -7,6 +7,10 @@ const initial = () => ({
   window: { category: "", shape: "vector" },
 });
 
+// The editor rebuilds annotation/image models after submission. Keep only UI
+// choices on the live editor store, and discard them when its task changes.
+const taskChoices = new WeakMap();
+
 export const L1Tools = types
   .model("L1Tools")
   .volatile(() => ({ l1Family: "room", l1Selections: initial() }))
@@ -50,8 +54,19 @@ export const L1Tools = types
     },
   }))
   .actions((self) => {
+    const session = () => {
+      const store = self.annotation.store;
+      const taskId = String(store.task?.id ?? "");
+      let state = taskChoices.get(store);
+      if (!state || state.taskId !== taskId) {
+        state = { taskId, images: new Map() };
+        taskChoices.set(store, state);
+      }
+      return state.images;
+    };
+    const remember = () => session().set(self.name, { family: self.l1Family, selections: self.l1Selections });
     const clearLabels = () => self.l1Config?.controls.forEach(({ control }) => control.unselectAll());
-    const activate = () => {
+    const activate = (initializing = false) => {
       self.annotation.unselectAreas();
       clearLabels();
       const tools = self.getToolsManager().allTools();
@@ -63,19 +78,34 @@ export const L1Tools = types
         entry &&
         tools.find((tool) => tool.control?.name === entry?.name && l1ToolShape(tool) === entry.shape);
       const move = tools.find((tool) => tool.toolName === "MoveTool");
-      if (tool || move) self.getToolsManager().selectTool(tool || move, true);
+      if (tool || move) {
+        if (initializing) self.getToolsManager().selectTool(tool || move, true, true);
+        else self.getToolsManager().selectTool(tool || move, true);
+      }
     };
-    const choose = (family, category, shape) => {
+    const choose = (family, category, shape, initializing = false) => {
       if (!self.l1ToolbarEnabled || self.l1SwitchBlockReason) return false;
       const entries = l1Entries(self.l1Config, family, category);
       if (!entries.length) return false;
       shape = entries.some((entry) => entry.shape === shape) ? shape : entries[0].shape;
       self.l1Family = family;
       self.l1Selections = { ...self.l1Selections, [family]: { category, shape } };
-      activate();
+      activate(initializing);
+      remember();
       return true;
     };
     return {
+      initializeL1Tools() {
+        if (!self.l1ToolbarEnabled) return;
+        const remembered = session().get(self.name);
+        if (!remembered) return self.resetL1Tools();
+        self.l1Family = remembered.family;
+        self.l1Selections = remembered.selections;
+        // Resolve the remembered shape against the current configuration.
+        const selection = self.l1Selection;
+        if (!choose(self.l1Family, selection.category, selection.shape, true) && !self.l1SwitchBlockReason)
+          self.resetL1Tools();
+      },
       resetL1Tools() {
         if (!self.l1ToolbarEnabled) return;
         self.l1Family = "room";
@@ -86,6 +116,7 @@ export const L1Tools = types
           .allTools()
           .find((tool) => tool.toolName === "MoveTool");
         if (move) self.getToolsManager().selectTool(move, true, true);
+        remember();
       },
       selectL1Family(family) {
         const remembered = self.l1Selections[family];
@@ -105,6 +136,7 @@ export const L1Tools = types
         if (!entry || !category || self.annotation.isReadOnly()) return false;
         self.l1Family = entry.family;
         self.l1Selections = { ...self.l1Selections, [entry.family]: { category, shape: entry.shape } };
+        remember();
         return true;
       },
       finishL1Vector() {
@@ -137,6 +169,7 @@ export const L1Tools = types
         else tool.deleteRegion();
         tool._resetState?.();
         self.syncL1DrawingLabels(tool);
+        remember();
         return true;
       },
       syncL1DrawingLabels(tool) {
@@ -161,6 +194,7 @@ export const L1Tools = types
         self.l1Selections = { ...self.l1Selections, [self.l1Family]: { ...self.l1Selection, shape } };
         self.annotation.unselectAreas();
         self.syncL1DrawingLabels(tool);
+        remember();
         return true;
       },
     };

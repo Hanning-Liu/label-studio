@@ -7,7 +7,7 @@ import styles from "./L1Controls.module.scss";
 export const L1Controls = observer(({ item }) => {
   const annotation = item.annotation;
   useEffect(() => {
-    if (isAlive(item)) item.resetL1Tools();
+    if (isAlive(item)) item.initializeL1Tools();
   }, [item, annotation.id, annotation.store.task?.id]);
   useEffect(() => {
     const cancel = (event) => {

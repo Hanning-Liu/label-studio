@@ -92,6 +92,29 @@ describe("L1 tool dock", () => {
     expect(image.l1Selection.category).toBe("");
   });
 
+  test("submission rebuild retains task choices, and changing tasks clears them", () => {
+    const { image, tools, store } = setup();
+    image.initializeL1Tools();
+    image.selectL1Category("Bedroom");
+    image.getToolsManager().selectTool(
+      tools.find((t) => t.control?.name === "room_polygon" && t.toolName === "PolygonTool" && !t.dynamic),
+      true,
+    );
+    image.selectL1Family("window");
+    image.selectL1Category("Window");
+    store.initializeStore({ annotations: [{ id: 2, result: [] }], predictions: [] });
+    const replacement = store.annotationStore.annotations[0].names.get("image");
+    replacement.initializeL1Tools();
+    expect(replacement.l1Family).toBe("window");
+    expect(replacement.l1Selection).toEqual({ category: "Window", shape: "vector" });
+    replacement.selectL1Family("room");
+    expect(replacement.l1Selection).toEqual({ category: "Bedroom", shape: "polygon" });
+    store.assignTask({ id: 2, data: { image: "https://example.com/next.png" } });
+    replacement.initializeL1Tools();
+    expect(replacement.l1Family).toBe("room");
+    expect(replacement.l1Selection).toEqual({ category: "", shape: "rectangle" });
+  });
+
   test("toolbar filters references and illegal shapes; empty category blocks drawing", () => {
     const { image, tools } = setup();
     const drawing = () => l1ToolbarTools(tools, image).filter((t) => t.isDrawingTool);
