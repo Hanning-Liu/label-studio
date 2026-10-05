@@ -1,0 +1,191 @@
+{
+  "from_baseline": [
+    {
+      "package": "annotated-doc",
+      "before": null,
+      "after": "0.0.5"
+    },
+    {
+      "package": "anyio",
+      "before": "4.2.0",
+      "after": "4.15.1"
+    },
+    {
+      "package": "black",
+      "before": "24.8.0",
+      "after": "26.5.1"
+    },
+    {
+      "package": "bleach",
+      "before": "5.0.1",
+      "after": "6.4.0"
+    },
+    {
+      "package": "cryptography",
+      "before": "46.0.5",
+      "after": "50.0.1"
+    },
+    {
+      "package": "datamodel-code-generator",
+      "before": "0.26.1",
+      "after": "0.79.0"
+    },
+    {
+      "package": "django",
+      "before": "5.1.15",
+      "after": "5.2.17"
+    },
+    {
+      "package": "djangorestframework",
+      "before": "3.15.2",
+      "after": "3.17.2"
+    },
+    {
+      "package": "dnspython",
+      "before": "2.6.1",
+      "after": null
+    },
+    {
+      "package": "doclang",
+      "before": null,
+      "after": "0.7.3"
+    },
+    {
+      "package": "email-validator",
+      "before": "2.2.0",
+      "after": null
+    },
+    {
+      "package": "idna",
+      "before": "3.7",
+      "after": "3.20"
+    },
+    {
+      "package": "label-studio-sdk",
+      "before": "2.0.18",
+      "after": "2.1.2"
+    },
+    {
+      "package": "lxml",
+      "before": "5.3.0",
+      "after": "6.1.3"
+    },
+    {
+      "package": "lxml-html-clean",
+      "before": "0.4.0",
+      "after": "0.4.5"
+    },
+    {
+      "package": "nltk",
+      "before": "3.9.3",
+      "after": "3.10.3"
+    },
+    {
+      "package": "pathspec",
+      "before": "0.12.1",
+      "after": "1.1.1"
+    },
+    {
+      "package": "pillow",
+      "before": "12.1.1",
+      "after": "12.3.0"
+    },
+    {
+      "package": "pyarrow",
+      "before": "22.0.0",
+      "after": "24.0.0"
+    },
+    {
+      "package": "pyasn1",
+      "before": "0.6.2",
+      "after": "0.6.4"
+    },
+    {
+      "package": "pydantic",
+      "before": "2.9.2",
+      "after": "2.13.5"
+    },
+    {
+      "package": "pydantic-core",
+      "before": "2.23.4",
+      "after": "2.46.5"
+    },
+    {
+      "package": "pygments",
+      "before": "2.16.1",
+      "after": "2.21.0"
+    },
+    {
+      "package": "pyjwt",
+      "before": "2.10.1",
+      "after": "2.13.0"
+    },
+    {
+      "package": "pytokens",
+      "before": null,
+      "after": "0.4.1"
+    },
+    {
+      "package": "requests",
+      "before": "2.32.4",
+      "after": "2.34.2"
+    },
+    {
+      "package": "setuptools",
+      "before": "80.10.1",
+      "after": "84.0.0"
+    },
+    {
+      "package": "shellingham",
+      "before": null,
+      "after": "1.5.4"
+    },
+    {
+      "package": "sqlparse",
+      "before": "0.5.5",
+      "after": "0.6.0"
+    },
+    {
+      "package": "tomli",
+      "before": "2.0.1",
+      "after": "2.4.1"
+    },
+    {
+      "package": "typer",
+      "before": null,
+      "after": "0.23.1"
+    },
+    {
+      "package": "typing-extensions",
+      "before": "4.15.0",
+      "after": "4.16.0"
+    },
+    {
+      "package": "typing-inspection",
+      "before": null,
+      "after": "0.4.4"
+    },
+    {
+      "package": "ujson",
+      "before": "5.8.0",
+      "after": "6.0.0"
+    },
+    {
+      "package": "urllib3",
+      "before": "2.6.3",
+      "after": "2.8.0"
+    },
+    {
+      "package": "watchfiles",
+      "before": null,
+      "after": "1.3.0"
+    }
+  ],
+  "from_official_1_23_2": [
+    {
+      "package": "shapely",
+      "before": null,
+      "after": "2.1.2"
+    }
+  ]
+}

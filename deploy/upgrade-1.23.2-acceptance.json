@@ -1,0 +1,296 @@
+{
+  "status": "待生产副本验收",
+  "production_ready": false,
+  "date": "2026-10-05",
+  "baseline": {
+    "branch": "integration/occupancy-room-window-l4-20260907",
+    "sha": "16de822e75d8cc1b86a15a93e8b4845426349324"
+  },
+  "upstream": {
+    "tag": "1.23.2",
+    "sha": "df96d79183156e556d91825d15fa7721f1145e1a"
+  },
+  "merge_sha": "391a5153680aadae47492e493d84439d59413f64",
+  "image": {
+    "tag": "hanning-label-studio:1.23.2-99540e67",
+    "id": "sha256:d68850b068ea4f65a1dafedfd0d7adb0173d7cbb25bee9accc8dec4d0b5e6a94",
+    "executable_sha": "99540e678f01c0a622631be741c5d886f411e745",
+    "platform": "linux/arm64",
+    "dockerfile": "deploy/Dockerfile.l4-furniture-instances.qa",
+    "version_override": "1.23.2",
+    "runtime": {
+      "application": "1.23.2",
+      "django": "5.2.17",
+      "sdk": "2.1.2",
+      "shapely": "2.1.2",
+      "hanning": "/label-studio/hanning/__init__.py",
+      "runtime_version": "1.23.2"
+    },
+    "archive": "images/hanning-label-studio-1.23.2-99540e67-linux-arm64.tar",
+    "archive_checksum_file": "images/SHA256SUMS",
+    "note": "Later commits change host-side QA/release tooling and reports; runtime image identifies the executable SHA above. Production platform remains unverified.",
+    "archive_sha256": "fcd2e85c77c7df386e9ef94828d58adfb3e95554412c58201619cca57bcda7bc"
+  },
+  "baseline_image": {
+    "tag": "hanning-label-studio:baseline-16de822e",
+    "id": "sha256:b24abc575a2e96625df478ca6916252bbbff5c3064a7390c7224fcecac62f81c"
+  },
+  "dependencies": {
+    "poetry": "2.3.2",
+    "check_lock": "passed",
+    "python": "3.13",
+    "node": "22",
+    "frontend_lockfile_unchanged": true,
+    "official_lock_delta": "Shapely 2.1.2 only",
+    "full_diff": "upgrade-1.23.2-dependencies.json"
+  },
+  "automated_checks": {
+    "editor": {
+      "baseline": {
+        "numPassedTests": 3773,
+        "numFailedTests": 61,
+        "numPendingTests": 5,
+        "numTotalTests": 3839
+      },
+      "upgrade": {
+        "numPassedTests": 3781,
+        "numFailedTests": 61,
+        "numPendingTests": 5,
+        "numTotalTests": 3847
+      },
+      "same_failing_names_and_full_normalized_messages": true,
+      "new_failures": 0,
+      "evidence": "upgrade-1.23.2-known-failures.json"
+    },
+    "datamanager": {
+      "baseline": {
+        "numPassedTests": 671,
+        "numFailedTests": 0,
+        "numPendingTests": 0,
+        "numTotalTests": 671
+      },
+      "upgrade": {
+        "numPassedTests": 671,
+        "numFailedTests": 0,
+        "numPendingTests": 0,
+        "numTotalTests": 671
+      }
+    },
+    "custom_typescript": {
+      "broad_baseline_diagnostics": 55,
+      "broad_upgrade_diagnostics": 55,
+      "identical_full_diagnostics": true,
+      "typed_entry": "passed on both"
+    },
+    "custom_backend": {
+      "baseline_passed": 169,
+      "upgrade_passed": 169
+    },
+    "scripts": {
+      "baseline_passed": 53,
+      "upgrade_initial_passed": 61,
+      "upgrade_final_passed": 62
+    },
+    "catalog": {
+      "baseline_and_upgrade": {
+        "catalog_unittest_passed": 3,
+        "backend_passed": 57,
+        "export_roundtrip_passed": 17
+      }
+    },
+    "upstream_security": {
+      "upgrade_passed": 107,
+      "evidence": "upgrade-security.xml"
+    },
+    "wheel_sdist": "1.23.2 isolated install and hanning resource checks passed",
+    "builds": "Both multi-stage runtime images built successfully; frontend compiled from source; runtime has no source bind mount"
+  },
+  "data": {
+    "provenance": "Consistent SQLite backup of pre-existing local graph-label-l4-canvas-qa-data Docker QA volume; NOT current Windows production data",
+    "initial_counts": {
+      "project": 2,
+      "task": 2,
+      "task_completion": 1,
+      "tasks_annotationdraft": 1
+    },
+    "business_tables": 83,
+    "upgrade_comparison": {
+      "changed_business_tables": [],
+      "integrity_passed": true,
+      "operational_changed": true,
+      "passed": true
+    },
+    "rollback_comparison": {
+      "changed_business_tables": [],
+      "integrity_passed": true,
+      "operational_changed": true,
+      "passed": true
+    },
+    "excluded_tables": [
+      "django_session",
+      "django_migrations",
+      "sqlite_sequence"
+    ],
+    "excluded_columns": {
+      "tasks_referencesyncmapping": [
+        "worker_heartbeat"
+      ]
+    }
+  },
+  "http": {
+    "baseline": {
+      "local_image": true,
+      "upload": true,
+      "annotation": true,
+      "draft_conflict_409": true,
+      "anonymous_denied": true,
+      "exports": {
+        "JSON": {
+          "tasks": 1
+        },
+        "COCO_WITH_IMAGES": {
+          "images": 1,
+          "image_bytes_unchanged": true
+        },
+        "YOLO_WITH_IMAGES": {
+          "images": 1,
+          "image_bytes_unchanged": true
+        }
+      }
+    },
+    "upgrade": {
+      "local_image": true,
+      "upload": true,
+      "annotation": true,
+      "draft_conflict_409": true,
+      "anonymous_denied": true,
+      "exports": {
+        "JSON": {
+          "tasks": 1
+        },
+        "COCO_WITH_IMAGES": {
+          "images": 1,
+          "image_bytes_unchanged": true
+        },
+        "YOLO_WITH_IMAGES": {
+          "images": 1,
+          "image_bytes_unchanged": true
+        }
+      }
+    },
+    "note": "Same HTTP suite passed on upgrade and on baseline during rollback; baseline cross-check occurred after the initial upgrade."
+  },
+  "security": {
+    "response_headers": {
+      "html": {
+        "status": 200,
+        "content_security_policy": "sandbox"
+      },
+      "svg": {
+        "status": 200,
+        "content_security_policy": "sandbox"
+      },
+      "xml": {
+        "status": 200,
+        "content_security_policy": "sandbox"
+      }
+    },
+    "ssrf_protection": true,
+    "ml_block_local_ip": true,
+    "env_mode": "0o600"
+  },
+  "recovery": {
+    "restart": {
+      "annotation_readback": true,
+      "draft_readback": true,
+      "ids": {
+        "project": 3,
+        "task": 3,
+        "annotation": 2,
+        "draft": 2
+      }
+    },
+    "reupgrade": {
+      "annotation_readback": true,
+      "draft_readback": true,
+      "ids": {
+        "project": 3,
+        "task": 3,
+        "annotation": 2,
+        "draft": 2
+      }
+    },
+    "old_image_reads_postupgrade_data": {
+      "annotation_readback": true,
+      "draft_readback": true,
+      "ids": {
+        "project": 3,
+        "task": 3,
+        "annotation": 2,
+        "draft": 2
+      }
+    },
+    "database_restored_from_old_backup": false
+  },
+  "browser": {
+    "verified": [
+      "Login using configured trusted host",
+      "L4 task loads six existing instances and source reference",
+      "Room -> partition -> furniture group Focus navigation",
+      "Parent/source chain warning reproduced on both versions",
+      "Unsafe outline creation/review disabled when source chain incomplete"
+    ],
+    "evidence": [
+      "l4-upgrade-ui.jpg",
+      "l4-baseline-ui.jpg"
+    ],
+    "not_completed": [
+      "Full L1-L4 create/edit/resize/rotate/save/reopen with a complete source chain",
+      "Browser multi-window race and reference refresh workflows"
+    ]
+  },
+  "qa_configuration": {
+    "project": "hanning-1232-qa",
+    "database": "SQLite",
+    "volume": "hanning-1232-qa_data",
+    "port": "127.0.0.1:18085",
+    "trusted_host": "http://localhost:18085",
+    "media": "Independent media copy, read-only bind at /label-studio/data/local-files",
+    "network": "app/worker internal-only; fixed app upstream gateway joins separate ingress",
+    "external_services": "No production external endpoints copied; integration behavior covered by test fixtures",
+    "use_nginx_for_uploads": false,
+    "same_app_worker_image": true,
+    "credentials_location": "Private sibling runtime directory, outside Git"
+  },
+  "production_inventory": {
+    "historical_guide": "deploy/Hanning-runtime.md",
+    "current_compose": null,
+    "current_image": null,
+    "platform": null,
+    "database_type": null,
+    "media_mounts": null,
+    "webhook_ml_addresses": null,
+    "backup": null
+  },
+  "release_blockers": [
+    "Current production Compose/image/platform/database/media/external-service inventory unavailable",
+    "Current consistent production database and media snapshot unavailable",
+    "Full L1-L4 browser and multi-window/reference-sync acceptance on complete fixture pending",
+    "Production-platform image build, actual-service allowlist verification, and production-derived upgrade/rollback Compose pending"
+  ],
+  "handoff": {
+    "compose_generator": "scripts/prepare_hanning_1232_compose.py",
+    "production_compose_generated": false,
+    "production_cutover_performed": false,
+    "maintenance_order": [
+      "Pause annotation",
+      "Stop worker then app",
+      "Complete and verify backup",
+      "Start new app and accept",
+      "Start worker",
+      "Resume annotation"
+    ],
+    "rollback_policy": "Use latest database with post-upgrade work. Never overwrite it with an old backup."
+  },
+  "evidence_root": "Sibling label-studio-upgrade-runtime/logs (private local evidence, not in Git)"
+}

@@ -1,5 +1,9 @@
 # Hanning development and runtime entry
 
+For the 1.23.2 upgrade branch, use the [upgrade preparation guide](UPGRADE-1.23.2.md)
+and its acceptance record. The 1.23.0 commands and image below document the prior
+deployment baseline; verify live production identity before preparing a cutover.
+
 ## Directories
 
 Daily development uses `C:\Users\HANI\Desktop\hanning\label-studio`.

@@ -1,0 +1,70 @@
+name: hanning-1232-qa
+
+x-runtime: &runtime
+  image: ${HANNING_QA_IMAGE:?Set a verified image tag or digest}
+  environment: &environment
+    DJANGO_DB: sqlite
+    LABEL_STUDIO_BASE_DATA_DIR: /label-studio/data
+    LABEL_STUDIO_HOST: ${HANNING_QA_HOST:-http://localhost:18085}
+    LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED: "true"
+    LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT: ${HANNING_QA_DOCUMENT_ROOT:-/nas}
+    SSRF_PROTECTION_ENABLED: "true"
+    ML_BLOCK_LOCAL_IP: "true"
+    USE_NGINX_FOR_UPLOADS: "false"
+    DEBUG: "false"
+    DEBUG_MODAL_EXCEPTIONS: "false"
+    COLLECT_ANALYTICS: "false"
+    LATEST_VERSION_CHECK: "false"
+  volumes:
+    - data:/label-studio/data
+    - type: bind
+      source: ${HANNING_QA_MEDIA:?Set the isolated read-only media directory}
+      target: ${HANNING_QA_DOCUMENT_ROOT:-/nas}
+      read_only: true
+  networks: [qa]
+
+services:
+  app:
+    <<: *runtime
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+  gateway:
+    image: ${HANNING_QA_IMAGE:?Set a verified image tag or digest}
+    entrypoint: [nginx, -c, /tmp/qa-gateway.conf, -g, "daemon off;"]
+    ports:
+      - "127.0.0.1:${HANNING_QA_PORT:-18085}:8080"
+    volumes:
+      - ./hanning-1232-qa-gateway.conf:/tmp/qa-gateway.conf:ro
+    networks: [qa, ingress]
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+  worker:
+    <<: *runtime
+    entrypoint: [python, /label-studio/label_studio/manage.py, reference_sync_worker]
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, /label-studio/deploy/reference_sync_healthcheck.py]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+
+volumes:
+  data:
+networks:
+  qa:
+    internal: true
+  ingress:
