@@ -123,6 +123,15 @@ export const L1Tools = types
         if (remembered) return choose(family, remembered.category, remembered.shape);
         return false;
       },
+      selectL1MoveTool() {
+        if (!self.l1ToolbarEnabled || self.l1SwitchBlockReason) return false;
+        const manager = self.getToolsManager();
+        const move = manager.allTools().find((tool) => tool.toolName === "MoveTool");
+        if (!move) return false;
+        // Select explicitly: repeated V must not toggle back to drawing.
+        if (!move.selected) manager.selectTool(move, true);
+        return true;
+      },
       selectL1Category(category) {
         return choose(self.l1Family, category, self.l1Selection.shape);
       },

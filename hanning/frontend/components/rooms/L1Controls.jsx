@@ -13,6 +13,20 @@ export const L1Controls = observer(({ item }) => {
     const cancel = (event) => {
       if (
         isAlive(item) &&
+        item.l1ToolbarEnabled &&
+        event.key?.toLowerCase() === "v" &&
+        !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.isComposing &&
+        !event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='dialog'], [role='alertdialog'], [role='combobox'], dialog")
+      ) {
+        // V is also assigned to a legacy room label. Handle it once, before
+        // either legacy label handlers or duplicate toolbar toggle handlers.
+        item.selectL1MoveTool();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (
+        isAlive(item) &&
         ((event.key === "Escape" && item.cancelL1Drawing()) || (event.key === "Enter" && item.finishL1Vector()))
       ) {
         event.preventDefault();
@@ -71,7 +85,10 @@ export const L1Controls = observer(({ item }) => {
           ))}
         </select>
       </label>
-      <span>画法：{L1_SHAPES[item.l1Selection.shape]} · 右侧切换</span>
+      <span>
+        {item.getToolsManager().findSelectedTool()?.toolName === "MoveTool" ? "当前工具：移动／选择 · " : ""}
+        画法：{L1_SHAPES[item.l1Selection.shape]} · 右侧切换（V 选择）
+      </span>
       <span className={styles.notice} role="status">
         {blocked ||
           (passage

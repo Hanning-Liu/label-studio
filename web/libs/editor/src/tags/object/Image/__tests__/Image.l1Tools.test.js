@@ -165,6 +165,61 @@ describe("L1 tool dock", () => {
     expect(annotation.names.get("portal_v2_reference").selectedValues()).toEqual([]);
   });
 
+  test("V selects Move once after drawing, preserving the category and saved result", () => {
+    const { image, annotation } = setup();
+    const view = render(<L1Controls item={image} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "L1 标注类型" }), { target: { value: "Bedroom" } });
+    act(() => annotation.deserializeAnnotation([{ id: "v-room", from_name: "room_rectangle", to_name: "image",
+      type: "rectanglelabels", value: { x: 10, y: 10, width: 20, height: 20, rotation: 0, rectanglelabels: ["Bedroom"] } }]));
+    const before = JSON.stringify(annotation.serializeAnnotation());
+    const legacy = jest.fn();
+    document.addEventListener("keydown", legacy);
+    try {
+      fireEvent.keyDown(document.body, { key: "v" });
+      expect(image.getToolsManager().findSelectedTool().toolName).toBe("MoveTool");
+      expect(screen.getByText(/当前工具：移动／选择/)).toBeTruthy();
+      fireEvent.keyDown(document.body, { key: "v", repeat: true });
+      expect(image.getToolsManager().findSelectedTool().toolName).toBe("MoveTool");
+      expect(image.l1Selection).toEqual({ category: "Bedroom", shape: "rectangle" });
+      expect(JSON.stringify(annotation.serializeAnnotation())).toBe(before);
+      expect(legacy).not.toHaveBeenCalled();
+      view.unmount();
+      fireEvent.keyDown(document.body, { key: "v" });
+      expect(legacy).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener("keydown", legacy);
+    }
+  });
+
+  test("V does not interrupt a drawing or activate a read-only editor", () => {
+    const { image, annotation } = setup();
+    render(<L1Controls item={image} />);
+    act(() => image.selectL1Category("Bedroom"));
+    const selected = image.getToolsManager().findSelectedTool();
+    act(() => annotation.setIsDrawing(true));
+    fireEvent.keyDown(document.body, { key: "v" });
+    expect(image.getToolsManager().findSelectedTool()).toBe(selected);
+    act(() => annotation.setIsDrawing(false));
+    act(() => annotation.setReadonly(true));
+    fireEvent.keyDown(document.body, { key: "v" });
+    expect(image.getToolsManager().findSelectedTool().toolName).toBe(selected.toolName);
+  });
+
+  test("V respects input focus, IME and modified shortcuts", () => {
+    const { image } = setup();
+    render(<><L1Controls item={image} /><input aria-label="notes" /><div role="dialog"><button>dialog action</button></div></>);
+    act(() => image.selectL1Category("Bedroom"));
+    const selected = image.getToolsManager().findSelectedTool();
+    for (const target of [screen.getByRole("combobox"), screen.getByRole("textbox"), screen.getByRole("button", { name: "dialog action" })]) {
+      fireEvent.keyDown(target, { key: "v" });
+      expect(image.getToolsManager().findSelectedTool()).toBe(selected);
+    }
+    for (const modifier of ["metaKey", "ctrlKey", "altKey", "shiftKey", "isComposing"]) {
+      fireEvent.keyDown(document.body, { key: "v", [modifier]: true });
+      expect(image.getToolsManager().findSelectedTool()).toBe(selected);
+    }
+  });
+
   test("changing pending type preserves existing result geometry, metadata and label", () => {
     const { image, annotation } = setup();
     annotation.deserializeAnnotation([
