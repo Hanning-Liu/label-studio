@@ -1,4 +1,5 @@
 import { observer } from "mobx-react";
+import { l2HiddenControl } from "@hanning/frontend/domain/rooms/l2Tools";
 import { l1HiddenControl } from "@hanning/frontend/domain/rooms/l1Tools";
 import { cast, types } from "mobx-state-tree";
 
@@ -146,7 +147,7 @@ const LabelsModel = types.compose(
 );
 
 const HtxLabels = observer(({ item }) => {
-  if (l1HiddenControl(item)) return null;
+  if (l1HiddenControl(item) || l2HiddenControl(item)) return null;
   return (
     <div className={cn("labels").mod({ hidden: !item.visible, inline: item.showinline }).toClassName()}>
       {Tree.renderChildren(item, item.annotation)}

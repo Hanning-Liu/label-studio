@@ -112,6 +112,7 @@ const ToolMixin = types
       // intended for a portal or window. Move and selected-region editing keep
       // the existing interaction path.
       if (self.isDrawingTool && self.obj?.l1ToolbarEnabled && !hasSelection && !self.obj.l1ToolBlockReason(self, true)) return true;
+      if (self.isDrawingTool && self.obj?.l2ToolbarEnabled && !hasSelection && !self.obj.l2ToolBlockReason(self, true)) return true;
       return !!isCtrlPressed && !hasSelection;
     },
 

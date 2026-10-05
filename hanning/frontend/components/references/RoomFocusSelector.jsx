@@ -11,7 +11,7 @@ export const RoomFocusSelector = observer(({ item, compact = false }) => {
       <select
         id={`room-focus-${item.name}`}
         value={selectedId}
-        disabled={!!item.vectorReviewBusy}
+        disabled={!!item.vectorReviewBusy || (item.l2ToolbarEnabled && !!item.l2SwitchBlockReason)}
         onChange={(event) => item.setFocusedRoom(event.target.value)}
       >
         <option value="">Select a room…</option>

@@ -213,7 +213,8 @@ const DrawingTool = types
         self.listenForClose?.();
         if (self.manager.findSelectedTool() !== self) {
           const resumingL1 = self.obj.l1ToolbarEnabled && self.obj.resumeL1Drawing(self, existingUnclosedPolygon);
-          if (resumingL1) self.manager.selectTool(self, true, true);
+          const resumingL2 = self.obj.l2ToolbarEnabled && self.obj.resumeL2Drawing(self, existingUnclosedPolygon);
+          if (resumingL1 || resumingL2) self.manager.selectTool(self, true, true);
           else self.manager.selectTool(self, true);
         }
       },
@@ -314,7 +315,7 @@ const DrawingTool = types
       },
 
       canStartDrawing() {
-        if (self.obj?.l1ToolBlockReason?.(self, true)) return false;
+        if (self.obj?.l1ToolBlockReason?.(self, true) || self.obj?.l2ToolBlockReason?.(self, true)) return false;
         if (
           self.obj?.occupancyEnabled &&
           (self.obj.occupancyIsReference(self.control?.name) || self.obj.occupancyDrawBlockReason(self.control?.name))

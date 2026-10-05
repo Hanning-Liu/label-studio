@@ -1,6 +1,7 @@
 import { mergeViewDefinitions } from "@hanning/frontend/adapters/mstViews";
 import { roomAttributes } from "@hanning/frontend/models/roomAttributes";
 import { roomViews } from "@hanning/frontend/models/roomViews";
+import { L2Tools } from "@hanning/frontend/models/L2Tools";
 import { L1Tools } from "@hanning/frontend/models/L1Tools";
 import { roomMetadataActions, roomFocusActions } from "@hanning/frontend/models/roomActions";
 import { ff } from "@humansignal/core";
@@ -675,7 +676,7 @@ const Model = types
     return {
       views: {
         getSkipInteractions(region = null) {
-          if (self.l1ToolbarEnabled && region?.isDrawing) {
+          if ((self.l1ToolbarEnabled || self.l2ToolbarEnabled) && region?.isDrawing) {
             const tool = self.getToolsManager().findSelectedTool();
             if (tool?.currentArea === region) return false;
           }
@@ -1438,6 +1439,7 @@ const ImageModel = types.compose(
   RoomWindows,
   FurnitureInstances,
   L1Tools,
+  L2Tools,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),

@@ -1,3 +1,4 @@
+import { L2RegionCategory } from "@hanning/frontend/components/rooms/L2RegionCategory";
 import { L1RegionCategory } from "@hanning/frontend/components/rooms/L1RegionCategory";
 import { observe } from "mobx";
 import { observer } from "mobx-react";
@@ -60,6 +61,7 @@ const RegionEditorComponent: FC<RegionEditorProps> = ({ region }) => {
   return (
     <div className={cn("region-editor").mod({ disabled: region.isReadOnly() }).toClassName()}>
       <L1RegionCategory region={region} />
+      <L2RegionCategory region={region} />
       <Component region={region} />
     </div>
   );

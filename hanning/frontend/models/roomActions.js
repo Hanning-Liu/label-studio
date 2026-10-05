@@ -268,6 +268,7 @@ export const roomMetadataActions = (self) => ({
 
 export const roomFocusActions = (self) => ({
     setFocusedRoom(roomId) {
+      if (self.l2ToolbarEnabled && self.l2SwitchBlockReason) return;
       self.focusedRoomId = roomId || null;
       self.roomConstraintNotice = null;
       self.updateRoomConstraintTools();

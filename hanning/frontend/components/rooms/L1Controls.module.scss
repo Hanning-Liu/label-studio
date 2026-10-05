@@ -27,3 +27,5 @@
 .families { display: flex; gap: 4px; }
 .category { display: flex; align-items: center; gap: 6px; select { width: 180px; max-width: 100%; } }
 .notice { flex-basis: 100%; font-size: 12px; }
+
+.embedded { position: relative; z-index: auto; border: 0; box-shadow: none; padding: 6px 0 0; }

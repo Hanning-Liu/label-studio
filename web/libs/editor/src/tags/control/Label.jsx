@@ -277,6 +277,9 @@ const Model = types
       }
       // Room references stay registered for deserialization/constraints, but their
       // hidden category buttons must not activate drawing or relabel selection.
+      if (image?.l2ToolbarEnabled && image.l2Config.managed.has(self.parent?.name)) {
+        return image.selectL2Label(self.parent, self);
+      }
       if (image?.functionzonev3validate && image.roomControlNames?.has(self.parent?.name)) return;
       if (image?.occupancyIsReference?.(self.parent?.name)) return;
       return self.onLabelInteract();
