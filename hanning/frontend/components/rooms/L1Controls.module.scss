@@ -27,3 +27,13 @@
 .families { display: flex; gap: 4px; }
 .category { display: flex; align-items: center; gap: 6px; select { width: 180px; max-width: 100%; } }
 .notice { flex-basis: 100%; font-size: 12px; }
+.visibility {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+  min-height: 32px;
+  white-space: nowrap;
+  cursor: pointer;
+  input { margin: 0; accent-color: #7371dc; }
+}

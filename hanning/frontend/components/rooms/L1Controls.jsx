@@ -90,6 +90,14 @@ export const L1Controls = observer(({ item }) => {
         {item.getToolsManager().findSelectedTool()?.toolName === "MoveTool" ? "当前工具：移动／选择 · " : ""}
         画法：{L1_SHAPES[item.l1Selection.shape]} · 右侧切换（V 选择）
       </span>
+      <label className={styles.visibility} title="显示或隐藏区域的类型文字，仅影响显示">
+        <input
+          type="checkbox"
+          checked={annotation.store.settings.showLabels}
+          onChange={() => annotation.store.settings.toggleShowLabels()}
+        />
+        显示区域类型
+      </label>
       <span className={styles.notice} role="status">
         {blocked ||
           (passage
