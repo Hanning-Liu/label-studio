@@ -266,5 +266,44 @@
       "scope": "Overall final UI acceptance; individual viewport/theme steps and new screenshots were not supplied.",
       "closes_prior_agent_pending": true
     }
+  },
+  "hotkey_fix": {
+    "source_sha": "2e009adcc60f97f6739c835e4fdc5b7b19386abc",
+    "status": "deployed_chrome_verification_pending",
+    "image": {
+      "tag": "hanning-label-studio:1.23.2-l1-2e009adc",
+      "id": "sha256:32160ea7cad8bdaa4da1c626df628481490752f04540583c19ee2ed015d7dce4",
+      "platform": "linux/arm64",
+      "production_build_passed": true,
+      "export": "images/hanning-label-studio-1.23.2-l1-2e009adc-linux-arm64.tar"
+    },
+    "l1_tests": {
+      "passed": 21,
+      "failed": 0,
+      "source_sha": "2e009adcc60f97f6739c835e4fdc5b7b19386abc"
+    },
+    "editor": {
+      "passed": 3802,
+      "failed": 61,
+      "skipped": 5,
+      "new_failures": 0,
+      "exact_test_names_and_error_text_match": true,
+      "run_started_at_source": "35fd7fb0566434d760b5c91eafa070842eff2feb"
+    },
+    "typescript": {
+      "strict_passed": true,
+      "compat_output_identical_to_baseline": true
+    },
+    "original_task_5_annotation_and_nine_region_draft_unchanged": true,
+    "services_healthy": [
+      "app",
+      "worker",
+      "gateway"
+    ],
+    "browser": {
+      "before_fix_reproduced": true,
+      "after_fix": "pending",
+      "reason": "User actively using Chrome; background tab API unavailable. Awaiting a brief foreground test window or user manual verification."
+    }
   }
 }
