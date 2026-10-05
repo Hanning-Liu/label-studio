@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-05",
+  "status": "verified_in_local_chrome_qa",
+  "source_sha": "9d2ac5b12edd0286169b04d406b9469b408979a8",
+  "image": {
+    "tag": "hanning-label-studio:1.23.2-l1-9d2ac5b1",
+    "id": "sha256:c041c0d33d986eb318646bec571e9bcc94f8369cdaf3378b172164e8f6022da5",
+    "platform": "linux/arm64",
+    "production_frontend_build": "passed"
+  },
+  "editor": {
+    "numPassedTests": 3823,
+    "numFailedTests": 61,
+    "numPendingTests": 5,
+    "numTotalTestSuites": 180,
+    "baseline_failures_identical": true
+  },
+  "new_tests": 11,
+  "typescript": {
+    "strict": "passed",
+    "compat_diagnostics": 55,
+    "exact_baseline_match": true
+  },
+  "chrome": {
+    "browser": "local Google Chrome",
+    "test_task": 7,
+    "test_annotation": 6,
+    "polygon_vertex_count": 8,
+    "button_visible_in_region_properties": true,
+    "all_edges_axis_aligned": true,
+    "one_undo_restores_exact_original_coordinates": true,
+    "redo_then_save_preserves_orthogonalized_coordinates": true,
+    "saved_draft_count": 0,
+    "reload_and_repeat_shows_no_change_needed": true,
+    "original_task_left_selected_with_button_ready": true
+  },
+  "original_task": {
+    "task_id": 5,
+    "geometry_not_modified": true,
+    "annotations": {
+      "unchanged": true,
+      "region_counts": [
+        1
+      ],
+      "sha256": "ab0f67a53d98f22e504576ae229e8129f4848cea6ee0e70c9545c6d45b4742e1"
+    },
+    "drafts": {
+      "unchanged": true,
+      "region_counts": [
+        24
+      ],
+      "sha256": "e81c062037bc0919086c7abc2800030e008d54cca1c294d93fa100de7b3d6284"
+    }
+  },
+  "runtime": {
+    "app": "healthy",
+    "worker": "healthy",
+    "gateway": "healthy",
+    "same_data_volume": true
+  },
+  "private_evidence": [
+    "logs/l1-orthogonal-editor-final.json",
+    "logs/l1-orthogonal-typed.log",
+    "logs/l1-orthogonal-types.log",
+    "logs/l1-orthogonal-build.log",
+    "logs/l1-orthogonal-applied.jpg",
+    "logs/l1-orthogonal-task7-undo.json",
+    "logs/l1-orthogonal-task7-saved.json",
+    "logs/l1-orthogonal-reopened.jpg",
+    "logs/l1-orthogonal-original-ready.jpg",
+    "snapshots/l1-orthogonal-before.sqlite3"
+  ],
+  "rollback_image": "hanning-label-studio:1.23.2-l1-ddea466c",
+  "notes": [
+    "Only selected L1 polygon room coordinates are edited.",
+    "Existing room, door and window validation remains active after orthogonalization.",
+    "No production deployment; original user task was not submitted or geometrically edited."
+  ]
+}
