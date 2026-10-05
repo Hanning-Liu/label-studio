@@ -55,19 +55,19 @@
 
 ## 启动与回退
 
-运行配置与敏感信息保留在仓库外：`/Users/Bill_Admin/Research/label-studio-upgrade-runtime`。最终镜像配置为 `l1-qa.env`，上一镜像配置为 `qa.env`，文件权限为 600。
+运行配置与敏感信息保留在仓库外：`/Users/Bill_Admin/Research/label-studio-project/label-studio-upgrade-runtime`。最终镜像配置为 `l1-qa.env`，上一镜像配置为 `qa.env`，文件权限为 600。
 
 在本仓库根目录启动最终版：
 
 ```sh
-docker compose --env-file /Users/Bill_Admin/Research/label-studio-upgrade-runtime/l1-qa.env \
+docker compose --env-file /Users/Bill_Admin/Research/label-studio-project/label-studio-upgrade-runtime/l1-qa.env \
   -f deploy/compose.hanning-1232.qa.yml -p hanning-1232-qa up -d --wait
 ```
 
 回退镜像、保留最新数据：
 
 ```sh
-docker compose --env-file /Users/Bill_Admin/Research/label-studio-upgrade-runtime/qa.env \
+docker compose --env-file /Users/Bill_Admin/Research/label-studio-project/label-studio-upgrade-runtime/qa.env \
   -f deploy/compose.hanning-1232.qa.yml -p hanning-1232-qa up -d --wait
 ```
 

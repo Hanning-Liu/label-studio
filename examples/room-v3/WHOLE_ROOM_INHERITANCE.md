@@ -52,7 +52,7 @@ SQLite 通过事务内条件更新取得写锁；支持行锁的数据库沿用 
 - `stores/__tests__/AppStore.test.js`
 - 后端 `label_studio/tests/test_draft_revision.py`
 
-构建前端后使用 `Dockerfile.room-v3` 打包；镜像同时包含前端及 `tasks/api.py`、`tasks/serializers.py`，不需要数据库迁移。先使用独立数据库副本验收，再启用生产项目。此版本不提供房间参考的实时跨窗口同步。
+构建前端后使用 `deploy/archive/legacy-patches/Dockerfile.room-v3` 打包；镜像同时包含前端及 `tasks/api.py`、`tasks/serializers.py`，不需要数据库迁移。先使用独立数据库副本验收，再启用生产项目。此版本不提供房间参考的实时跨窗口同步。
 
 自定义镜像还包含前端缓存保护：入口资源版本由实际构建文件内容计算，生产异步 JS/CSS 文件名带内容哈希。避免沿用基础镜像的后端版本号，导致普通刷新仍混用新旧前端文件。更换构建后需重启服务以更新入口版本缓存。
 

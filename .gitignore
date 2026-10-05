@@ -85,3 +85,8 @@ CLAUDE.local.md
 web/libs/editor/tests/coverage
 web/coverage-chunks
 .cache
+
+# Versioned historical Docker build recipes
+!/deploy/archive/
+/deploy/archive/*
+!/deploy/archive/legacy-patches/
