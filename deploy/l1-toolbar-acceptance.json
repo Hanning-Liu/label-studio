@@ -269,7 +269,7 @@
   },
   "hotkey_fix": {
     "source_sha": "2e009adcc60f97f6739c835e4fdc5b7b19386abc",
-    "status": "deployed_chrome_verification_pending",
+    "status": "accepted_with_user_manual_verification",
     "image": {
       "tag": "hanning-label-studio:1.23.2-l1-2e009adc",
       "id": "sha256:32160ea7cad8bdaa4da1c626df628481490752f04540583c19ee2ed015d7dce4",
@@ -302,8 +302,14 @@
     ],
     "browser": {
       "before_fix_reproduced": true,
-      "after_fix": "pending",
-      "reason": "User actively using Chrome; background tab API unavailable. Awaiting a brief foreground test window or user manual verification."
+      "after_fix": "passed_user_manual_verification",
+      "prior_agent_blocker": "User actively using Chrome; background tab API unavailable. Awaiting a brief foreground test window or user manual verification.",
+      "manual_acceptance": {
+        "date": "2026-10-05",
+        "reported_by": "user",
+        "statement": "我已经人工验证么，没有问题。",
+        "result": "passed"
+      }
     }
   }
 }
