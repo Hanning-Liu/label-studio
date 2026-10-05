@@ -125,7 +125,7 @@ INTERNAL_PORT = '8080'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_bool_env('DEBUG', True)
-DEBUG_MODAL_EXCEPTIONS = get_bool_env('DEBUG_MODAL_EXCEPTIONS', True)
+DEBUG_MODAL_EXCEPTIONS = get_bool_env('DEBUG_MODAL_EXCEPTIONS', False)
 
 # Whether to verify SSL certs when making external requests, eg in the uploader
 # ⚠️ Turning this off means assuming risk. ⚠️
@@ -142,7 +142,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_DATA_DIR = get_env('BASE_DATA_DIR')
 if BASE_DATA_DIR is None:
     BASE_DATA_DIR = get_data_dir()
-os.makedirs(BASE_DATA_DIR, exist_ok=True)
+os.makedirs(BASE_DATA_DIR, mode=0o700, exist_ok=True)
 logger.info('=> Database and media directory: %s', BASE_DATA_DIR)
 
 # This indicates whether the code is running in a Continuous Integration environment.
@@ -316,6 +316,9 @@ USE_USERNAME_FOR_LOGIN = False
 
 DISABLE_SIGNUP_WITHOUT_LINK = get_bool_env('DISABLE_SIGNUP_WITHOUT_LINK', False)
 
+# Creating extra organizations via POST /api/organizations/ is opt-in: most deployments are single-org
+ALLOW_ORGANIZATION_CREATION = get_bool_env('ALLOW_ORGANIZATION_CREATION', False)
+
 # Password validation settings
 AUTH_PASSWORD_MIN_LENGTH = 8
 AUTH_PASSWORD_MAX_LENGTH = 128
@@ -486,7 +489,7 @@ MAX_SESSION_AGE = int(get_env('MAX_SESSION_AGE', timedelta(days=14).total_second
 # The most time that can elapse between activity with the server before the user is logged out
 MAX_TIME_BETWEEN_ACTIVITY = int(get_env('MAX_TIME_BETWEEN_ACTIVITY', timedelta(days=5).total_seconds()))
 
-SSRF_PROTECTION_ENABLED = get_bool_env('SSRF_PROTECTION_ENABLED', False)
+SSRF_PROTECTION_ENABLED = get_bool_env('SSRF_PROTECTION_ENABLED', True)
 USE_DEFAULT_BANNED_SUBNETS = get_bool_env('USE_DEFAULT_BANNED_SUBNETS', True)
 USER_ADDITIONAL_BANNED_SUBNETS = get_env_list('USER_ADDITIONAL_BANNED_SUBNETS', default=[])
 
@@ -730,7 +733,7 @@ COLLECT_ANALYTICS = get_bool_env('COLLECT_ANALYTICS', get_bool_env('collect_anal
 # Strip harmful content from SVG files by default
 SVG_SECURITY_CLEANUP = get_bool_env('SVG_SECURITY_CLEANUP', False)
 
-ML_BLOCK_LOCAL_IP = get_bool_env('ML_BLOCK_LOCAL_IP', False)
+ML_BLOCK_LOCAL_IP = get_bool_env('ML_BLOCK_LOCAL_IP', True)
 
 RQ_LONG_JOB_TIMEOUT = int(get_env('RQ_LONG_JOB_TIMEOUT', 36000))
 
