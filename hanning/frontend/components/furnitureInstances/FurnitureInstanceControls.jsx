@@ -34,13 +34,14 @@ export const FurnitureInstanceControls = observer(({ item, placement = "toolbar"
   const [search, setSearch] = useState("");
   const [createName, setCreateName] = useState("");
   useEffect(() => {
+    if (placement !== "toolbar" || item.annotation.type === "prediction" || item.annotation.isReadOnly()) return;
     const key = `hanning-new-furniture-category:${window.location.pathname}`;
     const created = sessionStorage.getItem(key);
     if (created && item.furnitureInstanceAvailableTypes.includes(created)) {
       item.setFurnitureInstanceDraft(created, item.furnitureInstanceNote || "");
       sessionStorage.removeItem(key);
     }
-  }, [item.annotation]);
+  }, [item.annotation, placement, item.furnitureInstanceAvailableTypes.join(",")]);
   const categoryHelpId = useId();
   const annotation = item.annotation;
   const review = useFurnitureReviewSession(item);
