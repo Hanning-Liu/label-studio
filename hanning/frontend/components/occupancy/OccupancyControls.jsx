@@ -1,3 +1,4 @@
+import { PolygonOrthogonalize } from "../rooms/PolygonOrthogonalize";
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal, Select } from "antd";
@@ -497,6 +498,7 @@ export const OccupancyControls = observer(({ item }) => {
         >
           标注隔墙
         </button>
+        {activePolygon && <PolygonOrthogonalize key={activePolygon.id} region={activePolygon} />}
         {activePolygon && (
           <button
             disabled={disabled || !selectedPoint || activePolygon.points.length <= 3}

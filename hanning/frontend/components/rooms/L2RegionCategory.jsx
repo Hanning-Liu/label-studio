@@ -1,3 +1,4 @@
+import { PolygonOrthogonalize } from "./PolygonOrthogonalize";
 import { observer } from "mobx-react";
 import { l1LabelKey } from "@hanning/frontend/domain/rooms/l1Tools";
 import styles from "./L1Controls.module.scss";
@@ -27,6 +28,7 @@ export const L2RegionCategory = observer(({ region }) => {
           ))}
         </select>
       </label>
+      <PolygonOrthogonalize key={region.id} region={region} />
     </>
   );
 });

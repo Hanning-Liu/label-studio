@@ -603,3 +603,74 @@ test("an existing L3 region with a missing stored parent never falls back to the
     "所属父分区不存在，请先重新绑定；不能用当前 Focus 替代原归属",
   );
 });
+
+const orthogonalGroup = () => {
+  const state = setup();
+  const { image, annotation } = state;
+  image.currentImageEntity.setDownloading(false);
+  image.currentImageEntity.setDownloaded(true);
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("storage", "keep note");
+  const region = annotation.createResult(
+    { points: [[20.2, 20.2], [40.2, 20.4], [40.4, 40.2], [20.4, 40.4]], closed: true },
+    {}, annotation.names.get("occupancy_polygon"), image,
+  );
+  image.initializeOccupancyRegion(region);
+  image.selectOccupancyLogical(image.occupancyLogicals[0].id);
+  annotation.reinitHistory(false);
+  return { ...state, region };
+};
+
+test("L3 group orthogonalization preserves parent and group IDs with pixel snapping, undo and reload", () => {
+  const { image, annotation, region } = orthogonalGroup();
+  const before = annotation.serializeAnnotation();
+  const ids = region.points.map((p) => p.id);
+  const contextBefore = region.results.find((r) => r.meta?.occupancy_context).meta.occupancy_context;
+  expect(image.orthogonalizePartitionPolygon(region)).toBe(true);
+  expect(region.points.map((p) => [p.x, p.y])).toEqual([[20, 20], [40, 20], [40, 40], [20, 40]]);
+  expect(region.points.map((p) => p.id)).toEqual(ids);
+  const contextAfter = region.results.find((r) => r.meta?.occupancy_context).meta.occupancy_context;
+  for (const key of ["logical_id", "group_id", "group_type", "group_note", "parent_zone_id", "source_version"])
+    expect(contextAfter[key]).toEqual(contextBefore[key]);
+  const after = annotation.serializeAnnotation();
+  expect(after.filter((r) => r.readonly)).toEqual(before.filter((r) => r.readonly));
+  annotation.history.undo();
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  annotation.history.redo();
+  expect(annotation.serializeAnnotation()).toEqual(after);
+  annotation.selectAreas([region]);
+  expect(image.orthogonalizePartitionPolygon(region)).toBe(false);
+  const reopened = setup();
+  reopened.annotation.deleteAllRegions({ deleteReadOnly: true });
+  reopened.annotation.deserializeAnnotation(after);
+  expect(reopened.annotation.serializeAnnotation()).toEqual(after);
+});
+
+test("L3 fit refuses a missing parent, busy operations and readonly references", () => {
+  const { image, annotation, region } = orthogonalGroup();
+  image.setOccupancyBusy(true);
+  expect(() => image.orthogonalizePartitionPolygon(region)).toThrow("正在操作");
+  image.setOccupancyBusy(false);
+  expect(image.orthogonalizeRegionKind(image.regs.find((r) => r.cleanId === "parent"))).toBe("");
+  const geometry = region.results.find((r) => r.meta?.occupancy_context);
+  geometry.setMetaValue("occupancy_context", { ...geometry.meta.occupancy_context, parent_zone_id: "missing" });
+  const before = annotation.serializeAnnotation();
+  expect(() => image.orthogonalizePartitionPolygon(region)).toThrow("父分区不存在");
+  expect(annotation.serializeAnnotation()).toEqual(before);
+});
+
+
+test("L3 rejects a pixel fit crossing the stored parent and rolls back failed edits atomically", () => {
+  const { image, annotation, region } = orthogonalGroup();
+  const parent = image.regs.find((r) => r.cleanId === "parent");
+  parent.setPositionInternal(20.2, 0, 79.8, 100, 0);
+  let before = annotation.serializeAnnotation();
+  expect(() => image.orthogonalizePartitionPolygon(region)).toThrow("父级边界");
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  parent.setPositionInternal(0, 0, 100, 100, 0);
+  before = annotation.serializeAnnotation();
+  const notify = jest.spyOn(region, "notifyDrawingFinished").mockImplementation(() => { throw new Error("notify failed"); });
+  expect(() => image.orthogonalizePartitionPolygon(region)).toThrow("notify failed");
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  notify.mockRestore();
+});

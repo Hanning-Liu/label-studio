@@ -29,9 +29,9 @@ export function rectangleCandidate(self, previous, rawTarget, activeAnchor) {
       : target;
 }
 
-export function polygonCandidate(self, previous, target) {
+export function polygonCandidate(self, previous, target, { snap = true } = {}) {
   if (self.parent?.occupancyConstrains?.(self))
-    target = self.parent.constrainOccupancyPolygon(self, previous, target);
+    target = self.parent.constrainOccupancyPolygon(self, previous, target, snap);
   if (self.control?.constrainto) {
     const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
     if (room) target = clampPolygonTransform(previous, target, room);

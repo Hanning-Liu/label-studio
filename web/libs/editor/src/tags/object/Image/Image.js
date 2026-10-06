@@ -1,3 +1,4 @@
+import { PolygonOrthogonalization } from "@hanning/frontend/models/PolygonOrthogonalization";
 import { mergeViewDefinitions } from "@hanning/frontend/adapters/mstViews";
 import { roomAttributes } from "@hanning/frontend/models/roomAttributes";
 import { roomViews } from "@hanning/frontend/models/roomViews";
@@ -1440,6 +1441,7 @@ const ImageModel = types.compose(
   FurnitureInstances,
   L1Tools,
   L2Tools,
+  PolygonOrthogonalization,
   TagAttrs,
   ObjectBase,
   ...(isFF(FF_LSDV_4583) ? [MultiItemObjectBase] : []),

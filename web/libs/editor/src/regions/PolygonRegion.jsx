@@ -220,10 +220,10 @@ const Model = types
         self._addPoint(point.x, point.y);
       },
 
-      setPoints(points) {
+      setPoints(points, options) {
         const previous = self.points.map((point) => ({ x: point.x, y: point.y }));
         let target = self.points.map((_, index) => ({ x: points[index * 2], y: points[index * 2 + 1] }));
-        target = polygonCandidate(self, previous, target);
+        target = polygonCandidate(self, previous, target, options);
         self.points.forEach((point, index) => {
           point.x = target[index].x;
           point.y = target[index].y;

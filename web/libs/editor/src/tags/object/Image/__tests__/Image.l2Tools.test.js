@@ -324,3 +324,76 @@ test("measures the enclosing sticky dock and follows wrapping and review-panel c
     global.ResizeObserver = originalObserver;
   }
 });
+
+const orthogonalZone = () => {
+  const state = setup();
+  const { image, annotation } = state;
+  image.currentImageEntity.setDownloading(false);
+  image.currentImageEntity.setDownloaded(true);
+  image.currentImageEntity.setImageLoaded(true);
+  annotation.deserializeResults([
+    { id: "fit-zone", from_name: "zone_polygon", to_name: "image", type: "polygon",
+      original_width: 1000, original_height: 1000,
+      value: { points: [[10.02, 10.02], [30.04, 10.14], [30.12, 40.02], [10.06, 39.94]] },
+      meta: { custom: "keep", partition_context: { parent_room_id: "room-a" } } },
+    { id: "fit-zone", from_name: "function_zone", to_name: "image", type: "labels", value: { labels: ["Sleeping"] } },
+  ]);
+  annotation.updateObjects();
+  const region = image.regs.find((r) => r.cleanId === "fit-zone");
+  annotation.selectAreas([region]);
+  annotation.reinitHistory(false);
+  return { ...state, region };
+};
+
+test("L2 polygon properties orthogonalize without a drawing type and preserve identity, undo and reload", () => {
+  const { image, annotation, region } = orthogonalZone();
+  expect(image.l2Selection.category).toBe("");
+  const before = annotation.serializeAnnotation();
+  const ids = region.points.map((p) => p.id);
+  render(<L2RegionCategory region={region} />);
+  fireEvent.click(screen.getByRole("button", { name: "正交化选中的 L2 功能分区 Polygon" }));
+  expect(screen.getByRole("status")).toHaveTextContent("已正交化并吸附");
+  const after = annotation.serializeAnnotation();
+  expect(after).not.toEqual(before);
+  expect(region.points.map((p) => p.id)).toEqual(ids);
+  region.points.forEach((p, i) => {
+    const q = region.points[(i + 1) % region.points.length];
+    expect((p.x === q.x) !== (p.y === q.y)).toBe(true);
+    expect(p.x * 10).toBeCloseTo(Math.round(p.x * 10), 9);
+    expect(p.y * 10).toBeCloseTo(Math.round(p.y * 10), 9);
+  });
+  expect(after.find((r) => r.id === "room-a")).toEqual(before.find((r) => r.id === "room-a"));
+  expect(after.find((r) => r.from_name === "function_zone").value.labels).toEqual(["Sleeping"]);
+  expect(region.partitionContext.parent_room_id).toBe("room-a");
+  expect(after.find((r) => r.from_name === "zone_polygon").meta.custom).toBe("keep");
+  act(() => annotation.history.undo());
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  act(() => annotation.history.redo());
+  expect(annotation.serializeAnnotation()).toEqual(after);
+  const reopened = setup();
+  reopened.annotation.deleteAllRegions({ deleteReadOnly: true });
+  reopened.annotation.deserializeAnnotation(after);
+  expect(reopened.annotation.serializeAnnotation()).toEqual(after);
+  act(() => annotation.selectAreas([region]));
+  const index = annotation.history.undoIdx;
+  expect(image.orthogonalizePartitionPolygon(region)).toBe(false);
+  expect(annotation.history.undoIdx).toBe(index);
+});
+
+test("L2 rejects boundary-crossing fit and blocks incomplete, readonly and multiple selections", () => {
+  const { image, annotation, region } = orthogonalZone();
+  const parent = image.regs.find((r) => r.cleanId === "room-a");
+  parent.setPositionInternal(10.04, 0, 79.96, 90, 0);
+  region.setPoints([10.04, 10.02, 30.04, 10.02, 30.04, 40.02, 10.04, 40.02]);
+  const before = annotation.serializeAnnotation();
+  expect(() => image.orthogonalizePartitionPolygon(region)).toThrow("父级边界");
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  annotation.setIsDrawing(true);
+  expect(image.polygonOrthogonalizeBlockReason(region)).toMatch("完成绘制");
+  annotation.setIsDrawing(false);
+  annotation.selectAreas([region, parent]);
+  expect(image.polygonOrthogonalizeBlockReason(region)).toMatch("只选中一个");
+  annotation.selectAreas([region]);
+  annotation.setReadonly(true);
+  expect(image.polygonOrthogonalizeBlockReason(region)).toMatch("只读");
+});
