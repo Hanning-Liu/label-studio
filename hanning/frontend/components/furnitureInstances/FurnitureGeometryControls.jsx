@@ -7,13 +7,13 @@ import { applyFurnitureInstanceOperation } from "@hanning/frontend/domain/furnit
 import { useFurnitureReviewSession } from "@hanning/frontend/domain/furnitureInstances/reviewSession";
 import styles from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceControls.module.scss";
 
-export const FurnitureGeometryControls = observer(({ item }) => {
+export const FurnitureGeometryControls = observer(({ item, mode = "all", onCreated = () => {} }) => {
   const review = useFurnitureReviewSession(item);
-  const [type, setType] = useState("");
+  const type = item.furnitureInstanceDraftType;
   const [step, setStep] = useState(0.1);
   const currentType = useRef(type);
   currentType.current = type;
-  useEffect(() => setType(""), [item.annotation, item.furnitureInstanceFocusId]);
+
   useEffect(() => {
     const cancel = (e) => {
       if (e.key === "Escape" && item.furnitureInstanceGeometryPreview && !review.busy) {
@@ -55,7 +55,9 @@ export const FurnitureGeometryControls = observer(({ item }) => {
     } catch (error) {
       creationError = error.message;
     }
-  const blocked = review.navigationBlock || (item.annotation.isReadOnly() ? "当前标注为只读" : "");
+  const blocked =
+    (mode === "create" ? review.scopeNavigationBlock : review.navigationBlock) ||
+    (item.annotation.isReadOnly() ? "当前标注为只读" : "");
   const ownCount = item.furnitureInstanceLogicals.filter((i) => i.context.group_id === focus?.id).length;
   const edges =
     rectangle && parent ? parentEdgeAngles(parent, rectangle.original_width, rectangle.original_height) : [];
@@ -65,73 +67,67 @@ export const FurnitureGeometryControls = observer(({ item }) => {
       id = await createGroupInstance(item, type, () => currentType.current === type);
       return "已创建一个家具实例并保存草稿，请检查后复核。";
     });
-    if (ok && id) item.selectFurnitureInstance(id);
+    if (ok && id) {
+      item.selectFurnitureInstance(id);
+      onCreated();
+    }
   };
   return (
     <section className={styles.geometryControls} aria-label="轮廓创建与角度辅助">
-      <strong>使用组团轮廓</strong>
-      <div className={styles.row}>
-        <label>
-          新实例类别
-          <select
-            aria-label="轮廓创建类别"
-            value={type}
-            disabled={!!blocked || !focus}
-            onChange={(e) => setType(e.target.value)}
-          >
-            <option value="">人工选择类别</option>
-            {item.furnitureInstanceAvailableTypes.map((t) => (
-              <option key={t} value={t}>
-                {FURNITURE_TYPES[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          disabled={!!blocked || !!review.referenceBlock || !focus || !type || !!duplicate || !!creationError}
-          onClick={create}
-        >
-          使用本组轮廓创建实例
-        </button>
-        <button
-          type="button"
-          disabled={!!blocked || !focus}
-          onClick={() => {
-            try {
-              const tool = item
-                .getToolsManager()
-                .allTools()
-                .find(
-                  (t) => t.control?.name === CONTROLS.rectangle && t.toolName === "Rectangle3PointTool" && !t.dynamic,
-                );
-              if (!tool) throw new Error("三点矩形工具尚未就绪");
-              item.startFurnitureInstanceTool(CONTROLS.rectangle, tool);
-            } catch (error) {
-              review.setError(error.message);
-            }
-          }}
-        >
-          三点矩形：两点定边，第三点定宽
-        </button>
-      </div>
-      {focus && <small>本组已有 {ownCount} 个实例，本操作将新增一个；父组团与已有实例保持不变。</small>}
-      {duplicate && (
-        <p>
-          已有同类别、同轮廓实例。
-          <button type="button" disabled={!!blocked} onClick={() => review.locate(duplicate.id)}>
-            定位已有实例
-          </button>
-        </p>
+      {mode !== "edit" && (
+        <>
+          <strong>创建 {FURNITURE_TYPES[type] || "家具实例"}</strong>
+          <div className={styles.row}>
+            <button
+              type="button"
+              disabled={!!blocked || !!review.referenceBlock || !focus || !type || !!duplicate || !!creationError}
+              onClick={create}
+            >
+              使用本组轮廓创建实例
+            </button>
+            <button
+              type="button"
+              disabled={!!blocked || !focus}
+              onClick={() => {
+                try {
+                  const tool = item
+                    .getToolsManager()
+                    .allTools()
+                    .find(
+                      (t) =>
+                        t.control?.name === CONTROLS.rectangle && t.toolName === "Rectangle3PointTool" && !t.dynamic,
+                    );
+                  if (!tool) throw new Error("三点矩形工具尚未就绪");
+                  item.startFurnitureInstanceTool(CONTROLS.rectangle, tool);
+                  onCreated();
+                } catch (error) {
+                  review.setError(error.message);
+                }
+              }}
+            >
+              三点矩形：两点定边，第三点定宽
+            </button>
+          </div>
+          {focus && <small>本组已有 {ownCount} 个实例，本操作将新增一个；父组团与已有实例保持不变。</small>}
+          {duplicate && (
+            <p>
+              已有同类别、同轮廓实例。
+              <button type="button" disabled={!!blocked} onClick={() => review.locate(duplicate.id)}>
+                定位已有实例
+              </button>
+            </p>
+          )}
+          {creationError && <p role="alert">{creationError}</p>}
+          {drawing && (
+            <output aria-live="polite">
+              绘制角度 {(drawing.rotation || 0).toFixed(2)}° · 宽{" "}
+              {((drawing.width * item.naturalWidth) / 100).toFixed(1)} px × 高{" "}
+              {((drawing.height * item.naturalHeight) / 100).toFixed(1)} px
+            </output>
+          )}
+        </>
       )}
-      {creationError && <p role="alert">{creationError}</p>}
-      {drawing && (
-        <output aria-live="polite">
-          绘制角度 {(drawing.rotation || 0).toFixed(2)}° · 宽 {((drawing.width * item.naturalWidth) / 100).toFixed(1)}{" "}
-          px × 高 {((drawing.height * item.naturalHeight) / 100).toFixed(1)} px
-        </output>
-      )}
-      {rectangle && parent && (
+      {mode !== "create" && rectangle && parent && (
         <>
           <strong>矩形角度与恢复预览</strong>
           <div className={styles.row}>

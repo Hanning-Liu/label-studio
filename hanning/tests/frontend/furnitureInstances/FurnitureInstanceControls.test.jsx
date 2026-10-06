@@ -4,12 +4,19 @@ import { TextEncoder } from "util";
 
 import { FurnitureInstanceControls } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceControls";
 import { effectiveFurnitureInstanceReviewStatus } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceOutliner";
-import { FURNITURE_TYPES, furnitureInstances, furnitureGroups } from "@hanning/frontend/domain/furnitureInstances/domain";
+import {
+  FURNITURE_TYPES,
+  furnitureInstances,
+  furnitureGroups,
+} from "@hanning/frontend/domain/furnitureInstances/domain";
 import { makeInstance, makeOccupancy } from "@hanning/tests/frontend/furnitureInstances/helpers";
 import { furnitureParentUpdate } from "@hanning/frontend/domain/furnitureInstances/parentUpdate";
 global.TextEncoder = TextEncoder;
 
-jest.mock("antd/lib/modal", () => ({ __esModule: true, default: { confirm: jest.fn() } }));
+jest.mock("antd/lib/modal", () => ({
+  __esModule: true,
+  default: { confirm: jest.fn() },
+}));
 
 const invalidEdge = () => ({
   id: "orientation-i",
@@ -89,11 +96,21 @@ const setup = ({
     furnitureInstanceDrawingControl: "",
     furnitureInstanceDeleteRequestId: deleteRequestId,
     furnitureInstanceParents: [
-      { id: "group-g", groupType: "study_work", groupNote: "窗边", roomId: "room-r", zoneId: "zone-z" },
+      {
+        id: "group-g",
+        groupType: "study_work",
+        groupNote: "窗边",
+        roomId: "room-r",
+        zoneId: "zone-z",
+      },
     ],
     furnitureInstanceData: [
       { id: "room-r", meta: { room_graph_node: { room_type: "书房" } } },
-      { id: "zone-z", from_name: "function_zone", value: { labels: ["学习办公"] } },
+      {
+        id: "zone-z",
+        from_name: "function_zone",
+        value: { labels: ["学习办公"] },
+      },
     ],
     furnitureInstanceLogicals: [instance, ...otherInstances],
     furnitureInstanceFocusId: "group-g",
@@ -130,7 +147,11 @@ const setup = ({
       );
       item.furnitureInstanceDrawingControl = "";
       if (changed && target.context.review_status === "reviewed") {
-        target.context = { ...target.context, review_status: "pending", review_fingerprint: null };
+        target.context = {
+          ...target.context,
+          review_status: "pending",
+          review_fingerprint: null,
+        };
       }
       return changed;
     }),
@@ -142,12 +163,24 @@ const setup = ({
     clearFurnitureInstanceDeleteRequest: jest.fn(() => {
       item.furnitureInstanceDeleteRequestId = "";
     }),
+    duplicateFurnitureInstance: jest.fn(() => ({
+      id: "copy-i",
+      offset: [4, 4],
+    })),
     requestFurnitureInstanceDelete: jest.fn(),
     setFurnitureInstanceFocus: jest.fn(),
     selectFurnitureInstance: jest.fn(),
     setFurnitureInstanceSnapping: jest.fn(),
   };
-  const controls = () => <FurnitureInstanceControls item={{ ...item }} />;
+  const controls = () => {
+    const current = { ...item };
+    return (
+      <>
+        <FurnitureInstanceControls item={current} />
+        <FurnitureInstanceControls item={current} placement="details" />
+      </>
+    );
+  };
   const view = render(controls());
   return {
     annotation,
@@ -159,12 +192,24 @@ const setup = ({
 };
 
 test("stale instance offers explicit acceptance which saves but never confirms review", async () => {
-  const s = setup({ reviewStatus: "stale", errors: [{ code: "parent_stale", instanceId: "instance-i" }] });
+  const s = setup({
+    reviewStatus: "stale",
+    errors: [{ code: "parent_stale", instanceId: "instance-i" }],
+  });
   const refs = makeOccupancy();
   let data = [
     ...refs.map((r) =>
       r.meta?.occupancy_context?.group_id
-        ? { ...r, meta: { ...r.meta, occupancy_context: { ...r.meta.occupancy_context, group_note: "changed" } } }
+        ? {
+            ...r,
+            meta: {
+              ...r.meta,
+              occupancy_context: {
+                ...r.meta.occupancy_context,
+                group_note: "changed",
+              },
+            },
+          }
         : r,
     ),
     ...makeInstance(refs),
@@ -186,33 +231,54 @@ test("stale instance offers explicit acceptance which saves but never confirms r
 });
 
 test("an invalid saved parent disables acceptance with a visible explanation", () => {
-  setup({ reviewStatus: "stale", errors: [{ code: "parent_missing", instanceId: "instance-i" }] });
+  setup({
+    reviewStatus: "stale",
+    errors: [{ code: "parent_missing", instanceId: "instance-i" }],
+  });
   expect(screen.getByRole("button", { name: "检查并接受父组团更新" })).toBeDisabled();
   expect(screen.getByRole("note")).toHaveTextContent("待处理家具实例不存在");
 });
 
 test("keyboard focus exposes category definitions with an accessible description", async () => {
   const { item } = setup();
-  const button = screen.getByRole("button", { name: "梳妆台 (dressing_table)" });
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
+  const button = screen.getByRole("button", {
+    name: "梳妆台 (dressing_table)",
+  });
   fireEvent.focus(button);
-  const hint = await screen.findByRole("tooltip");
+  const hint = await waitFor(() => {
+    const node = document.getElementById(button.getAttribute("aria-describedby"));
+    expect(node).toBeInTheDocument();
+    return node;
+  });
   expect(hint).toHaveTextContent("梳妆");
   expect(hint).toHaveTextContent("易混淆");
   expect(button.getAttribute("aria-describedby")).toBe(hint.id);
   expect(item.setFurnitureInstanceDraft).not.toHaveBeenCalled();
 });
 
-test.each([['dressing_table', '梳妆台'], ['potted_plant', '绿植盆栽'], ['drying_rack', '晾衣架'], ['piano', '钢琴'], ['floor_lamp', '落地灯']])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
+test.each([
+  ["dressing_table", "梳妆台"],
+  ["potted_plant", "绿植盆栽"],
+  ["drying_rack", "晾衣架"],
+  ["piano", "钢琴"],
+  ["floor_lamp", "落地灯"],
+])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
   const { item, rerender } = setup();
-  item.furnitureInstanceAvailableTypes = item.furnitureInstanceAvailableTypes.filter(
-    (type) => type !== category,
-  );
+  item.furnitureInstanceAvailableTypes = item.furnitureInstanceAvailableTypes.filter((type) => type !== category);
   rerender();
-  const button = screen.getByRole("button", { name: `${label} (${category})` });
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
+  const button = screen.getByRole("button", {
+    name: `${label} (${category})`,
+  });
   expect(button).toBeDisabled();
   expect(button.parentElement.tabIndex).toBe(0);
   fireEvent.focus(button.parentElement);
-  expect(await screen.findByRole("tooltip")).toHaveTextContent("当前项目尚未启用此类别");
+  await waitFor(() =>
+    expect(document.getElementById(button.parentElement.getAttribute("aria-describedby"))).toHaveTextContent(
+      "当前项目尚未启用此类别",
+    ),
+  );
 });
 
 beforeEach(() => Modal.confirm.mockReset());
@@ -224,7 +290,10 @@ test("delete modal rejects after an unsaved local mutation and retry only saves 
     .mockResolvedValueOnce({})
     .mockRejectedValueOnce(new Error("offline"))
     .mockResolvedValueOnce({});
-  const { annotation, controller, item } = setup({ deleteRequestId: "instance-i", saveDraft });
+  const { annotation, controller, item } = setup({
+    deleteRequestId: "instance-i",
+    saveDraft,
+  });
   await waitFor(() => expect(Modal.confirm).toHaveBeenCalledTimes(1));
   const confirmation = Modal.confirm.mock.calls[0][0];
 
@@ -266,7 +335,9 @@ test("category changes are explicit and save failure can retry without repeating
     .mockRejectedValueOnce(new Error("offline"))
     .mockResolvedValue({});
   const { item } = setup({ saveDraft });
-  fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), { target: { value: "dressing_table" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), {
+    target: { value: "dressing_table" },
+  });
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "应用当前实例类别" }));
   await waitFor(() => expect(item.setFurnitureInstanceCategory).toHaveBeenCalledWith("instance-i", "dressing_table"));
@@ -280,8 +351,11 @@ test("unconfigured classes are disabled and selecting another instance resets an
   const { item, rerender } = setup();
   item.furnitureInstanceAvailableTypes = ["desk", "office_chair"];
   rerender(<FurnitureInstanceControls item={item} />);
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
   expect(screen.getByRole("button", { name: "梳妆台 (dressing_table)" })).toBeDisabled();
-  fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), { target: { value: "office_chair" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "当前实例类别" }), {
+    target: { value: "office_chair" },
+  });
   item.furnitureInstanceEffectiveSelectedId = "";
   rerender(<FurnitureInstanceControls item={item} />);
   expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("");
@@ -290,6 +364,7 @@ test("unconfigured classes are disabled and selecting another instance resets an
 
 test("renders canvas-first status cards and all 32 grouped palette choices", () => {
   const { item, rerender } = setup();
+  fireEvent.click(screen.getByRole("button", { name: "更多 ▾" }));
   expect(screen.getByRole("region", { name: "当前 Focus 家具组团" })).toHaveTextContent(
     "学习办公 · 窗边 · 房间 书房 · 分区 学习办公 · group-g",
   );
@@ -299,6 +374,7 @@ test("renders canvas-first status cards and all 32 grouped palette choices", () 
   expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("desk");
   expect(screen.queryByRole("button", { name: "绘制矩形家具实例" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "绘制多边形家具实例" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
   for (const [value, label] of Object.entries(FURNITURE_TYPES)) {
     expect(screen.getByRole("button", { name: `${label} (${value})` })).toBeInTheDocument();
   }
@@ -306,30 +382,34 @@ test("renders canvas-first status cards and all 32 grouped palette choices", () 
   expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("sofa", "");
   rerender(<FurnitureInstanceControls item={item} />);
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
-  expect(screen.getByRole("button", { name: "沙发 (sofa)" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /新建：沙发/ })).toBeInTheDocument();
 });
 
 test("piano belongs to instruments and its palette button changes only the next drawing", () => {
   const { item, rerender } = setup();
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
   const piano = screen.getByRole("button", { name: "钢琴 (piano)" });
   expect(screen.getByRole("region", { name: "乐器" })).toContainElement(piano);
   fireEvent.click(piano);
   expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("piano", "");
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
   rerender(<FurnitureInstanceControls item={item} />);
-  expect(piano).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /新建：钢琴/ })).toBeInTheDocument();
   expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("desk");
 });
 
 test("floor_lamp belongs to living/dining and its palette button changes only the next drawing", () => {
   const { item, rerender } = setup();
-  const floor_lamp = screen.getByRole("button", { name: "落地灯 (floor_lamp)" });
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
+  const floor_lamp = screen.getByRole("button", {
+    name: "落地灯 (floor_lamp)",
+  });
   expect(screen.getByRole("region", { name: "会客与用餐" })).toContainElement(floor_lamp);
   fireEvent.click(floor_lamp);
   expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("floor_lamp", "");
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
   rerender(<FurnitureInstanceControls item={item} />);
-  expect(floor_lamp).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /新建：落地灯/ })).toBeInTheDocument();
   expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("desk");
 });
 
@@ -358,7 +438,11 @@ test("restore unknown removes only the selected invalid evidence, clears its err
   const otherOrientation = [{ id: "orientation-other", from_name: "furniture_front_direction" }];
   const other = {
     id: "instance-other",
-    context: { instance_type: "chair", group_id: "group-g", review_status: "reviewed" },
+    context: {
+      instance_type: "chair",
+      group_id: "group-g",
+      review_status: "reviewed",
+    },
     results: [{ id: "geometry-other" }],
     orientationResults: otherOrientation,
   };
@@ -366,8 +450,16 @@ test("restore unknown removes only the selected invalid evidence, clears its err
     orientationResults: [invalidEdge()],
     otherInstances: [other],
     errors: [
-      { code: "orientation", instanceId: "instance-i", message: "front_edge 必须包含两个端点" },
-      { code: "orientation", instanceId: "instance-other", message: "另一个实例错误" },
+      {
+        code: "orientation",
+        instanceId: "instance-i",
+        message: "front_edge 必须包含两个端点",
+      },
+      {
+        code: "orientation",
+        instanceId: "instance-other",
+        message: "另一个实例错误",
+      },
     ],
   });
   const geometryResults = instance.results;
@@ -381,7 +473,10 @@ test("restore unknown removes only the selected invalid evidence, clears its err
   expect(screen.getByText("朝向证据：unknown")).toBeInTheDocument();
   expect(screen.queryByText("front_edge 必须包含两个端点")).not.toBeInTheDocument();
   expect(screen.getByText(/复核状态：needs_review/)).toBeInTheDocument();
-  expect(instance.context).toMatchObject({ review_status: "pending", review_fingerprint: null });
+  expect(instance.context).toMatchObject({
+    review_status: "pending",
+    review_fingerprint: null,
+  });
   expect(instance.results).toBe(geometryResults);
   expect(other.orientationResults).toBe(otherOrientation);
   expect(controller.checkFurnitureInstancesReference).toHaveBeenCalledTimes(1);
@@ -395,7 +490,9 @@ test("restore unknown removes only the selected invalid evidence, clears its err
 });
 
 test("review validation is a non-red needs_review status instead of a blocking detail", () => {
-  setup({ errors: [{ code: "review", instanceId: "instance-i", message: "复核指纹已失效" }] });
+  setup({
+    errors: [{ code: "review", instanceId: "instance-i", message: "复核指纹已失效" }],
+  });
   expect(screen.getByText(/复核状态：needs_review/)).toBeInTheDocument();
   expect(screen.queryByText("当前实例需处理 1 项")).not.toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -417,9 +514,56 @@ test("parent fingerprint failures are shown as stale without rewriting saved con
   );
   expect(instance.context.review_status).toBe("reviewed");
 
-  setup({ errors: [{ code: "parent_stale", instanceId: "instance-i", message: "父家具组团已更新" }] });
+  setup({
+    errors: [
+      {
+        code: "parent_stale",
+        instanceId: "instance-i",
+        message: "父家具组团已更新",
+      },
+    ],
+  });
   expect(screen.getByText("复核状态：stale（父级已过期）")).toBeInTheDocument();
   expect(screen.getByRole("region", { name: "当前家具实例" })).toHaveTextContent(
     "书桌 · instance-i · 父级 room-r → zone-z → group-g · stale（父级已过期）",
   );
+});
+
+test("compact toolbar hides the palette and search changes only the next drawing", () => {
+  const { item } = setup();
+  expect(screen.queryByRole("button", { name: "餐椅 (dining_chair)" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /新建：/ }));
+  fireEvent.change(screen.getByRole("textbox", { name: "搜索家具类别" }), {
+    target: { value: "饭椅" },
+  });
+  expect(screen.queryByRole("button", { name: "沙发 (sofa)" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "餐椅 (dining_chair)" }));
+  expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("dining_chair", "");
+  expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
+});
+
+test("copy saves before/after, selects new ID, and retry never copies twice", async () => {
+  const saveDraft = jest
+    .fn()
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({});
+  const { item } = setup({ saveDraft });
+  fireEvent.click(screen.getByRole("button", { name: "复制当前家具实例" }));
+  await waitFor(() => expect(item.selectFurnitureInstance).toHaveBeenCalledWith("copy-i"));
+  expect(item.duplicateFurnitureInstance).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("button", { name: "复制当前家具实例" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "仅重试保存当前 L4 草稿" }));
+  await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(3));
+  expect(item.duplicateFurnitureInstance).toHaveBeenCalledTimes(1);
+});
+
+test.each(["readonly", "drawing", "preview", "stale"])("copy is blocked during %s", (reason) => {
+  const { item, annotation, rerender } = setup();
+  if (reason === "readonly") annotation.isReadOnly.mockReturnValue(true);
+  if (reason === "drawing") annotation.isDrawing = true;
+  if (reason === "preview") item.furnitureInstanceGeometryPreview = {};
+  if (reason === "stale") item.furnitureInstanceErrors = [{ code: "parent_stale", instanceId: "instance-i" }];
+  rerender();
+  expect(screen.getByRole("button", { name: "复制当前家具实例" })).toBeDisabled();
 });

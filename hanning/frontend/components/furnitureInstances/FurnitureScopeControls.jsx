@@ -79,7 +79,7 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
           </select>
         </label>
       </div>
-      <small>
+      {!item.furnitureInstanceFocusId && <small>
         {!item.furnitureInstanceRoomId
           ? "第一步：选择房间"
           : !item.furnitureInstanceZoneId
@@ -91,7 +91,7 @@ export const FurnitureScopeNavigation = observer(({ item }) => {
                 ? "查看本区参考，然后选择橙色家具组团"
                 : "本分区没有可用家具组团"
               : "当前组团可绘制；其他分区实例仅作为布局背景"}
-      </small>
+      </small>}
     </nav>
   );
 });

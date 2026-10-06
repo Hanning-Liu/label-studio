@@ -2,6 +2,7 @@ import { applySnapshot, getSnapshot, types } from "mobx-state-tree";
 import { walkableReferencesFor } from "@hanning/frontend/domain/furnitureInstances/walkableReferences";
 import { furnitureScopeFor, instanceInScope } from "@hanning/frontend/domain/furnitureInstances/scope";
 import { groupCreationState, groupInstanceResults } from "@hanning/frontend/domain/furnitureInstances/creation";
+import { duplicateFurnitureInstance } from "@hanning/frontend/domain/furnitureInstances/duplicate";
 import { rectanglePreview, rectanglePreviewToken } from "@hanning/frontend/domain/furnitureInstances/rectanglePreview";
 
 import {
@@ -399,6 +400,34 @@ export const FurnitureInstances = types
       else if (key === "roomBackground") self.furnitureInstanceRoomBackground = !!enabled;
       else if (Object.hasOwn(self.furnitureInstanceReferenceLayers, key))
         self.furnitureInstanceReferenceLayers = { ...self.furnitureInstanceReferenceLayers, [key]: !!enabled };
+    },
+    duplicateFurnitureInstance(id) {
+      const reason = self.furnitureInstanceOperationBlockReason();
+      if (reason) throw new Error(reason);
+      if (self.furnitureInstanceGeometryPreview || self.furnitureInstanceTransformCandidate)
+        throw new Error("请先应用或取消几何预览");
+      const instance = self.furnitureInstanceLogicals.find((value) => value.id === id);
+      if (!instance || instance.context.group_id !== self.furnitureInstanceFocusId)
+        throw new Error("请先选择当前组团内的家具实例");
+      if (!self.furnitureInstanceAvailableTypes.includes(instance.context.instance_type))
+        throw new Error("当前项目尚未启用该家具类别");
+      const created = duplicateFurnitureInstance(self.furnitureInstanceData, id);
+      const snapshot = getSnapshot(self.annotation.areas);
+      self.annotation.history.freeze("furniture-instance-duplicate");
+      try {
+        self.annotation.deserializeResults(clone(created.results));
+        self.annotation.updateObjects();
+        const actual = self.furnitureInstanceData.filter((r) => context(r).instance_id === created.id);
+        if (!sameFurnitureResultKeys(actual, created.results)) throw new Error("复制实例未完整载入");
+        return created;
+      } catch (error) {
+        applySnapshot(self.annotation.areas, snapshot);
+        self.annotation.updateObjects();
+        self.selectFurnitureInstance(id);
+        throw error;
+      } finally {
+        self.annotation.history.unfreeze("furniture-instance-duplicate");
+      }
     },
     createFurnitureInstanceFromGroup(groupId, type, token) {
       const reason = self.furnitureInstanceOperationBlockReason();

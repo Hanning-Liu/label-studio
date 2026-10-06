@@ -39,6 +39,7 @@ import {
   partitionOccupancyZoneReferenceRegions,
   shouldRenderOccupancyReferenceRegion,
 } from "@hanning/frontend/domain/occupancy/referenceDisplay";
+import furnitureControlStyles from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceControls.module.scss";
 import { FurnitureInstanceControls } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceControls";
 import { FurnitureInstanceLayer, FurnitureInstanceLabels } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceLayer";
 import { FurnitureScopeNavigation } from "@hanning/frontend/components/furnitureInstances/FurnitureScopeControls";
@@ -1118,10 +1119,12 @@ export default observer(
         <>
           {!isViewingAll && <ReferenceLineageStatus item={item} />}
           {!isViewingAll && item.l1ToolbarEnabled && <L1Controls item={item} />}
-          {!isViewingAll && item.furnitureInstancesEnabled && <FurnitureScopeNavigation item={item} />}
           {!isViewingAll &&
             (item.furnitureInstancesEnabled ? (
-              <FurnitureInstanceControls item={item} />
+              <div className={furnitureControlStyles.stickyToolbar}>
+                <FurnitureScopeNavigation item={item} />
+                <FurnitureInstanceControls item={item} />
+              </div>
             ) : item.occupancyEnabled ? (
               <OccupancyControls item={item} />
             ) : item.wholeRoomInheritanceEnabled && item.hasRoomConstraints ? (

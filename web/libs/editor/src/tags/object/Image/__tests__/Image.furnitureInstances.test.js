@@ -1081,3 +1081,26 @@ test("parent acceptance is atomic, survives reload and preserves unrelated revie
   loaded.image.confirmFurnitureInstanceReviews(["instance-i"]);
   expect(loaded.image.furnitureInstanceErrors).toEqual([]);
 });
+
+test("instance duplication round-trips independently, undo removes only copy, and parent references are unchanged", () => {
+  const refs = makeOccupancy();
+  const { image, annotation } = setup(refs, makeInstance(refs, {
+    rectangle: { x: 30, y: 30, width: 8, height: 10, rotation: 25 },
+    orientation: { status: "front_direction", vertices: [{ x: 30, y: 30 }, { x: 35, y: 35 }] },
+  }));
+  image.selectFurnitureInstance("instance-i");
+  const before = annotation.serializeAnnotation({ fast: true });
+  const copy = image.duplicateFurnitureInstance("instance-i");
+  image.selectFurnitureInstance(copy.id);
+  expect(image.furnitureInstanceEffectiveSelectedId).toBe(copy.id);
+  expect(image.furnitureInstanceLogicals).toHaveLength(2);
+  const after = annotation.serializeAnnotation({ fast: true });
+  expect(after.filter((r) => context(r).instance_id !== copy.id)).toEqual(before);
+  annotation.history.undo();
+  expect(image.furnitureInstanceLogicals).toHaveLength(1);
+  annotation.history.redo();
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(after);
+  const loaded = setup(after.filter((r) => !context(r).instance_id), after.filter((r) => context(r).instance_id));
+  expect(loaded.image.furnitureInstanceLogicals).toHaveLength(2);
+  expect(loaded.annotation.serializeAnnotation({ fast: true })).toEqual(after);
+});

@@ -1,8 +1,8 @@
 .dock {
   container-type: inline-size;
   display: grid;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 4px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--color-neutral-border);
   background: var(--color-neutral-background);
   font-size: 12px;
@@ -15,17 +15,16 @@
 }
 
 .scopeNavigation {
-  position: sticky;
-  top: 0;
-  z-index: 12;
-  padding: 8px 14px;
+  padding: 6px 10px;
   background: var(--color-neutral-background);
   color: var(--color-neutral-content);
   border-bottom: 1px solid var(--color-neutral-border);
   box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
   font-size: 12px;
 
-  .row label { flex: 1 1 150px; min-width: 0; }
+  .row { flex-wrap: nowrap; align-items: center; }
+  .row label { display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; white-space: nowrap; }
+  .row label select { flex: 1; min-width: 0; }
   select { max-width: 100%; width: 100%; }
 }
 
@@ -350,3 +349,83 @@
 .reviewRow input { margin-top: 8px; }
 .reviewRow button { overflow-wrap: anywhere; }
 .reviewRow ul { padding-left: 16px; margin: 4px 0; }
+
+
+.stickyToolbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: var(--color-neutral-background);
+  color: var(--color-neutral-content);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+}
+
+.toolbarRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  .options { gap: 6px; }
+  .options label { white-space: nowrap; }
+  input[type="checkbox"] { min-height: 0; }
+}
+
+.dock > p[role="status"] {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  &:empty { display: none; }
+}
+
+.popup {
+  color: var(--color-neutral-content);
+  background: var(--color-neutral-background);
+  width: min(520px, calc(100vw - 48px));
+  max-height: min(440px, 55vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  font-size: 13px;
+  .palette { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  input, select { color: inherit; background: var(--color-neutral-surface); }
+}
+
+.search {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+  input { padding: 6px; border: 1px solid var(--color-neutral-border); border-radius: 4px; }
+}
+
+.moreMenu { display: grid; gap: 10px; }
+
+.instanceProperties {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--color-neutral-content);
+  background: var(--color-neutral-background);
+  overflow-wrap: anywhere;
+  min-width: 0;
+  .row { align-items: center; }
+  .statusCard { min-width: 0; width: 100%; }
+  .geometryControls input { max-width: 110px; }
+  .geometryControls select { max-width: 190px; }
+}
+
+.fineAdjustment {
+  min-width: 0;
+  summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
+}
+
+@media (max-width: 1280px) {
+  .scopeNavigation .row label { display: grid; }
+}

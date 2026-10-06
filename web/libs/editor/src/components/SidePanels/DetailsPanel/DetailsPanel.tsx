@@ -15,7 +15,7 @@ import { EmptyState } from "../Components/EmptyState";
 import { IconCursor, IconRelationLink } from "@humansignal/icons";
 import { getDocsUrl } from "../../../utils/docs";
 import { OccupancyDetails } from "@hanning/frontend/components/occupancy/OccupancyOutliner";
-import { FurnitureInstanceDetails } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceOutliner";
+import { FurnitureInstanceControls } from "@hanning/frontend/components/furnitureInstances/FurnitureInstanceControls";
 
 interface DetailsPanelProps extends PanelProps {
   regions: any;
@@ -50,7 +50,7 @@ const Content: FC<any> = observer(function Content({ selection, currentEntity }:
       region.results?.some((result: any) => result.meta?.furniture_instance_context),
     )
   )
-    return <FurnitureInstanceDetails item={furnitureInstances} />;
+    return <FurnitureInstanceControls item={furnitureInstances} placement="details" />;
   const occupancy = currentEntity?.objects?.find((object: any) => object.occupancyEnabled);
   if (occupancy && selection.list?.some((region: any) => region.results?.some((r: any) => r.meta?.occupancy_context)))
     return <OccupancyDetails item={occupancy} />;
@@ -145,7 +145,10 @@ const HistoryTab: FC<any> = inject("store")(
 );
 
 const InfoTab: FC<any> = inject("store")(
-  observer(function InfoTab({ selection }: any): JSX.Element {
+  observer(function InfoTab({ selection, store }: any): JSX.Element {
+    const entity = store.annotationStore?.selected;
+    const furniture = entity?.objects?.find((object: any) => object.furnitureInstancesEnabled);
+    if (furniture) return <FurnitureInstanceControls item={furniture} placement="details" />;
     const nothingSelected = !selection || selection.size === 0;
     return (
       <>
