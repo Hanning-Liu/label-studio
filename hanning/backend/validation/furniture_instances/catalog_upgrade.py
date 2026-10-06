@@ -53,7 +53,7 @@ def _append_choices(config, missing):
     return (source[:position] + insertion + source[position:]).decode('utf-8')
 
 
-def upgrade_choices(config):
+def upgrade_choices(config, additions=ADDITIONS):
     parser = etree.XMLParser(resolve_entities=False, no_network=True, remove_blank_text=False)
     root = etree.fromstring(config.encode('utf-8'), parser)
     if root.getroottree().docinfo.doctype:
@@ -81,7 +81,7 @@ def upgrade_choices(config):
     if None in values or len(values) != len(set(values)) or len(aliases) != len(set(aliases)):
         raise ValueError('家具类别显示值或稳定别名重复/缺失')
     missing = []
-    for alias, label in ADDITIONS:
+    for alias, label in additions:
         matches = [node for node in choices if (node.get('alias') or node.get('value')) == alias]
         if matches:
             if matches[0].get('value') != label or matches[0].get('alias') != alias:

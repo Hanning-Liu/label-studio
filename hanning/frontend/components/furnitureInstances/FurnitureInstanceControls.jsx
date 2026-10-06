@@ -1,3 +1,5 @@
+import { CreateFurnitureCategory } from "./CreateFurnitureCategory";
+import { furnitureNameExists, normalizeFurnitureName } from "@hanning/frontend/domain/catalog";
 import { useEffect, useId, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal, Popover, Tooltip } from "antd";
@@ -30,6 +32,15 @@ import {
 export const FurnitureInstanceControls = observer(({ item, placement = "toolbar" }) => {
   const [menu, setMenu] = useState("");
   const [search, setSearch] = useState("");
+  const [createName, setCreateName] = useState("");
+  useEffect(() => {
+    const key = `hanning-new-furniture-category:${window.location.pathname}`;
+    const created = sessionStorage.getItem(key);
+    if (created && item.furnitureInstanceAvailableTypes.includes(created)) {
+      item.setFurnitureInstanceDraft(created, item.furnitureInstanceNote || "");
+      sessionStorage.removeItem(key);
+    }
+  }, [item.annotation]);
   const categoryHelpId = useId();
   const annotation = item.annotation;
   const review = useFurnitureReviewSession(item);
@@ -291,6 +302,17 @@ export const FurnitureInstanceControls = observer(({ item, placement = "toolbar"
     >
       {placement === "toolbar" ? (
         <>
+          {createName && (
+            <CreateFurnitureCategory
+              item={item}
+              name={createName}
+              onClose={() => setCreateName("")}
+              onCreated={(entry) => {
+                sessionStorage.setItem(`hanning-new-furniture-category:${window.location.pathname}`, entry.id);
+                window.location.reload();
+              }}
+            />
+          )}
           <div className={styles.toolbarRow}>
             <strong>L4</strong>
             {popup(
@@ -303,9 +325,21 @@ export const FurnitureInstanceControls = observer(({ item, placement = "toolbar"
                     autoFocus
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="名称、别称或英文"
+                    placeholder="搜索名称；输入新名称可创建类别"
                   />
                 </label>
+                {normalizeFurnitureName(search) && !furnitureNameExists(search) && (
+                  <Button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setCreateName(normalizeFurnitureName(search));
+                      setMenu("");
+                    }}
+                  >
+                    创建“{normalizeFurnitureName(search)}”类别
+                  </Button>
+                )}
                 <fieldset className={styles.palette} disabled={disabled}>
                   <legend>待绘制实例类别</legend>
                   {FURNITURE_TYPE_GROUPS.map((group) => ({

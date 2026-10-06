@@ -97,6 +97,8 @@ class Organization(OrganizationMixin, models.Model):
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)
     updated_at = models.DateTimeField(_('updated at'), auto_now=True)
 
+    furniture_catalog = models.JSONField(default=list, blank=True)
+
     contact_info = models.EmailField(_('contact info'), blank=True, null=True)
 
     def __str__(self):

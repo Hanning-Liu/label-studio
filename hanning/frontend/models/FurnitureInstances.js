@@ -1,3 +1,4 @@
+import { customFurnitureEntries } from "@hanning/frontend/domain/catalog";
 import { applySnapshot, getSnapshot, types } from "mobx-state-tree";
 import { walkableReferencesFor } from "@hanning/frontend/domain/furnitureInstances/walkableReferences";
 import { furnitureScopeFor, instanceInScope } from "@hanning/frontend/domain/furnitureInstances/scope";
@@ -292,6 +293,7 @@ export const FurnitureInstances = types
             result.setMetaValue("furniture_instance_context", {
               ...value,
               instance_type: type,
+              catalog_entry: customFurnitureEntries[type],
               review_status: "pending",
               review_fingerprint: null,
             });

@@ -4,6 +4,7 @@ from django.urls import include, path
 
 from . import api, views
 from hanning.backend.project_creation.api import HierarchyProjectAPI
+from hanning.backend.catalog.api import FurnitureCatalogAPI
 
 app_name = 'projects'
 
@@ -16,6 +17,7 @@ _urlpatterns = [
 
 # reverse for projects:api:name
 _api_urlpatterns = [
+    path('furniture-catalog/', FurnitureCatalogAPI.as_view(), name='furniture-catalog'),
     path('hierarchy/', HierarchyProjectAPI.as_view(), name='hierarchy-create'),
     # CRUD
     path('', api.ProjectListAPI.as_view(), name='project-list'),

@@ -24,7 +24,7 @@ export const ALL_CONTROLS = new Set([...GEOMETRY_CONTROLS, CONTROLS.type, ...ORI
 
 // Label configs show the Chinese value and persist the stable English alias.
 // Never rename an alias after production annotations have used it.
-import { FURNITURE_TYPES } from "@hanning/frontend/domain/catalog";
+import { FURNITURE_TYPES, customFurnitureEntries } from "@hanning/frontend/domain/catalog";
 export { FURNITURE_TYPES };
 
 export const ROLE_BY_CONTROL = Object.freeze({
@@ -178,6 +178,7 @@ export function sharedContext(value) {
     schema_version: value.schema_version,
     instance_id: value.instance_id,
     instance_type: value.instance_type,
+    ...(value.catalog_entry ? { catalog_entry: value.catalog_entry } : {}),
     note: value.note || "",
     room_id: value.room_id,
     zone_id: value.zone_id,
@@ -197,6 +198,7 @@ export function baseContext(group, sourceVersion, instanceType, note = "", insta
     schema_version: 1,
     instance_id: instanceId,
     instance_type: instanceType,
+    ...(customFurnitureEntries[instanceType] ? { catalog_entry: customFurnitureEntries[instanceType] } : {}),
     note,
     room_id: group.roomId,
     zone_id: group.zoneId,

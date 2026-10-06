@@ -103,6 +103,7 @@ export function reimportFurnitureInstances(value) {
           schema_version: 1,
           instance_id: instance.id,
           instance_type: instance.instance_type,
+          ...(context(raw).catalog_entry ? { catalog_entry: clone(context(raw).catalog_entry) } : {}),
           note: instance.note || "",
           room_id: instance.parent?.room_id,
           zone_id: instance.parent?.zone_id,

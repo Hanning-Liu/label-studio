@@ -35,6 +35,7 @@ if str(LABEL_STUDIO_ROOT) not in sys.path:
 try:
     from shapely.geometry import MultiPolygon, Polygon
     from tasks.furniture_instances import FURNITURE_TYPES
+    from hanning.backend.catalog.custom import valid_type
     from tasks.furniture_instances.geometry import (
         canonicalize_parent_geometry,
         orientation_from_results,
@@ -190,7 +191,7 @@ def _result_context(result: dict[str, Any], role: str) -> dict[str, Any]:
         raise FurnitureAggregationError(
             f"L4 result {result_id!r} instance_type must be a stable lower-case English value"
         )
-    if context["instance_type"] not in FURNITURE_TYPES:
+    if not valid_type(context["instance_type"], context):
         raise FurnitureAggregationError(f"L4 result {result_id!r} uses unsupported furniture type")
     if not isinstance(context.get("note"), str):
         raise FurnitureAggregationError(f"L4 result {result_id!r} context note must be a string")
@@ -260,7 +261,7 @@ def _category_value(result: dict[str, Any], context: dict[str, Any]) -> str:
     category = choices[0]
     if not INSTANCE_TYPE_RE.fullmatch(category):
         raise FurnitureAggregationError(f"category {category!r} is not a stable lower-case English value")
-    if category not in FURNITURE_TYPES:
+    if not valid_type(category, context):
         raise FurnitureAggregationError(f"category {category!r} is not in the stable furniture vocabulary")
     if category != context["instance_type"]:
         raise FurnitureAggregationError(

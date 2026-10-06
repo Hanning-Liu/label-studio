@@ -28,6 +28,8 @@ import {
   sharedContext,
 } from "@hanning/frontend/domain/furnitureInstances/domain";
 
+import { validCustomFurnitureEntry } from "@hanning/frontend/domain/catalog";
+
 export const VECTOR_EPS = 1e-7;
 export const FRONT_EDGE_BOUNDARY_EPS_PX = 1e-5;
 export const BOUNDARY_PIXEL_EPS = FRONT_EDGE_BOUNDARY_EPS_PX;
@@ -610,7 +612,9 @@ export function validateFurnitureInstances(results, occupancyResults = results, 
       push("source", instanceId, result.id, "家具实例缺少 source_version 或有效 parent_fingerprint");
     if (!("note" in furnitureContext) || typeof furnitureContext.note !== "string")
       push("context", instanceId, result.id, "家具实例 note 必须存在且为字符串");
-    if (!Object.hasOwn(FURNITURE_TYPES, furnitureContext.instance_type))
+    if (furnitureContext.instance_type?.startsWith("custom_")
+      ? !validCustomFurnitureEntry(furnitureContext.catalog_entry, furnitureContext.instance_type)
+      : !Object.hasOwn(FURNITURE_TYPES, furnitureContext.instance_type))
       push("category", instanceId, result.id, "家具实例类别必须使用稳定英文值");
     if (!["pending", "reviewed", "stale"].includes(furnitureContext.review_status))
       push("review", instanceId, result.id, "家具实例 review_status 无效");

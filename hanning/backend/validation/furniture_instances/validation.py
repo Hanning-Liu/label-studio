@@ -27,6 +27,7 @@ from hanning.backend.validation.occupancy.validation import (
 )
 
 from . import FURNITURE_TYPES
+from hanning.backend.catalog.custom import valid_type
 from .geometry import (
     CATEGORY_CONTROL,
     FRONT_DIRECTION_CONTROL,
@@ -78,7 +79,8 @@ def context(result):
 
 
 def common_context(value):
-    return {key: value.get(key) for key in COMMON_CONTEXT_KEYS}
+    return {**{key: value.get(key) for key in COMMON_CONTEXT_KEYS},
+            **({'catalog_entry': value['catalog_entry']} if 'catalog_entry' in value else {})}
 
 
 def _group_identity(group_context):
@@ -173,7 +175,7 @@ def _valid_context(value, expected_role):
         value.get('schema_version') == 1
         and isinstance(value.get('instance_id'), str)
         and bool(value['instance_id'])
-        and value.get('instance_type') in FURNITURE_TYPES
+        and valid_type(value.get('instance_type'), value)
         and 'note' in value
         and isinstance(value.get('note'), str)
         and all(isinstance(value.get(key), str) and bool(value[key]) for key in ('room_id', 'zone_id', 'group_id', 'source_version'))
@@ -303,7 +305,7 @@ def validate(results, source_version, *, partial=False, review=True):
                 error('pair', instance_id, f"家具几何 {result.get('id')} 缺少唯一同 ID 类别结果")
             elif (
                 paired[0].get('type') != 'choices'
-                or _category_value(paired[0]) not in FURNITURE_TYPES
+                or not valid_type(_category_value(paired[0]), common)
                 or _category_value(paired[0]) != common.get('instance_type')
             ):
                 error('category', instance_id, '家具类别必须是唯一稳定英文值并与上下文一致')

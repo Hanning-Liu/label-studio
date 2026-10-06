@@ -268,6 +268,22 @@ def aggregate(base, results):
 
 
 class FurnitureInstancesToUnifiedTests(unittest.TestCase):
+    def test_custom_type_roundtrip_keeps_portable_catalog_metadata(self):
+        from hanning.backend.catalog.custom import custom_entry
+        entry=custom_entry('换鞋凳','storage_display')
+        base, fingerprint=base_document()
+        results=[rectangle_result('bench','bench-geometry',entry['id'],fingerprint,10,10,10,10),
+                 category_result('bench','bench-geometry',entry['id'],fingerprint)]
+        for result in results:result['meta']['furniture_instance_context']['catalog_entry']=copy.deepcopy(entry)
+        mark_reviewed(results)
+        output=aggregate(base,results)
+        restored=reimport_annotation_envelope(output)
+        self.assertEqual(restored['result'],results)
+        self.assertEqual(aggregate(base,restored['result']),output)
+        broken=copy.deepcopy(results)
+        broken[0]['meta']['furniture_instance_context']['catalog_entry']['label']='forged'
+        with self.assertRaises(FurnitureAggregationError):aggregate(base,broken)
+
     def test_explicit_source_ids_resolve_namespaced_graph_nodes_without_rewriting_parents(self):
         base, fingerprint = base_document()
         results = [rectangle_result("furniture:desk", "desk-geometry", "desk", fingerprint, 10, 10, 10, 10),

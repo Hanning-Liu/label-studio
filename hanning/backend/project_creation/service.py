@@ -77,7 +77,7 @@ def source_choice(task):
 def create_project(user, *, level, title, source_task=None, source_annotation=None, source_version=None):
     # Serialize creation per organization, including duplicate clicks in separate tabs.
     from organizations.models import Organization
-    Organization.objects.select_for_update().get(pk=user.active_organization_id)
+    organization = Organization.objects.select_for_update().get(pk=user.active_organization_id)
     if Project.objects.for_user(user).filter(title=title).exists():
         raise SyncConflict('同名项目已存在，请打开已有项目或更换名称。', 'project_exists')
     source = None
@@ -89,8 +89,12 @@ def create_project(user, *, level, title, source_task=None, source_annotation=No
         if annotation_id != source_annotation or version != source_version:
             raise SyncConflict('上游标注或配置已变化，请重新选择来源图片后创建。', 'source_changed')
         source.project.refresh_from_db()
+    config = template(level, source.project.label_config if source else None)
+    if level == 4:
+        from hanning.backend.catalog.api import extend_config
+        config = extend_config(config, organization.furniture_catalog)
     project = Project.objects.create(
-        title=title, label_config=template(level, source.project.label_config if source else None),
+        title=title, label_config=config,
         organization=user.active_organization, created_by=user, maximum_annotations=1,
         show_collab_predictions=True, is_draft=False,
     )

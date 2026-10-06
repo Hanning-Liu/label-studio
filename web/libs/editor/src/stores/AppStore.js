@@ -3,6 +3,7 @@
 import { destroy, detach, flow, getEnv, getParent, getSnapshot, isAlive, isRoot, types, walk } from "mobx-state-tree";
 
 import { uniqBy } from "@humansignal/core/lib/utils/lodash-replacements";
+import { registerFurnitureConfig } from "@hanning/frontend/domain/catalog";
 import InfoModal from "../components/Infomodal/Infomodal";
 import { Hotkey } from "../core/Hotkey";
 import { GEOMETRY_CONTROLS, ORIENTATION_CONTROLS } from "@hanning/frontend/domain/furnitureInstances/domain";
@@ -583,6 +584,7 @@ export default types
       const cs = self.annotationStore;
 
       self.config = config;
+      registerFurnitureConfig(self.config);
       cs.initRoot(self.config);
     }
 
@@ -838,6 +840,7 @@ export default types
       as.afterReset?.();
 
       if (!as.initialized) {
+        registerFurnitureConfig(self.config);
         as.initRoot(self.config);
         if (isFF(FF_LSDV_4620_3_ML) && !appControls?.isRendered()) {
           appControls?.render();
