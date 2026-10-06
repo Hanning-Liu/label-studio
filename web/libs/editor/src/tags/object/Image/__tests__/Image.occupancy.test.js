@@ -33,9 +33,11 @@ import {
   generateRemainder,
   invalidateReviews,
   logicalRegions,
+  mergeGroups,
   GEOMETRY,
   resultsForGeometry,
 } from "@hanning/frontend/domain/occupancy/domain";
+import { duplicateGroup } from "@hanning/frontend/domain/occupancy/groupOperations";
 
 const CONFIG = readFileSync(
   resolve(__dirname, "../../../../../../../../examples/occupancy-v1/furniture-group-v1.xml"),
@@ -101,6 +103,73 @@ const setup = (enabled = true) => {
   annotation.reinitHistory(false);
   return { store, annotation, image };
 };
+
+test("copied furniture is independently selected, draggable, serializable and undoable", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  image.createOccupancyGroup("study_work", "desk");
+  const region = annotation.createResult(
+    { x: 10, y: 10, width: 20, height: 20, rotation: 0, coordstype: "perc" },
+    {}, annotation.names.get("occupancy_rectangle"), image,
+  );
+  image.initializeOccupancyRegion(region);
+  image.finalizeOccupancyRegion(region);
+  const original = image.occupancyLogicals[0];
+  const before = image.occupancyData;
+  annotation.reinitHistory(false);
+  const operation = duplicateGroup(before, original.id);
+  image.applyOccupancyResults(operation.results, image.occupancyOperationFingerprint());
+  image.selectOccupancyLogical(operation.logicalId);
+  expect(image.occupancyActivePartId).not.toBe(original.parts[0].id);
+  expect(annotation.selectedRegions).toHaveLength(1);
+  expect(annotation.selectedRegions[0].useTransformer).toBe(true);
+  expect(image.getToolsManager().findSelectedTool().fullName).toBe("MoveTool");
+  annotation.history.undo();
+  expect(image.occupancyData).toEqual(before);
+  annotation.history.redo();
+  image.selectOccupancyLogical(operation.logicalId);
+  annotation.selectedRegions[0].setPositionInternal(45, 40, 20, 20, 0);
+  expect(image.occupancyLogicals.find((r) => r.id === original.id)).toEqual(original);
+  const saved = image.occupancyData;
+  annotation.deleteAllRegions({ deleteReadOnly: true });
+  annotation.deserializeResults(saved);
+  annotation.updateObjects();
+  expect(image.occupancyLogicals).toHaveLength(2);
+  expect(image.occupancyLogicals.find((r) => r.id === operation.logicalId).parts[0].value).toMatchObject({ x: 45, y: 40 });
+});
+
+test("disconnected union moves as a rigid group, rejects external drops and supports undo", () => {
+  const { image, annotation } = setup();
+  image.setOccupancyFocus("parent");
+  for (const x of [10, 50]) {
+    image.createOccupancyGroup("study_work", "");
+    const region = annotation.createResult(
+      { x, y: 10, width: 10, height: 10, rotation: 0, coordstype: "perc" },
+      {}, annotation.names.get("occupancy_rectangle"), image,
+    );
+    image.initializeOccupancyRegion(region);
+    image.finalizeOccupancyRegion(region);
+  }
+  const ids = image.occupancyLogicals.map((r) => r.id);
+  const next = mergeGroups(image.occupancyData, ids, "study_work", "");
+  image.applyOccupancyResults(next, image.occupancyOperationFingerprint());
+  image.selectOccupancyLogical(ids[0]);
+  expect(annotation.selectedRegions).toHaveLength(2);
+  expect(image.occupancyActivePartId).toBe("");
+  const before = image.occupancyData;
+  annotation.reinitHistory(false);
+  expect(image.moveOccupancyLogical(ids[0], 5.2, 10.2)).toBe(true);
+  expect(image.occupancyLogicals[0].geometry).toEqual(logicalRegions(before)[0].geometry.map((p) =>
+    p.map((ring) => ring.map(([x, y]) => [x + 5, y + 10]))));
+  const moved = image.occupancyData;
+  expect(image.moveOccupancyLogical(ids[0], 100, 0)).toBe(false);
+  expect(image.occupancyData).toEqual(moved);
+  annotation.history.undo();
+  expect(image.occupancyData).toEqual(before);
+  annotation.setIsDrawing(true);
+  expect(image.moveOccupancyLogical(ids[0], 1, 0)).toBe(false);
+  expect(image.occupancyData).toEqual(before);
+});
 test("observed toolbar views update after asynchronous load, edits and undo", () => {
   const { image, annotation } = setup();
   annotation.deleteAllRegions({ deleteReadOnly: true });

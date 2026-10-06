@@ -8,10 +8,12 @@ import {
   generateWalkableArea,
   GROUP_TYPES,
   logicalExport,
+  mergeGroups,
   OCCUPANCY_GENERATION_BLOCKED,
   reclassifyGroup,
   TYPES,
 } from "@hanning/frontend/domain/occupancy/domain";
+import { duplicateGroup } from "@hanning/frontend/domain/occupancy/groupOperations";
 import { applyOccupancyOperation, applyOccupancyPreview } from "@hanning/frontend/domain/occupancy/operations";
 import { focusOccupancy } from "@hanning/frontend/domain/occupancy/focus";
 import { COLORS, pathData } from "@hanning/frontend/components/occupancy/OccupancyLayer";
@@ -70,7 +72,7 @@ function PreviewGeometry({ parent, geometry }) {
   );
 }
 
-function OccupancyOverview({ parent, regions }) {
+function OccupancyOverview({ parent, regions, selectedIds = [] }) {
   if (!parent) return null;
   const sx = (parent.result.original_width || 100) / 100;
   const sy = (parent.result.original_height || 100) / 100;
@@ -105,11 +107,13 @@ function OccupancyOverview({ parent, regions }) {
               fill={COLORS[region.type]}
               fillOpacity="0.32"
               stroke={COLORS[region.type]}
-              strokeWidth={Math.max(width, height) / 320}
+              strokeWidth={Math.max(width, height) / (selectedIds.includes(region.id) ? 90 : 320)}
               fillRule="evenodd"
             />
             <text x={x * sx} y={y * sy} fill={COLORS[region.type]} fontSize={Math.max(width, height) / 35}>
-              {region.type === "furniture_group" ? GROUP_TYPES[region.context.group_type] : TYPES[region.type]}
+              {region.type === "furniture_group"
+                ? `${regions.filter((r) => r.type === "furniture_group").findIndex((r) => r.id === region.id) + 1} · ${GROUP_TYPES[region.context.group_type]}`
+                : TYPES[region.type]}
             </text>
           </g>
         );
@@ -118,7 +122,7 @@ function OccupancyOverview({ parent, regions }) {
   );
 }
 
-function GroupEditor({ region, disabled, onLocate, onReclassify }) {
+function GroupEditor({ region, index, selected, disabled, onSelect, onCopy, onLocate, onReclassify }) {
   const [groupType, setGroupType] = useState(region.context.group_type);
   const [groupNote, setGroupNote] = useState(region.context.group_note || "");
   useEffect(() => {
@@ -130,12 +134,18 @@ function GroupEditor({ region, disabled, onLocate, onReclassify }) {
   return (
     <div className={styles.item}>
       <div className={styles.row}>
+        <label>
+          <input type="checkbox" checked={selected} disabled={disabled}
+            aria-label={`选择合并组团 ${index + 1} ${region.id}`}
+            onChange={() => onSelect(region.id)} /> 选择
+        </label>
         <span className={styles.typeSwatch} style={{ backgroundColor: COLORS.furniture_group }} aria-hidden="true" />
-        <strong>{GROUP_TYPES[region.context.group_type]}</strong>
+        <strong>{index + 1} · {GROUP_TYPES[region.context.group_type]}</strong>
         <span className={styles.small}>{region.id}</span>
         <button disabled={disabled} onClick={() => onLocate(region)}>
           定位
         </button>
+        <button disabled={disabled} onClick={() => onCopy(region)}>复制组团</button>
       </div>
       <div className={styles.row}>
         <select
@@ -221,6 +231,9 @@ export const OccupancyControls = observer(({ item }) => {
   const [rebind, setRebind] = useState("");
   const [reviewParentId, setReviewParentId] = useState("");
   const [referenceBackupFingerprint, setReferenceBackupFingerprint] = useState("");
+  const [mergeIds, setMergeIds] = useState([]);
+  const [mergeType, setMergeType] = useState("");
+  const [mergeNote, setMergeNote] = useState(null);
   const running = useRef(false);
   useEffect(() => {
     setState(controller?.state || {});
@@ -240,11 +253,20 @@ export const OccupancyControls = observer(({ item }) => {
   }, [item.occupancyDeleteRequestId]);
   useEffect(() => {
     setGenerationIssues([]);
-  }, [item.occupancyFocusId]);
+    setMergeIds([]);
+    setMergeType("");
+    setMergeNote(null);
+  }, [item.occupancyFocusId, annotation]);
   if (!item.occupancyEnabled) return null;
   const parent = item.occupancyParents.find((p) => p.id === item.occupancyFocusId);
   const logicals = item.occupancyLogicals.filter((r) => r.context.parent_zone_id === item.occupancyFocusId);
   const groups = logicals.filter((r) => r.type === "furniture_group");
+  const selectedGroups = groups.filter((r) => mergeIds.includes(r.id));
+  const commonType = selectedGroups.length && selectedGroups.every((r) => r.context.group_type === selectedGroups[0].context.group_type)
+    ? selectedGroups[0].context.group_type : "";
+  const mergedType = mergeType || commonType;
+  const mergedNote = mergeNote ?? (selectedGroups.length && selectedGroups.every((r) => r.context.group_note === selectedGroups[0].context.group_note)
+    ? selectedGroups[0].context.group_note || "" : "");
   const focusBarriers = item.occupancyBarriers.filter((barrier) => barrier.context.parent_zone_id === item.occupancyFocusId);
   const matchedBarrierPairs = focusBarriers.reduce((count, barrier) => count + (barrier.context.matched_pairs?.length || 0), 0);
   const generatedWalkable = logicals.filter((r) => r.type === "walkable" && r.context.generation === "remainder");
@@ -261,6 +283,8 @@ export const OccupancyControls = observer(({ item }) => {
   const disabled = busy || drawing || annotation.isReadOnly();
   const activePart = item.regs.find((region) => region.cleanId === item.occupancyActivePartId);
   const activePolygon = activePart?.type === "polygonregion" && activePart.occupancyVertexEditing ? activePart : null;
+  const selectedGroup = groups.find((r) => r.id === item.occupancySelectedId && r.context.generation === "manual" &&
+    r.parts.some((part) => annotation.selectedRegions.some((region) => region.cleanId === part.id)));
   const selectedPoint = activePolygon?.selectedPoint;
   const deleteLogical = item.occupancyLogicals.find((region) => region.id === item.occupancyDeleteRequestId);
   const deleteParent = item.occupancyParents.find(
@@ -351,6 +375,31 @@ export const OccupancyControls = observer(({ item }) => {
           : `已生成 ${operation.count} 个可通行区域并保存草稿；当前父分区需要重新复核。`,
     });
   };
+  const copyGroup = (region) => run(async () => {
+    const operation = await applyOccupancyOperation(item,
+      (data) => duplicateGroup(data, region.id), cacheOccupancyRecovery,
+      { backupName: "before-l3-group-copy" });
+    item.setOccupancyBusy(false);
+    item.selectOccupancyLogical(operation.logicalId);
+    setDialog(null);
+    setNotice(`已复制并保存草稿，副本已选中${operation.offset.some(Boolean) ? "并略微偏移" : "（父分区内无偏移空间，保持原位）"}；请拖动到目标位置，重叠处需调整后再生成可通行区域。`);
+  });
+  const toggleMerge = (id) => {
+    setMergeIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]);
+    setMergeType("");
+    setMergeNote(null);
+  };
+  const mergeSelected = () => run(async () => {
+    const ids = selectedGroups.map((r) => r.id);
+    const operation = await applyOccupancyOperation(item,
+      (data) => ({ results: mergeGroups(data, ids, mergedType, mergedNote), logicalId: ids[0] }),
+      cacheOccupancyRecovery, { backupName: "before-l3-group-union" });
+    item.setOccupancyBusy(false);
+    item.selectOccupancyLogical(operation.logicalId);
+    setMergeIds([]);
+    setDialog(null);
+    setNotice(`已将 ${ids.length} 个组团求并集合并并保存草稿；空隙保留，可撤销。请重新生成可通行区域并复核。`);
+  });
   const confirm = (ids) =>
     prepare(`已检查，确认 ${ids.length} 个父分区（不代表系统自动判断通行性）`, (data) =>
       confirmParents(data, ids, annotation.referenceVersion),
@@ -482,6 +531,11 @@ export const OccupancyControls = observer(({ item }) => {
           }}
         >
           创建组团
+        </button>
+        <button disabled={disabled || refChanged || !selectedGroup}
+          title="先在画布或 Regions 中选择家具组团；副本会自动选中，可直接拖动"
+          onClick={() => copyGroup(selectedGroup)}>
+          复制选中组团
         </button>
         <button
           disabled={disabled || !parent}
@@ -636,7 +690,25 @@ export const OccupancyControls = observer(({ item }) => {
                 当前仅显示 <ParentIdentity parent={parent} />
                 。家具组团分类和可通行区域生成会立即写入草稿，可使用撤销恢复。
               </p>
-              <OccupancyOverview parent={parent} regions={logicals} />
+              <OccupancyOverview parent={parent} regions={logicals} selectedIds={mergeIds} />
+              <p>勾选下面的家具组团后求并集；相接部分合成完整轮廓，空隙和孔洞保留。</p>
+              <div className={styles.row}>
+                <button disabled={disabled || !groups.length} onClick={() => {
+                  setMergeIds(groups.map((r) => r.id)); setMergeType(""); setMergeNote(null);
+                }}>全选组团</button>
+                <button disabled={disabled || !mergeIds.length} onClick={() => setMergeIds([])}>取消选择</button>
+                <label>合并类型 <select aria-label="合并后的组团类型" disabled={disabled}
+                  value={mergedType} onChange={(e) => setMergeType(e.target.value)}>
+                  <option value="">请选择类型</option>
+                  {Object.entries(GROUP_TYPES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select></label>
+                <input aria-label="合并后的组团说明" disabled={disabled} value={mergedNote}
+                  onChange={(e) => setMergeNote(e.target.value)} placeholder={mergedType === "other" ? "其他类型必须填写说明" : "合并说明（可选）"} />
+                <button disabled={disabled || refChanged || selectedGroups.length < 2 || !mergedType ||
+                  (mergedType === "other" && !mergedNote.trim())} onClick={mergeSelected}>
+                  求并集合并（{selectedGroups.length}）
+                </button>
+              </div>
               <div className={styles.row}>
                 <strong>
                   {generatedWalkable.length
@@ -668,8 +740,10 @@ export const OccupancyControls = observer(({ item }) => {
               />
               <div className={styles.list}>
                 {!groups.length && <p>当前功能分区没有家具组团；可以直接生成覆盖整个父分区的可通行区域。</p>}
-                {groups.map((r) => (
-                  <GroupEditor key={r.id} region={r} disabled={disabled} onLocate={locate} onReclassify={mutateGroup} />
+                {groups.map((r, index) => (
+                  <GroupEditor key={r.id} region={r} index={index} selected={mergeIds.includes(r.id)}
+                    disabled={disabled || refChanged} onSelect={toggleMerge} onCopy={copyGroup}
+                    onLocate={locate} onReclassify={mutateGroup} />
                 ))}
               </div>
             </>

@@ -391,7 +391,8 @@ export function mergeGroups(results, ids, groupType, note, idFactory = newId) {
   if (
     regions.length !== ids.length ||
     regions.length < 2 ||
-    regions.some((r) => r.type !== "furniture_group") ||
+    regions.some((r) => r.type !== "furniture_group" || r.context.generation !== "manual" ||
+      r.parts.some((part) => part.readonly || part.value.closed === false)) ||
     new Set(regions.map((r) => r.context.parent_zone_id)).size !== 1
   )
     throw new Error("只能合并同一父分区内的家具组团");

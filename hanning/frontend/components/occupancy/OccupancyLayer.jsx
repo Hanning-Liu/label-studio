@@ -37,6 +37,16 @@ export const OccupancyLayer = observer(({ item }) => {
             <Group
               key={r.id}
               listening={listening}
+              draggable={listening && selected && !item.annotation.isReadOnly() &&
+                r.type === "furniture_group" && r.context.generation === "manual" &&
+                r.parts.every((part) => !part.readonly && part.value.closed !== false) && !item.occupancyActivePartId}
+              onDragEnd={(event) => {
+                const node = event.target;
+                const dx = node.x() * 100 / item.stageWidth;
+                const dy = node.y() * 100 / item.stageHeight;
+                node.position({ x: 0, y: 0 });
+                item.moveOccupancyLogical(r.id, dx, dy);
+              }}
               onClick={(event) => {
                 event.cancelBubble = true;
                 item.selectOccupancyLogical(r.id);

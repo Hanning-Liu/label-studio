@@ -21,6 +21,7 @@ import {
   resultGeometry,
 } from "@hanning/frontend/domain/occupancy/geometry";
 import { editableParts } from "@hanning/frontend/domain/occupancy/editing";
+import { translateGroup } from "@hanning/frontend/domain/occupancy/groupOperations";
 import { constraintSpace, constrainRectangle, constrainPolygon, snapOccupancyPoint } from "@hanning/frontend/domain/occupancy/constraints";
 import { pointInPolygon, segmentInsidePolygon } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
 import {
@@ -478,6 +479,43 @@ export const Occupancy = types
         .allTools()
         .find((tool) => tool.fullName === "MoveTool");
       if (move) self.getToolsManager().selectTool(move, true);
+    },
+    moveOccupancyLogical(id, dx, dy) {
+      const reason = self.occupancyOperationBlockReason();
+      if (reason || self.occupancyBusy) {
+        self.occupancyEditNotice = reason || "请等待当前操作结束";
+        return false;
+      }
+      try {
+        if (self.occupancyPixelSnap) {
+          dx = Math.round(dx * self.naturalWidth / 100) * 100 / self.naturalWidth;
+          dy = Math.round(dy * self.naturalHeight / 100) * 100 / self.naturalHeight;
+        }
+        const data = self.occupancyData;
+        const logical = self.occupancyLogicals.find((r) => r.id === id);
+        const part = self.regs.find((r) => logical?.parts.some((p) => p.id === r.cleanId));
+        const space = self.occupancyConstraintSpace(part);
+        const candidates = self.occupancyBoundarySnap ? logical.geometry.flatMap((polygon) => polygon[0].flatMap(([x, y]) => {
+          const target = space.toPixel({ x: x + dx, y: y + dy });
+          return space.boundaryPoints(target).map((point) => ({
+            dx: dx + (point.x - target.x) * 100 / self.naturalWidth,
+            dy: dy + (point.y - target.y) * 100 / self.naturalHeight,
+            distance: space.screenDistance(target, point),
+          }));
+        })).sort((a, b) => a.distance - b.distance) : [];
+        let next;
+        for (const candidate of candidates) {
+          try { next = translateGroup(data, id, candidate.dx, candidate.dy); break; } catch { /* try the next rigid offset */ }
+        }
+        next ||= translateGroup(data, id, dx, dy);
+        self.applyOccupancyResults(next, self.occupancyOperationFingerprint());
+        self.selectOccupancyLogical(id);
+        self.occupancyEditNotice = "已整体移动组团；请检查位置并重新生成可通行区域";
+        return true;
+      } catch (error) {
+        self.occupancyEditNotice = error.message;
+        return false;
+      }
     },
     setOccupancyDrawMode(mode, correctionId = "") {
       if (self.annotation.isDrawing || self.annotation.hasIncompletePolygons) throw new Error("请先完成绘制");
