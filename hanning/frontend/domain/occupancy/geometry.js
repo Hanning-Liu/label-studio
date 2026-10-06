@@ -68,6 +68,20 @@ export function ringArea(ring) {
 }
 export const area = (multi) =>
   multi.reduce((sum, polygon) => sum + ringArea(polygon[0]) - polygon.slice(1).reduce((s, r) => s + ringArea(r), 0), 0);
+// Boolean subtraction can create a separate, effectively collinear ring when
+// shared coordinates differ by a few floating-point ULPs. Test thickness at
+// machine precision, NOT a minimum area: real tiny components and thin frames
+// (including their holes) must survive. Apply only to generated remainders.
+export function isNumericalFragment(polygon) {
+  const ring = polygon[0];
+  if (!ring?.length) return true;
+  const scale = ring.reduce((value, [x, y]) => Math.max(value, Math.abs(x), Math.abs(y)), 1);
+  const perimeter = ring.reduce((sum, point, index) => {
+    const next = ring[(index + 1) % ring.length];
+    return sum + Math.hypot(next[0] - point[0], next[1] - point[1]);
+  }, 0);
+  return ringArea(ring) <= perimeter * (8 * Number.EPSILON * scale);
+}
 export const union = (...geometries) => (geometries.length ? clipping.union(...geometries) : []);
 export const difference = (subject, ...geometries) =>
   geometries.length ? clipping.difference(subject, ...geometries) : clone(subject);

@@ -4,6 +4,7 @@ import {
   difference,
   equivalent,
   fingerprint,
+  isNumericalFragment,
   resultGeometry,
   storageParts,
   union,
@@ -26,6 +27,7 @@ import {
   OCCUPANCY_GENERATION_BLOCKED,
   parentContentFingerprint,
   parents,
+  remainderInputFingerprint,
   resultsForGeometry,
   validateOccupancy,
   localCorrection,
@@ -255,6 +257,84 @@ test("walkable generation preserves structured blocking issues instead of collap
       ]),
     );
   }
+});
+
+const wardrobeRemainderData = () => {
+  const parent = {
+    ...rect(0, 0, 1, 1),
+    from_name: "zone_polygon",
+    type: "polygon",
+    original_width: 693,
+    original_height: 1000,
+    value: { points: [
+      [45.743145743145746, 19.1], [45.743145743145746, 36.2],
+      [44.73304473304473, 36.2], [44.73304473304473, 41.6],
+      [52.38095238095238, 41.6], [52.38095238095238, 29.8],
+      [57.14285714285714, 29.8], [57.14285714285714, 19.1],
+    ] },
+  };
+  const data = [parent];
+  data.push(...group(data, [[[
+    [45.74314574314573, 19.1], [45.74314574314573, 22.6],
+    [52.38095238095238, 22.6], [52.38095238095238, 29.8],
+    [57.14285714285714, 29.799999999999994], [57.14285714285714, 19.1],
+  ]]]));
+  data.push(...group(data, resultGeometry({
+    ...rect(44.73304473304472, 36.2, 7.647907647907658, 5.399999999999999),
+    original_width: 693, original_height: 1000,
+  })));
+  return data;
+};
+
+test("shared wardrobe edge roundoff does not generate a phantom walkable region", () => {
+  const data = wardrobeRemainderData();
+  const before = JSON.stringify(data);
+  const parent = parents(data)[0];
+  const raw = difference(parent.geometry, ...logicalRegions(data).map((r) => r.geometry));
+  expect(raw).toHaveLength(2); // Reproduces the actual boolean-operation artifact.
+  expect(raw.filter(isNumericalFragment)).toHaveLength(1);
+  const generated = generateWalkableArea(data, parent.id, "v1", id);
+  expect(generated.count).toBe(1);
+  expect(logicalRegions(generated.results).filter((r) => r.type === "walkable")).toHaveLength(1);
+  expect(JSON.stringify(data)).toBe(before);
+  expect(generated.results.slice(0, data.length)).toEqual(data);
+  expect(validateOccupancy(generated.results, "v1").filter((issue) => issue.code !== "review")).toEqual([]);
+  expect(generateWalkableArea(generated.results, parent.id, "v1", id).unchanged).toBe(true);
+});
+
+test("regeneration removes old numerical artifacts without replacing genuine regions", () => {
+  const data = wardrobeRemainderData();
+  const parent = parents(data)[0];
+  const raw = difference(parent.geometry, ...logicalRegions(data).map((r) => r.geometry));
+  const old = raw.flatMap((polygon) => resultsForGeometry([polygon], "walkable", {
+    ...baseContext(parent, "v1", "remainder", id()),
+    remainder_input_fingerprint: remainderInputFingerprint(data, parent.id),
+  }, parent.result, id));
+  const saved = [...data, ...old];
+  const noise = logicalRegions(saved).find((r) => r.geometry.every(isNumericalFragment));
+  const noiseIds = new Set(noise.parts.map((part) => part.id));
+  const regenerated = generateWalkableArea(saved, parent.id, "v1", id);
+  expect(regenerated.unchanged).toBe(false);
+  expect(regenerated.count).toBe(1);
+  expect(regenerated.results).toEqual(saved.filter((result) => !noiseIds.has(result.id)));
+  expect(generateWalkableArea(regenerated.results, parent.id, "v1", id).unchanged).toBe(true);
+  expect(() => generateWalkableArea([...saved, {
+    type: "relation", from_id: noise.parts[0].id, to_id: data[0].id,
+  }], parent.id, "v1", id)).toThrow("Relations");
+});
+
+test("numerical-fragment filtering preserves real tiny components, narrow passages and holes", () => {
+  const square = (x, y, width, height) => [[
+    [x, y], [x + width, y], [x + width, y + height], [x, y + height], [x, y],
+  ]];
+  expect(isNumericalFragment(square(20, 20, 1e-7, 1e-7))).toBe(false);
+  expect(isNumericalFragment(square(20, 20, 10, 1e-9))).toBe(false);
+  expect(isNumericalFragment([...square(20, 20, 10, 10), ...square(20 + 1e-9, 20 + 1e-9, 10 - 2e-9, 10 - 2e-9)])).toBe(false);
+  const data = setup();
+  data.push(...group(data, resultGeometry(rect(0, 0, 100 - 1e-7, 100))));
+  const generated = generateWalkableArea(data, data[0].id, "v1", id);
+  expect(generated.count).toBe(1);
+  expect(area(generated.geometry)).toBeGreaterThan(0);
 });
 test("overlap errors identify both conflicting logical regions", () => {
   const data = setup();

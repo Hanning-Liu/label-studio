@@ -6,6 +6,7 @@ import {
   equivalent,
   fingerprint,
   intersection,
+  isNumericalFragment,
   resultGeometry,
   storageParts,
   union,
@@ -243,14 +244,29 @@ function generateRemainderOfType(results, parentId, sourceVersion, outputType, i
     error.issues = blockingIssues;
     throw error;
   }
-  const remainder = difference(parent.geometry, ...manual.map((r) => r.geometry));
+  const remainder = difference(parent.geometry, ...manual.map((r) => r.geometry)).filter(
+    (polygon) => !isNumericalFragment(polygon),
+  );
+  const artifacts = old.filter((region) => region.geometry.every(isNumericalFragment));
+  const retained = old.filter((region) => !artifacts.includes(region));
   if (
     old.length &&
     (outputType === "unclassified" || old.every((r) => r.type === outputType)) &&
     old.every((r) => r.context.remainder_input_fingerprint === input) &&
-    equivalent(union(...old.map((r) => r.geometry)), remainder)
-  )
+    retained.every((r) => r.geometry.every((polygon) => !isNumericalFragment(polygon))) &&
+    equivalent(union(...retained.map((r) => r.geometry)), remainder)
+  ) {
+    // Repair old generated artifacts even when the usual area-equivalence
+    // check considers them unchanged. Keep all real region IDs/coordinates.
+    if (artifacts.length)
+      return {
+        results: replaceLogicals(results, artifacts.map((r) => r.id), []),
+        count: retained.length,
+        unchanged: false,
+        geometry: remainder,
+      };
     return { results, count: 0, unchanged: true };
+  }
   const additions = remainder.flatMap((polygon) =>
     resultsForGeometry(
       [polygon],
