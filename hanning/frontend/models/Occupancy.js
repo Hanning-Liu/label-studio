@@ -374,6 +374,35 @@ export const Occupancy = types
       if (refreshReview) self.refreshOccupancyReviews();
       return matches;
     },
+    resumeOccupancyDrawing(tool, region) {
+      if (!self.occupancyEnabled || self.furnitureInstancesEnabled || tool.control?.name !== "occupancy_polygon" ||
+          region?.parent !== self || region.closed || region.isReadOnly() || self.annotation.isReadOnly()) return false;
+      const geometry = region.results.find((r) => r.from_name?.name === "occupancy_polygon");
+      const c = geometry?.meta?.occupancy_context;
+      const mode = region.results.find((r) => r.from_name?.name === "occupancy_type")?.mainValue?.[0];
+      if (!c || c.generation !== "manual" || !self.occupancyParents.some((parent) => parent.id === c.parent_zone_id)) {
+        self.occupancyEditNotice = "未完成轮廓的父分区不存在，请先导出恢复文件并修复参考";
+        return false;
+      }
+      if (!["furniture_group", "walkable", "restricted_free", "unclassified"].includes(mode)) return false;
+      if (mode === "furniture_group" && (!c.group_id || !GROUP_TYPES[c.group_type])) return false;
+      // These are UI-only drawing choices lost on navigation. Recover them from
+      // the unfinished region, preserving its identity, points and provenance.
+      self.occupancyFocusId = c.parent_zone_id;
+      self.occupancyDrawMode = mode;
+      self.occupancyGroup = mode === "furniture_group"
+        ? { id: c.group_id, type: c.group_type, note: c.group_note || "", parentId: c.parent_zone_id }
+        : null;
+      self.occupancyDrawingControl = tool.control.name;
+      self.occupancySelectedId = c.logical_id || "";
+      self.occupancyCorrectionId = "";
+      self.occupancyEditPartId = "";
+      self.occupancyEditNotice = "已恢复未完成的多边形，请从现有顶点继续绘制并闭合轮廓";
+      const labels = self.annotation.names.get("occupancy_type");
+      labels.unselectAll();
+      labels.children.find((label) => label.value === mode)?.setSelected(true);
+      return true;
+    },
     startOccupancyTool(name) {
       const reason = self.occupancyDrawBlockReason(name);
       if (reason) throw new Error(reason);

@@ -674,3 +674,55 @@ test("L3 rejects a pixel fit crossing the stored parent and rolls back failed ed
   expect(annotation.serializeAnnotation()).toEqual(before);
   notify.mockRestore();
 });
+
+
+test("navigation restores unfinished L3 polygon context and continues the same group without losing vertices", () => {
+  const first = orthogonalGroup();
+  const saved = first.annotation.serializeAnnotation();
+  for (const r of saved.filter((r) => r.id === first.region.cleanId)) {
+    r.value.closed = false;
+    r.value.points = [[20, 20], [40, 20], [40, 40]];
+  }
+  const { image, annotation } = setup();
+  annotation.deleteAllRegions({ deleteReadOnly: true });
+  annotation.deserializeAnnotation(saved);
+  const region = image.regs.find((r) => r.cleanId === first.region.cleanId);
+  const tool = image.getToolsManager().allTools().find((t) => t.control?.name === "occupancy_polygon" && !t.dynamic);
+  expect(image.occupancyFocusId).toBe("");
+  const before = annotation.serializeAnnotation();
+  tool.resumeUnfinishedRegion(region);
+  expect(image.occupancyFocusId).toBe("parent");
+  expect(image.occupancyGroup.id).toBe(first.image.occupancyLogicals[0].context.group_id);
+  expect(image.occupancyGroup.type).toBe("storage");
+  expect(image.occupancyDrawingControl).toBe("occupancy_polygon");
+  expect(image.getToolsManager().findSelectedTool()).toBe(tool);
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  expect(image.occupancyDrawBlockReason("occupancy_polygon")).toBe("");
+  expect(image.occupancyDrawingPoint({ x: 20, y: 40 }, region)).toEqual({ x: 20, y: 40 });
+  tool.nextPoint(20, 40);
+  expect(region.points.map((p) => [p.x, p.y])).toEqual([[20, 20], [40, 20], [40, 40], [20, 40]]);
+  region.closePoly();
+  expect(region.closed).toBe(true);
+  expect(region.cleanId).toBe(first.region.cleanId);
+  expect(image.occupancyLogicals).toHaveLength(1);
+  expect(image.occupancyLogicals[0].context.group_type).toBe("storage");
+});
+
+test("unfinished L3 recovery never substitutes focus for a missing stored parent or edits readonly results", () => {
+  const { image, annotation, region } = orthogonalGroup();
+  const tool = image.getToolsManager().allTools().find((t) => t.control?.name === "occupancy_polygon" && !t.dynamic);
+  const regionId = region.cleanId;
+  const data = annotation.serializeAnnotation();
+  for (const r of data.filter((r) => r.id === regionId)) r.value.closed = false;
+  annotation.deleteAllRegions({ deleteReadOnly: true });
+  annotation.deserializeAnnotation(data);
+  const restored = image.regs.find((r) => r.cleanId === regionId);
+  const geometry = restored.results.find((r) => r.meta?.occupancy_context);
+  geometry.setMetaValue("occupancy_context", { ...geometry.meta.occupancy_context, parent_zone_id: "missing" });
+  const before = annotation.serializeAnnotation();
+  expect(image.resumeOccupancyDrawing(tool, restored)).toBe(false);
+  expect(image.occupancyEditNotice).toMatch("父分区不存在");
+  expect(annotation.serializeAnnotation()).toEqual(before);
+  annotation.setReadonly(true);
+  expect(image.resumeOccupancyDrawing(tool, restored)).toBe(false);
+});

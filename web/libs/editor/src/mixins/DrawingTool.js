@@ -204,6 +204,7 @@ const DrawingTool = types
         return self.currentArea;
       },
       resumeUnfinishedRegion(existingUnclosedPolygon) {
+        const resumingL3 = self.obj.resumeOccupancyDrawing?.(self, existingUnclosedPolygon);
         self.currentArea = existingUnclosedPolygon;
         self.currentArea.setDrawing(true);
         self.annotation.regionStore.selection._updateResultsFromRegions([self.currentArea]);
@@ -214,7 +215,7 @@ const DrawingTool = types
         if (self.manager.findSelectedTool() !== self) {
           const resumingL1 = self.obj.l1ToolbarEnabled && self.obj.resumeL1Drawing(self, existingUnclosedPolygon);
           const resumingL2 = self.obj.l2ToolbarEnabled && self.obj.resumeL2Drawing(self, existingUnclosedPolygon);
-          if (resumingL1 || resumingL2) self.manager.selectTool(self, true, true);
+          if (resumingL1 || resumingL2 || resumingL3) self.manager.selectTool(self, true, true);
           else self.manager.selectTool(self, true);
         }
       },
