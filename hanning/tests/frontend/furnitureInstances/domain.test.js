@@ -19,8 +19,8 @@ global.TextEncoder = TextEncoder;
 
 beforeEach(resetIds);
 
-test("stable English furniture aliases have the locked 31-item Chinese display map", () => {
-  expect(Object.keys(FURNITURE_TYPES)).toHaveLength(31);
+test("stable English furniture aliases have the locked 32-item Chinese display map", () => {
+  expect(Object.keys(FURNITURE_TYPES)).toHaveLength(32);
   expect(FURNITURE_TYPES).toMatchObject({
     desk: "书桌",
     armchair: "扶手椅",
@@ -29,6 +29,7 @@ test("stable English furniture aliases have the locked 31-item Chinese display m
     potted_plant: "绿植盆栽",
     drying_rack: "晾衣架",
     piano: "钢琴",
+    floor_lamp: "落地灯",
   });
 });
 

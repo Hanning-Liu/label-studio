@@ -80,9 +80,10 @@ class FurnitureInstanceTemplateTests(unittest.TestCase):
         choices = root.find("Choices[@name='furniture_instance_type']")
         actual = [(choice.get('alias'), choice.get('value')) for choice in choices.findall('Choice')]
         self.assertEqual(actual, list(FURNITURE_TYPE_CHOICES))
-        self.assertEqual(len(actual), 31)
+        self.assertEqual(len(actual), 32)
         self.assertIn(('drying_rack', '晾衣架'), actual)
         self.assertIn(('piano', '钢琴'), actual)
+        self.assertIn(('floor_lamp', '落地灯'), actual)
         self.assertIn(('armchair', '扶手椅'), actual)
         orientation_view = root.find("View[@className='furniture-instance-orientation-controls']")
         self.assertIsNotNone(orientation_view)

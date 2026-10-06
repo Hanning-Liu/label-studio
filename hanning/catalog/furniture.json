@@ -656,6 +656,26 @@
         "condition": "界面归入“乐器”；不从二维形状推断 IFC 实体，映射待额外证据确认"
       },
       "legacy_addition_order": 4
+    },
+    {
+      "id": "floor_lamp",
+      "label": "落地灯",
+      "group": "living_dining",
+      "display_order": 6,
+      "template_order": 31,
+      "definition": "独立立于地面的照明灯具，按图中可辨识的整体平面轮廓标注；不包括台灯、壁灯、吊灯，也不以照明覆盖范围代替灯具。",
+      "aliases": [
+        "立式灯",
+        "立式落地灯"
+      ],
+      "confusable": [
+        "other"
+      ],
+      "ifc_comparison": {
+        "candidate": "暂不指定",
+        "condition": "界面归入“会客与用餐”；分组不限制灯具所在房间，IFC 映射待额外证据确认"
+      },
+      "legacy_addition_order": 5
     }
   ]
 }

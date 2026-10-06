@@ -6,11 +6,11 @@ import {
   furnitureTypeColor,
 } from "@hanning/frontend/domain/furnitureInstances/presentation";
 
-test("palette contains all and only the 31 stable furniture values exactly once", () => {
+test("palette contains all and only the 32 stable furniture values exactly once", () => {
   const values = FURNITURE_TYPE_GROUPS.flatMap((group) => group.types);
-  expect(values).toHaveLength(31);
+  expect(values).toHaveLength(32);
   expect(new Set(values)).toEqual(new Set(Object.keys(FURNITURE_TYPES)));
-  expect(new Set(values)).toHaveProperty("size", 31);
+  expect(new Set(values)).toHaveProperty("size", 32);
   expect(FURNITURE_TYPE_GROUPS).toHaveLength(9);
   expect(assertFurniturePaletteCoverage()).toBe(true);
 });
@@ -35,6 +35,8 @@ test("palette groups retain the approved presentation colors", () => {
   expect(furnitureTypeColor("drying_rack")).toBe("#0F766E");
   expect(FURNITURE_TYPE_GROUPS.find((group) => group.name === "乐器").types).toEqual(["piano"]);
   expect(furnitureTypeColor("piano")).toBe("#9F1239");
+  expect(FURNITURE_TYPE_GROUPS.find((group) => group.name === "会客与用餐").types.at(-1)).toBe("floor_lamp");
+  expect(furnitureTypeColor("floor_lamp")).toBe("#16A34A");
 });
 
 test("focus identity resolves Chinese group, room and zone descriptions without changing ids", () => {

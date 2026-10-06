@@ -356,7 +356,7 @@ class FurnitureInstancesToUnifiedTests(unittest.TestCase):
         for name, value in original_windows.items():
             self.assertEqual(output[name], value)
 
-        for instance_type in ("dressing_table", "bar_counter", "potted_plant", "drying_rack", "piano"):
+        for instance_type in ("dressing_table", "bar_counter", "potted_plant", "drying_rack", "piano", "floor_lamp"):
             with self.subTest(instance_type=instance_type):
                 expanded_results = copy.deepcopy([geometry, category])
                 for result in expanded_results:

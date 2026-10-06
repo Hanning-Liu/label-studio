@@ -10,7 +10,7 @@ import { furnitureReferenceStyles } from "@hanning/frontend/domain/furnitureInst
 import { FURNITURE_TYPES } from "@hanning/frontend/domain/furnitureInstances/domain";
 import details from "@hanning/frontend/domain/catalogDetails";
 
-test("all 31 classes have definitions, aliases and valid disambiguation links", () => {
+test("all 32 classes have definitions, aliases and valid disambiguation links", () => {
   expect(Object.keys(details).sort()).toEqual(Object.keys(FURNITURE_TYPES).sort());
   for (const entry of Object.values(details)) {
     expect(entry.definition.length).toBeGreaterThan(5);

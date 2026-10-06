@@ -20,7 +20,7 @@ def old_config():
     root = etree.fromstring(build_template(SOURCE_CONFIG).encode())
     control = root.xpath('.//Choices[@name="furniture_instance_type"]')[0]
     for choice in list(control):
-        if choice.get('alias') in ('dressing_table', 'bar_counter', 'potted_plant', 'drying_rack', 'piano'):
+        if choice.get('alias') in ('dressing_table', 'bar_counter', 'potted_plant', 'drying_rack', 'piano', 'floor_lamp'):
             control.remove(choice)
     root.append(etree.Comment('retain custom layout'))
     etree.SubElement(root, 'Header', value='自定义提示', size='5')
@@ -28,44 +28,45 @@ def old_config():
 
 
 class CatalogUpgradeTests(TestCase):
-    def test_30_category_project_only_adds_piano(self):
+    def test_31_category_project_only_adds_floor_lamp(self):
         root = etree.fromstring(build_template(SOURCE_CONFIG).encode())
-        piano = root.xpath('.//Choice[@alias="piano"]')[0]
-        piano.getparent().remove(piano)
+        lamp = root.xpath('.//Choice[@alias="floor_lamp"]')[0]
+        lamp.getparent().remove(lamp)
         original = etree.tostring(root, encoding='unicode')
         updated, additions = upgrade_choices(original)
-        self.assertEqual(additions, ['piano'])
-        inserted = '<Choice value="钢琴" alias="piano"/>'
+        self.assertEqual(additions, ['floor_lamp'])
+        inserted = '<Choice value="落地灯" alias="floor_lamp"/>'
         unchanged = re.sub(r'(?m)^[ \t]*' + re.escape(inserted) + r'\r?\n', '', updated).replace(inserted, '')
         self.assertEqual(unchanged, original)
         self.assertEqual(upgrade_choices(updated), (updated, []))
 
-    def test_29_category_project_adds_rack_and_piano(self):
+    def test_29_category_project_adds_rack_piano_and_lamp(self):
         root = etree.fromstring(build_template(SOURCE_CONFIG).encode())
-        for choice in root.xpath('.//Choice[@alias="drying_rack" or @alias="piano"]'):
+        for choice in root.xpath('.//Choice[@alias="drying_rack" or @alias="piano" or @alias="floor_lamp"]'):
             choice.getparent().remove(choice)
         updated, additions = upgrade_choices(etree.tostring(root, encoding='unicode'))
-        self.assertEqual(additions, ['drying_rack', 'piano'])
+        self.assertEqual(additions, ['drying_rack', 'piano', 'floor_lamp'])
         self.assertEqual(upgrade_choices(updated), (updated, []))
 
-    def test_28_category_project_adds_plant_rack_and_piano(self):
+    def test_28_category_project_adds_plant_rack_piano_and_lamp(self):
         root = etree.fromstring(build_template(SOURCE_CONFIG).encode())
-        for choice in root.xpath('.//Choice[@alias="potted_plant" or @alias="drying_rack" or @alias="piano"]'):
+        for choice in root.xpath('.//Choice[@alias="potted_plant" or @alias="drying_rack" or @alias="piano" or @alias="floor_lamp"]'):
             choice.getparent().remove(choice)
         original = etree.tostring(root, encoding='unicode')
         updated, additions = upgrade_choices(original)
-        self.assertEqual(additions, ['potted_plant', 'drying_rack', 'piano'])
+        self.assertEqual(additions, ['potted_plant', 'drying_rack', 'piano', 'floor_lamp'])
         choices = etree.fromstring(updated.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')
-        self.assertEqual(len(choices), 31)
-        self.assertEqual((choices[-3].get('alias'), choices[-3].get('value')), ('potted_plant', '绿植盆栽'))
-        self.assertEqual((choices[-2].get('alias'), choices[-2].get('value')), ('drying_rack', '晾衣架'))
-        self.assertEqual((choices[-1].get('alias'), choices[-1].get('value')), ('piano', '钢琴'))
+        self.assertEqual(len(choices), 32)
+        self.assertEqual((choices[-4].get('alias'), choices[-4].get('value')), ('potted_plant', '绿植盆栽'))
+        self.assertEqual((choices[-3].get('alias'), choices[-3].get('value')), ('drying_rack', '晾衣架'))
+        self.assertEqual((choices[-2].get('alias'), choices[-2].get('value')), ('piano', '钢琴'))
+        self.assertEqual((choices[-1].get('alias'), choices[-1].get('value')), ('floor_lamp', '落地灯'))
         self.assertEqual(upgrade_choices(updated), (updated, []))
 
     def test_preserves_original_xml_bytes_and_supports_empty_control(self):
         original = old_config().replace('/>', ' />').replace('\n', '\r\n')
         updated, _ = upgrade_choices(original)
-        for alias, label in [('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'), ('potted_plant', '绿植盆栽'), ('drying_rack', '晾衣架'), ('piano', '钢琴')]:
+        for alias, label in [('dressing_table', '梳妆台'), ('bar_counter', '吧台/餐吧台'), ('potted_plant', '绿植盆栽'), ('drying_rack', '晾衣架'), ('piano', '钢琴'), ('floor_lamp', '落地灯')]:
             inserted = f'<Choice value="{label}" alias="{alias}"/>'
             updated = re.sub(r'(?m)^[ \t]*' + re.escape(inserted) + r'\r?\n', '', updated).replace(inserted, '')
         self.assertEqual(updated, original)
@@ -76,15 +77,15 @@ class CatalogUpgradeTests(TestCase):
         control.text = None
         empty = etree.tostring(root, encoding='unicode')
         expanded, additions = upgrade_choices(empty)
-        self.assertEqual(additions, ['dressing_table', 'bar_counter', 'potted_plant', 'drying_rack', 'piano'])
-        self.assertEqual(len(etree.fromstring(expanded.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')), 5)
+        self.assertEqual(additions, ['dressing_table', 'bar_counter', 'potted_plant', 'drying_rack', 'piano', 'floor_lamp'])
+        self.assertEqual(len(etree.fromstring(expanded.encode()).xpath('.//Choices[@name="furniture_instance_type"]/Choice')), 6)
 
     def test_append_preserves_existing_tree_and_is_idempotent(self):
         original = old_config()
         updated, additions = upgrade_choices(original)
-        self.assertEqual(additions, ['dressing_table', 'bar_counter', 'potted_plant', 'drying_rack', 'piano'])
+        self.assertEqual(additions, ['dressing_table', 'bar_counter', 'potted_plant', 'drying_rack', 'piano', 'floor_lamp'])
         root = etree.fromstring(updated.encode())
-        for node in root.xpath('.//Choice[@alias="dressing_table" or @alias="bar_counter" or @alias="potted_plant" or @alias="drying_rack" or @alias="piano"]'):
+        for node in root.xpath('.//Choice[@alias="dressing_table" or @alias="bar_counter" or @alias="potted_plant" or @alias="drying_rack" or @alias="piano" or @alias="floor_lamp"]'):
             node.getparent().remove(node)
         normalized = etree.XMLParser(remove_blank_text=True)
         self.assertEqual(
@@ -101,6 +102,8 @@ class CatalogUpgradeTests(TestCase):
             ('value="书桌"', 'value="绿植盆栽"'),
             ('alias="desk"', 'alias="drying_rack"'),
             ('value="书桌"', 'value="晾衣架"'),
+            ('alias="desk"', 'alias="floor_lamp"'),
+            ('value="书桌"', 'value="落地灯"'),
             ('alias="desk"', 'alias="piano"'),
             ('value="书桌"', 'value="钢琴"'),
             ('alias="desk"', 'alias="bed"'),
@@ -138,6 +141,7 @@ class CatalogUpgradeCommandTests(TransactionTestCase):
         self.assertIn('potted_plant', self.project.label_config)
         self.assertIn('drying_rack', self.project.label_config)
         self.assertIn('piano', self.project.label_config)
+        self.assertIn('floor_lamp', self.project.label_config)
         updated = self.project.label_config
         call_command('upgrade_furniture_instance_choices', **{**options, 'expected_config_sha256': config_sha256(updated)})
         self.project.refresh_from_db()

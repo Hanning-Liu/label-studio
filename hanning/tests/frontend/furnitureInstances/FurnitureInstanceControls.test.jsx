@@ -202,7 +202,7 @@ test("keyboard focus exposes category definitions with an accessible description
   expect(item.setFurnitureInstanceDraft).not.toHaveBeenCalled();
 });
 
-test.each([['dressing_table', '梳妆台'], ['potted_plant', '绿植盆栽'], ['drying_rack', '晾衣架'], ['piano', '钢琴']])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
+test.each([['dressing_table', '梳妆台'], ['potted_plant', '绿植盆栽'], ['drying_rack', '晾衣架'], ['piano', '钢琴'], ['floor_lamp', '落地灯']])("unavailable category %s has a keyboard-focusable explanation", async (category, label) => {
   const { item, rerender } = setup();
   item.furnitureInstanceAvailableTypes = item.furnitureInstanceAvailableTypes.filter(
     (type) => type !== category,
@@ -288,7 +288,7 @@ test("unconfigured classes are disabled and selecting another instance resets an
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
 });
 
-test("renders canvas-first status cards and all 31 grouped palette choices", () => {
+test("renders canvas-first status cards and all 32 grouped palette choices", () => {
   const { item, rerender } = setup();
   expect(screen.getByRole("region", { name: "当前 Focus 家具组团" })).toHaveTextContent(
     "学习办公 · 窗边 · 房间 书房 · 分区 学习办公 · group-g",
@@ -318,6 +318,18 @@ test("piano belongs to instruments and its palette button changes only the next 
   expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
   rerender(<FurnitureInstanceControls item={item} />);
   expect(piano).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("desk");
+});
+
+test("floor_lamp belongs to living/dining and its palette button changes only the next drawing", () => {
+  const { item, rerender } = setup();
+  const floor_lamp = screen.getByRole("button", { name: "落地灯 (floor_lamp)" });
+  expect(screen.getByRole("region", { name: "会客与用餐" })).toContainElement(floor_lamp);
+  fireEvent.click(floor_lamp);
+  expect(item.setFurnitureInstanceDraft).toHaveBeenCalledWith("floor_lamp", "");
+  expect(item.setFurnitureInstanceCategory).not.toHaveBeenCalled();
+  rerender(<FurnitureInstanceControls item={item} />);
+  expect(floor_lamp).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByRole("combobox", { name: "当前实例类别" })).toHaveValue("desk");
 });
 
