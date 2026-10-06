@@ -301,23 +301,34 @@ export function constrainFurnitureRectangle(previous, target, space) {
     height: mix(left.height, right.height, amount),
     rotation: left.rotation + (((right.rotation - left.rotation + 540) % 360) - 180) * amount,
   });
-  let accepted = limit(before, proposed, valid, interpolate);
   const translating =
     close(before.width, proposed.width) &&
     close(before.height, proposed.height) &&
     close(before.rotation, proposed.rotation);
-  if (translating) {
-    const offsets = rotatedRectanglePoints(accepted).flatMap((corner) =>
+  const snapTranslation = (rectangle) => {
+    const offsets = rotatedRectanglePoints(rectangle).flatMap((corner) =>
       space.boundaryPoints(corner).map((candidate) => ({ x: candidate.x - corner.x, y: candidate.y - corner.y })),
     );
-    if (space.pixel) offsets.push({ x: Math.round(accepted.x) - accepted.x, y: Math.round(accepted.y) - accepted.y });
+    offsets.sort(
+      (left, right) => space.screenDistance({ x: 0, y: 0 }, left) - space.screenDistance({ x: 0, y: 0 }, right),
+    );
+    if (space.pixel)
+      offsets.push({ x: Math.round(rectangle.x) - rectangle.x, y: Math.round(rectangle.y) - rectangle.y });
     for (const offset of offsets) {
-      const candidate = { ...accepted, x: accepted.x + offset.x, y: accepted.y + offset.y };
-      if (valid(candidate)) {
-        accepted = candidate;
-        break;
-      }
+      const candidate = { ...rectangle, x: rectangle.x + offset.x, y: rectangle.y + offset.y };
+      if (valid(candidate)) return candidate;
     }
+    return null;
+  };
+  // Align the pointer's destination before limiting movement. A snug opening
+  // can reject even a fractional-pixel vertical drift; limiting first strands
+  // the rectangle at the mouth of the notch, too far away to snap into it.
+  // Every candidate is a rigid translation checked against the complete parent
+  // (including holes), with the existing screen-space snapping threshold.
+  const snappedTarget = translating ? snapTranslation(proposed) : null;
+  let accepted = snappedTarget || limit(before, proposed, valid, interpolate);
+  if (translating) {
+    if (!snappedTarget) accepted = snapTranslation(accepted) || accepted;
   } else if (close(before.rotation, proposed.rotation)) {
     // A live Transformer resize changes only one or two rectangle edges. The
     // initial limit above keeps the complete shape in its saved parent, but it

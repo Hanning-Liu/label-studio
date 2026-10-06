@@ -16,8 +16,20 @@ import {
   snapFurniturePoint,
   validateFurnitureInstances,
 } from "@hanning/frontend/domain/furnitureInstances/constraints";
-import { context, furnitureGroups, furnitureInstances, resultForOrientation } from "@hanning/frontend/domain/furnitureInstances/domain";
-import { id, makeInstance, makeOccupancy, resetIds, SOURCE, square } from "@hanning/tests/frontend/furnitureInstances/helpers";
+import {
+  context,
+  furnitureGroups,
+  furnitureInstances,
+  resultForOrientation,
+} from "@hanning/frontend/domain/furnitureInstances/domain";
+import {
+  id,
+  makeInstance,
+  makeOccupancy,
+  resetIds,
+  SOURCE,
+  square,
+} from "@hanning/tests/frontend/furnitureInstances/helpers";
 
 global.TextEncoder = TextEncoder;
 if (!globalThis.structuredClone) globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));
@@ -716,4 +728,124 @@ test("parent group fingerprint includes hole/multipart geometry rather than a bb
   expect(groups[0].geometry).toHaveLength(2);
   expect(groups[0].geometry[0]).toHaveLength(2);
   expect(groups[0].fingerprint).toMatch(/^[0-9a-f]{64}$/);
+});
+
+// Source-pixel outline of the dining group that trapped a copied 23 x 26 chair.
+const diningNotchSpace = (options = {}) => {
+  const ring = [
+    [367, 522],
+    [367, 564],
+    [391, 564],
+    [391, 579],
+    [375, 579],
+    [375, 605],
+    [391, 605],
+    [391, 608],
+    [375, 608],
+    [375, 636],
+    [391, 636],
+    [391, 651],
+    [444, 651],
+    [444, 636],
+    [460, 636],
+    [460, 608],
+    [444, 608],
+    [444, 605],
+    [460, 605],
+    [460, 579],
+    [444, 579 - 1e-12],
+    [444, 564],
+    [468, 564],
+    [468, 522],
+  ];
+  return furnitureConstraintSpace([[ring.map(([x, y]) => [(x * 100) / 693, y / 10])]], {
+    width: 693,
+    height: 1000,
+    screenWidth: 6930,
+    screenHeight: 10000,
+    ...options,
+  });
+};
+const chairRectangle = (x, y = 579) => ({
+  x: (x * 100) / 693,
+  y: y / 10,
+  width: (23 * 100) / 693,
+  height: 2.6,
+  rotation: 0,
+});
+
+test.each([0.02, 0.2, -0.2])(
+  "copied chair snaps into the opposite snug notch before movement limiting: drift %s px",
+  (drift) => {
+    const space = diningNotchSpace();
+    const before = chairRectangle(421);
+    const accepted = constrainFurnitureRectangle(before, chairRectangle(437.2, 579 + drift), space);
+    expect((accepted.x * 693) / 100).toBeCloseTo(437, 8);
+    expect(accepted.y * 10).toBeCloseTo(579, 8);
+    expect(accepted.width).toBeCloseTo(before.width, 12);
+    expect(accepted.height).toBe(before.height);
+    expect(
+      area(
+        difference(
+          resultGeometry({ ...SOURCE, original_width: 693, original_height: 1000, value: accepted }),
+          space.geometry,
+        ),
+      ),
+    ).toBeLessThan(1e-8);
+  },
+);
+
+test("chair notch snap does not permit real oversizing or cross-parent movement", () => {
+  const space = diningNotchSpace();
+  const before = { ...chairRectangle(421, 578), height: 2.8 };
+  const accepted = constrainFurnitureRectangle(before, { ...before, x: (437 * 100) / 693 }, space);
+  expect((accepted.x * 693) / 100).toBeLessThanOrEqual(421.0001);
+  expect(accepted.height).toBe(before.height);
+  const far = constrainFurnitureRectangle(chairRectangle(421), chairRectangle(500), space);
+  expect((far.x * 693) / 100).toBeLessThanOrEqual(437.0001);
+});
+
+test("disabled boundary and pixel snapping do not align a chair to a narrow opening", () => {
+  const space = diningNotchSpace({ boundary: false, pixel: false });
+  const accepted = constrainFurnitureRectangle(chairRectangle(421), chairRectangle(437, 579.2), space);
+  expect((accepted.x * 693) / 100).toBeLessThan(422);
+});
+
+test.each([30, 90])("snug opening translation preserves a rotated chair at %s degrees", (rotation) => {
+  const base = diningNotchSpace();
+  const angle = (rotation * Math.PI) / 180;
+  const rotate = (x, y) => ({
+    x: 500 + (x - 500) * Math.cos(angle) - (y - 500) * Math.sin(angle),
+    y: 500 + (x - 500) * Math.sin(angle) + (y - 500) * Math.cos(angle),
+  });
+  const geometry = base.rings.map((ring) => [
+    ring.map((p) => {
+      const q = rotate(p.x, p.y);
+      return [(q.x * 100) / 693, q.y / 10];
+    }),
+  ]);
+  const space = furnitureConstraintSpace(geometry, {
+    width: 693,
+    height: 1000,
+    screenWidth: 6930,
+    screenHeight: 10000,
+    pixel: false,
+  });
+  const rect = (x, y) => ({ ...chairRectangle(x, y), ...space.fromPixel(rotate(x, y)), rotation });
+  const accepted = constrainFurnitureRectangle(rect(421, 579), rect(437.2, 579.2), space);
+  const expected = rect(437, 579);
+  expect(accepted.x).toBeCloseTo(expected.x, 8);
+  expect(accepted.y).toBeCloseTo(expected.y, 8);
+  expect(accepted.rotation).toBe(rotation);
+  expect(accepted.width).toBeCloseTo(expected.width, 12);
+  expect(accepted.height).toBe(expected.height);
+});
+
+test("translation snapping cannot place a rectangle over a parent hole", () => {
+  const geometry = [[square(0, 0, 100, 100)[0], square(45, 45, 55, 55)[0]]];
+  const space = furnitureConstraintSpace(geometry, { width: 1000, height: 1000 });
+  const before = { x: 20, y: 46, width: 8, height: 8, rotation: 0 };
+  const accepted = constrainFurnitureRectangle(before, { ...before, x: 46 }, space);
+  expect(accepted.x).toBeLessThan(38);
+  expect(accepted.width).toBe(8);
 });
