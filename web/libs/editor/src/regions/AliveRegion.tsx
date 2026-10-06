@@ -11,7 +11,6 @@ type Region = {
   // ...
   setShapeRef(ref: any): void;
   inSelection: boolean;
-  parent?: { occupancyEnabled?: boolean };
 };
 
 type RegionComponentProps = {
@@ -35,11 +34,7 @@ export const AliveRegion = (RegionComponent: IReactComponent<RegionComponentProp
 
   return observer(({ item, ...rest }: RegionComponentProps) => {
     const canRender = options?.renderHidden || !item.hidden;
-    // L3 mounts its native selection layer only for an editable physical part.
-    // Keep that part in its image layer instead of reparenting it through a
-    // Portal while the destination is mounting; otherwise its canvas transform
-    // can be lost when switching from the logical footprint to native handles.
-    const shouldNotUsePortal = options?.shouldNotUsePortal || item.parent?.occupancyEnabled;
+    const shouldNotUsePortal = options?.shouldNotUsePortal;
     const Wrapper = (shouldNotUsePortal ? Fragment : Portal) as ExoticComponent<PortalProps>;
     const wrapperProps = shouldNotUsePortal ? {} : { selector: ".selection-regions-layer", enabled: item.inSelection };
     const isInTree = !!item.annotation;

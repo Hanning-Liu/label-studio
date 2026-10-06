@@ -6,7 +6,7 @@ if (typeof globalThis.structuredClone === "undefined") {
   globalThis.structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
 }
 
-import { getRoot, types } from "mobx-state-tree";
+import { getRoot, types, unprotect } from "mobx-state-tree";
 
 jest.mock("../../../../utils/feature-flags", () => ({
   isFF: jest.fn(() => false),
@@ -692,6 +692,42 @@ describe("Image model", () => {
   });
 
   describe("viewPortBBoxCoords", () => {
+    afterEach(() => featureFlags.isFF.mockImplementation(() => false));
+    it.each([1, 2])("uses the full canvas after review focus at zoom %s", (zoom) => {
+      featureFlags.isFF.mockImplementation((flag) => flag === FF_ZOOM_OPTIM);
+      const image = createStore().annotation.image;
+      Object.assign(image, {
+        containerWidth: 1689, containerHeight: 1085,
+        stageWidth: 752, stageHeight: 1085,
+        naturalWidth: 752, naturalHeight: 1085,
+        stageZoomX: 1, stageZoomY: 1, zoomScale: zoom,
+        zoomingPositionX: 639, zoomingPositionY: 58,
+      });
+      const bbox = image.viewPortBBoxCoords;
+      expect(bbox).toEqual({ left: -639 / zoom, top: -58 / zoom,
+        right: 1050 / zoom, bottom: 1027 / zoom, width: 1689 / zoom, height: 1085 / zoom });
+      // The copied chair remains visible; the old image-width bounds ended at 113.
+      expect(bbox.left).toBeLessThan(186);
+      expect(bbox.right).toBeGreaterThan(224);
+    });
+
+    it("accounts for canvas alignment when culling regions", () => {
+      featureFlags.isFF.mockImplementation((flag) => flag === FF_ZOOM_OPTIM);
+      const image = createStore().annotation.image;
+      unprotect(getRoot(image));
+      Object.assign(image, {
+        containerWidth: 1000, containerHeight: 800,
+        stageWidth: 400, stageHeight: 300,
+        naturalWidth: 400, naturalHeight: 300,
+        stageZoomX: 1, stageZoomY: 1, zoomScale: 1,
+        horizontalalignment: "center", verticalalignment: "bottom",
+        zoomingPositionX: 20, zoomingPositionY: -10,
+      });
+      expect(image.viewPortBBoxCoords).toEqual({
+        left: -320, top: -490, right: 680, bottom: 310, width: 1000, height: 800,
+      });
+    });
+
     it("returns bbox with left, top, right, bottom, width, height", () => {
       const store = createStore();
       const image = store.annotation.image;

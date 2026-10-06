@@ -566,10 +566,15 @@ const Model = types
     },
 
     get viewPortBBoxCoords() {
-      let width = self.canvasSize.width / self.zoomScale;
-      let height = self.canvasSize.height / self.zoomScale;
-      const leftOffset = -self.zoomingPositionX / self.zoomScale;
-      const topOffset = -self.zoomingPositionY / self.zoomScale;
+      // Match EntireStage: optimized rendering uses the full container canvas,
+      // which may be wider than the image, and includes alignment in its pan.
+      // Using image dimensions here culls visible regions after review focus.
+      const optimized = isFF(FF_ZOOM_OPTIM);
+      let width = (optimized ? self.containerWidth : self.canvasSize.width) / self.zoomScale;
+      let height = (optimized ? self.containerHeight : self.canvasSize.height) / self.zoomScale;
+      const alignment = optimized ? self.alignmentOffset : { x: 0, y: 0 };
+      const leftOffset = -(self.zoomingPositionX + alignment.x) / self.zoomScale;
+      const topOffset = -(self.zoomingPositionY + alignment.y) / self.zoomScale;
       const rightOffset = self.stageComponentSize.width - (leftOffset + width);
       const bottomOffset = self.stageComponentSize.height - (topOffset + height);
       const offsets = [leftOffset, topOffset, rightOffset, bottomOffset];
