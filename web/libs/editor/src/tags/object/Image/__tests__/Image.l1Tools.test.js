@@ -122,6 +122,10 @@ describe("L1 tool dock", () => {
     const pointIds = region.points.map((point) => point.id);
     expect(image.orthogonalizeL1Room(region)).toBe(true);
     const after = annotation.serializeAnnotation();
+    for (const [x, y] of after[0].value.points) {
+      expect(x * 693 / 100).toBeCloseTo(Math.round(x * 693 / 100), 9);
+      expect(y * 1000 / 100).toBeCloseTo(Math.round(y * 1000 / 100), 9);
+    }
     expect(region.points.map((point) => point.id)).toEqual(pointIds);
     expect(after[0].value.points).not.toEqual(before[0].value.points);
     expect({ ...after[0], value: { ...after[0].value, points: before[0].value.points } }).toEqual(before[0]);

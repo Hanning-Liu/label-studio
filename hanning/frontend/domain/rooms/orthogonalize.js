@@ -47,11 +47,14 @@ export function orthogonalizePolygon(points, width, height) {
     });
     return points.map((_, i) => {
       const group = sums.get(root(groups, i));
-      return group.sum / group.count;
+      const extent = axis === "x" ? width : height;
+      const pixel = Math.round((group.sum / group.count / 100) * extent);
+      return (pixel / extent) * 100;
     });
   };
-  // The mean is the least-squares projection onto each equality group. Runs of
-  // collinear edges and the last-to-first edge share exactly the same coordinate.
+  // Round each group's mean in ORIGINAL image pixels, then convert back to
+  // percentages. This is the integer-grid least-squares fit; shared coordinates
+  // keep collinear runs and the closing edge orthogonal at every zoom level.
   const xs = fit(xGroups, "x");
   const ys = fit(yGroups, "y");
   const candidate = points.map((_, i) => ({ x: xs[i], y: ys[i] }));
@@ -61,8 +64,10 @@ export function orthogonalizePolygon(points, width, height) {
     return Math.abs(delta) <= EPS || delta * (points[next][axis] - points[i][axis]) <= 0;
   });
   if (reversedOrCollapsed || !isSimplePolygon(candidate) || signedArea(candidate) * signedArea(points) <= 0) {
-    throw new Error("正交化会造成边塌缩、反向或自交，已保留原形状。请先调整斜切角或过短的边。");
+    throw new Error("正交化及像素吸附会造成边塌缩、反向或自交，已保留原形状。请先调整斜切角或过短的边。");
   }
-  const changed = candidate.some((p, i) => Math.abs(p.x - points[i].x) > EPS || Math.abs(p.y - points[i].y) > EPS);
+  const changed = candidate.some((p, i) =>
+    Math.abs(p.x - points[i].x) * width / 100 > EPS || Math.abs(p.y - points[i].y) * height / 100 > EPS,
+  );
   return { points: changed ? candidate : points.map((p) => ({ ...p })), changed };
 }

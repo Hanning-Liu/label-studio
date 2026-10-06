@@ -17,13 +17,13 @@ export const L1Orthogonalize = observer(({ region }) => {
         size="small"
         disabled={!!blocked}
         aria-label="正交化选中的 Polygon 房间"
-        tooltip={blocked || "将每条边按更接近的水平或垂直方向对齐；支持撤销"}
+        tooltip={blocked || "将每条边按更接近的水平或垂直方向对齐，端点吸附到原图整数像素；支持撤销"}
         onClick={() => {
           try {
             const changed = image.orthogonalizeL1Room(region);
             setNotice({ signature: signature(), error: false, text: changed
-              ? "已正交化，可通过底部撤销恢复。请检查门窗及相邻房间的衔接。"
-              : "此房间已为正交形状，无需调整。" });
+              ? "已正交化并吸附到原图像素，可通过底部撤销恢复。请检查门窗及相邻房间的衔接。"
+              : "此房间已为正交形状且对齐原图像素，无需调整。" });
           } catch (error) {
             setNotice({ signature: signature(), error: true, text: error.message });
           }
