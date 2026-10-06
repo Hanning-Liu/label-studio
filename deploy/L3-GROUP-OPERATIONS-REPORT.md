@@ -32,12 +32,16 @@
 
 清洁的最终镜像已在 Chrome 通过首次选中、原生拖动、保存和刷新复验，无需调整窗口尺寸。副本最终坐标 X=`27.561327561327563`、Y=`41.3`，面积仍为 952 原图像素²；合并后 Polygon 可直接进入顶点编辑。最终数据比较仍为并集对称差 0，180 条无关结果的 value 不变。
 
-**状态：代码、镜像、自动化及隔离浏览器验收完成。正式 18085 尚未更新，等待用户部署授权。** 自动审批认为早先升级计划将生产切换保留至维护窗口，因此拦截了本次正式镜像切换；正式环境已恢复并保持旧镜像，原 worker 健康。最新正式快照已保存为 `snapshots/groups-before-deploy-20261006.sqlite3`。
+**状态：已于 2026-10-06 经用户明确授权更新本地 18085。** app、worker、gateway 均使用最终固定镜像并通过健康检查，Chrome 已打开正式 L3 页面并显示新工具。没有导入 QA 副本，也没有替用户修改正式标注。
 
-## 更新与回退
+更新前后一致性快照为 `snapshots/groups-authorized-before-20261006.sqlite3` 和 `snapshots/groups-after-deploy-20261006.sqlite3`。project（3 行）、task（3 行）、task_completion（2 行）、tasks_annotationdraft（1 行）四表完整行及 SHA-256 均相同，SQLite 完整性为 `ok`。这验证的是部署时点的数据；之后用户正常标注不在该静态比较范围内。
 
-获得授权后，仅将仓库外 `l1-qa.env` 的 `HANNING_QA_IMAGE` 改为上述固定镜像，再运行项目根目录 `./qa.sh up -d --wait`。保持原数据卷，不导入任何 QA 数据。更新后再次快照并比较 project、task、task_completion、tasks_annotationdraft 四表完整行内容及 SQLite 完整性。
+## 运行与回退
 
-回退时切回 `hanning-label-studio:1.23.2-walkable-7319e831` 并重建容器，仍使用最新数据卷；旧镜像离线归档保存在 `images/hanning-label-studio-1.23.2-walkable-7319e831-linux-arm64.tar.gz`。本次未更改数据库结构，未执行旧库覆盖，也未将准备好的回退步骤宣称为已演练。
+仓库外 `l1-qa.env` 的 `HANNING_QA_IMAGE` 已更新，使用项目根目录 `./qa.sh up -d --wait` 启动。保持原数据卷，不导入任何 QA 数据。
+
+隔离 QA 容器、卷、网络及本次临时镜像已清理。Docker 当前保留 3 个健康服务容器、1 个运行镜像、1 个正式数据卷。验收快照、截图和日志保留在仓库外。
+
+回退时先从 `images/hanning-label-studio-1.23.2-walkable-7319e831-linux-arm64.tar.gz` 载入旧镜像，再将 `HANNING_QA_IMAGE` 切回 `hanning-label-studio:1.23.2-walkable-7319e831` 并运行 `./qa.sh up -d --wait`。仍使用最新数据卷，不能覆盖为旧数据库。本次未更改数据库结构，未执行旧库覆盖，也未将准备好的回退步骤宣称为已演练。
 
 本机证据位于仓库外 `label-studio-upgrade-runtime/logs/group-operations-20261006/`；一致性快照为 `snapshots/groups-qa-before-20261006.sqlite3` 和 `snapshots/groups-browser-final-20261006.sqlite3`。
