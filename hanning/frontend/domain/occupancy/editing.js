@@ -41,3 +41,16 @@ export function occupancyLogicalLayerListening(item) {
     item?.occupancyDrawingControl
   );
 }
+
+
+// Reopened unfinished polygons must mount their native view: its effect resumes
+// drawing. Hiding them until selected leaves hasIncompletePolygons locking all
+// controls, with no canvas or toolbar path to resume that selection.
+export function occupancyNativeRegionVisible(item, region) {
+  return !item.occupancyEnabled ||
+    !region.results.some((result) => result.meta?.occupancy_context) ||
+    region.isDrawing ||
+    (region.type === "polygonregion" && !region.closed && !region.isReadOnly()) ||
+    region.results.some((result) => result.meta?.occupancy_context?.generation === "pending") ||
+    region.cleanId === item.occupancyActivePartId;
+}

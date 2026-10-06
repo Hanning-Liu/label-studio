@@ -33,7 +33,7 @@ import { ReferenceSyncControls } from "@hanning/frontend/components/references/R
 import { ReferenceLineageStatus } from "@hanning/frontend/components/references/ReferenceLineageStatus";
 import { OccupancyControls } from "@hanning/frontend/components/occupancy/OccupancyControls";
 import { OccupancyLayer } from "@hanning/frontend/components/occupancy/OccupancyLayer";
-import { occupancyToolbarTools } from "@hanning/frontend/domain/occupancy/editing";
+import { occupancyToolbarTools, occupancyNativeRegionVisible } from "@hanning/frontend/domain/occupancy/editing";
 import { partitionOccupancyBarrierRegions } from "@hanning/frontend/domain/occupancy/barriers";
 import {
   partitionOccupancyZoneReferenceRegions,
@@ -1473,14 +1473,7 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
   // Keep selected or highlighted region on top
   const regions = [...item.regs]
     .filter((region) => shouldRenderOccupancyReferenceRegion(item, region))
-    .filter(
-      (region) =>
-        !item.occupancyEnabled ||
-        !region.results.some((result) => result.meta?.occupancy_context) ||
-        region.isDrawing ||
-        region.results.some((result) => result.meta?.occupancy_context?.generation === "pending") ||
-        region.cleanId === item.occupancyActivePartId,
-    )
+    .filter((region) => occupancyNativeRegionVisible(item, region))
     .sort((region) => (region.highlighted || region.selected ? 1 : -1));
   const paginationEnabled = !!item.isMultiItem;
   const wrapperClasses = [styles.wrapperComponent, item.images.length > 1 ? styles.withGallery : styles.wrapper];

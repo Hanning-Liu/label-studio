@@ -1,3 +1,4 @@
+import { occupancyNativeRegionVisible } from "@hanning/frontend/domain/occupancy/editing";
 import {
   editableParts,
   occupancyLogicalLayerListening,
@@ -108,4 +109,15 @@ test("manual hole decomposition has no editable storage triangles", () => {
   const results = resultsForGeometry(shape, "furniture_group", c, rect);
   expect(results.length).toBeGreaterThan(2);
   expect(editableParts(logicalRegions(results)[0])).toEqual([]);
+});
+
+
+test("reopened unfinished manual polygons mount so their resume effect can run", () => {
+  const item = { occupancyEnabled: true, occupancyActivePartId: "" };
+  const region = { type: "polygonregion", closed: false, isDrawing: false, cleanId: "unfinished",
+    isReadOnly: () => false, results: [{ meta: { occupancy_context: { generation: "manual" } } }] };
+  expect(occupancyNativeRegionVisible(item, region)).toBe(true);
+  expect(occupancyNativeRegionVisible(item, { ...region, closed: true })).toBe(false);
+  expect(occupancyNativeRegionVisible(item, { ...region, isReadOnly: () => true })).toBe(false);
+  expect(occupancyNativeRegionVisible({ ...item, occupancyActivePartId: "unfinished" }, { ...region, closed: true })).toBe(true);
 });
