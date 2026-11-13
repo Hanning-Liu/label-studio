@@ -399,6 +399,42 @@ def merge_results(results, refs, revision, *, prior=None):
     return copy.deepcopy(refs)+manual
 
 
+def validate_orphan_zone_rebinds(results, prior):
+    """Check explicit parent changes for previously orphaned L2 zones."""
+    rooms = {r["id"]: result_polygon(r) for r in results if r.get("from_name") in ROOMS}
+    zones = {r["id"]: r for r in results if r.get("from_name") in ZONES}
+    labels = {r["id"]: r.get("value", {}).get("labels") for r in results if r.get("from_name") == "function_zone"}
+    previous_labels = {r["id"]: r.get("value", {}).get("labels") for r in prior if r.get("from_name") == "function_zone"}
+
+    def parent(result):
+        return result.get("meta", {}).get("partition_context", {}).get("parent_room_id")
+
+    for old in prior:
+        if old.get("from_name") not in ZONES or old.get("meta", {}).get("reference_review", {}).get("reason") != "source_missing":
+            continue
+        zone = zones.get(old["id"])
+        if not zone or parent(old) == parent(zone):
+            continue
+        room = rooms.get(parent(zone))
+        points = result_polygon(zone)
+        original = result_polygon(old)
+        if (zone.get("from_name") != old.get("from_name") or not inside(points, room) or not original
+                or len(original) != len(points)
+                or any(math.dist(a, b) > 1e-7 for a, b in zip(original, points))
+                or labels.get(old["id"]) != previous_labels.get(old["id"])):
+            raise ValueError(f"分区 {old['id']} 必须保留原轮廓及类别，且完整位于新父房间内")
+
+        from shapely.geometry import Polygon
+
+        polygon = Polygon(points)
+        for other in zones.values():
+            if other is zone or parent(other) != parent(zone):
+                continue
+            other_points = result_polygon(other)
+            if not valid_polygon(other_points) or polygon.intersection(Polygon(other_points)).area > 1e-6:
+                raise ValueError(f"分区 {old['id']} 与目标房间内的分区 {other['id']} 重叠或几何无效")
+
+
 def pending_reviews(results, difference=None, room_results=None):
     output, seen = [], set()
     room_results = room_results or [r for r in reference_results(results) if r.get('from_name') in ROOMS]

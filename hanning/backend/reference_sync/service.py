@@ -13,7 +13,7 @@ from rest_framework.exceptions import APIException
 
 from tasks.reference_sync.models import ReferenceSyncAudit, ReferenceSyncBinding, ReferenceSyncMapping
 from .results import (REFERENCES, PORTALS, ROOMS, WINDOWS, digest, manual_hash, merge_results, pending_reviews,
-                      reference_hash, reference_results, validate_source, validate_submission, diff_refs)
+                      reference_hash, reference_results, validate_orphan_zone_rebinds, validate_source, validate_submission, diff_refs)
 from .room_metadata import RoomV3MetadataError, refresh_room_v3_metadata
 from hanning.backend.validation.windows.config import parse_window_config
 from hanning.backend.validation.windows.service import WindowValidationError, prepare_formal_results as prepare_window_results
@@ -436,6 +436,10 @@ def prepare_write(task, payload, instance=None, *, submission=False):
     if not isinstance(result,list):
         raise SyncConflict('result 必须为列表','invalid_result',400)
     merged = merge_results(result,refs,binding.applied_hash,prior=prior)
+    try:
+        validate_orphan_zone_rebinds(merged, prior)
+    except ValueError as exc:
+        raise SyncConflict(str(exc), 'invalid_zone_rebind', 400) from exc
     if submission:
         try:
             validate_submission(merged)

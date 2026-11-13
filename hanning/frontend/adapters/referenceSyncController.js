@@ -352,6 +352,40 @@ export class ReferenceSyncController {
     await this.poll();
   }
 
+  async rebindZoneParent(item, regionId, roomId) {
+    const annotation = this.annotation;
+    const status = this.state.status;
+    if (item.annotation !== annotation || this.historical || !annotation?.draftSelected || !annotation.draftId ||
+        this.busy(annotation, true)) throw new Error("请在可编辑的复核草稿中完成绘制后再操作。");
+    if (status?.mode !== "target" || status.status !== "synced" ||
+        !annotation.referenceVersion || annotation.referenceVersion !== status.reference_version)
+      throw new Error("请先应用最新的 Room 参考。");
+    const before = annotation.draftResultFingerprint;
+    this.applying = true;
+    this.emit({ busy: true, notice: "" });
+    try {
+      item.rebindFunctionZoneParent(regionId, roomId);
+      const raw = await annotation.saveDraftImmediatelyWithResults();
+      const saved = raw?.result?.find((result) => result.id === regionId &&
+        ["zone_rectangle", "zone_polygon"].includes(result.from_name));
+      if (raw?.reference_version !== status.reference_version ||
+          saved?.meta?.partition_context?.parent_room_id !== roomId ||
+          saved.meta.partition_context.requires_geometry_review ||
+          saved?.meta?.reference_review?.status !== "pending")
+        throw new Error("保存结果未能确认新归属，请核对草稿与当前参考。");
+      this.emit({ notice: "已重新绑定并保存草稿；请确认该分区的参考复核，尚未正式提交。" });
+    } catch (error) {
+      if (before !== annotation.draftResultFingerprint) {
+        this.emit({ notice: `未能确认草稿保存：${error.message}。请检查草稿保存状态。` });
+      }
+      throw error;
+    } finally {
+      this.applying = false;
+      this.emit({ busy: false });
+      await this.poll();
+    }
+  }
+
   async applyOccupancyReference() {
     return this.applyManualReference("function_zone_to_occupancy");
   }

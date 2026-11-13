@@ -21,6 +21,45 @@ import { formatFunctionZoneRoomLabel } from "@hanning/frontend/domain/rooms/func
 import { doorKind, doorOperationError } from "@hanning/frontend/domain/rooms/doorOperation";
 
 export const roomMetadataActions = (self) => ({
+    rebindFunctionZoneParent(regionId, roomId) {
+      if (!self.l2ToolbarEnabled || self.l2SwitchBlockReason || !self.annotation.draftSelected ||
+          !self.annotation.draftId) throw new Error("请在可编辑的 L2 复核草稿中操作。");
+      const region = self.functionZoneRegions.find((zone) => zone.cleanId === regionId);
+      const result = region?.results.find((entry) => self.functionZoneControlNames.has(entry.from_name?.name));
+      const previous = result?.meta?.partition_context;
+      const review = result?.meta?.reference_review;
+      if (!result || region.isReadOnly() || review?.status !== "pending" || review.reason !== "source_missing" ||
+          self.getRoomById(previous?.parent_room_id)) throw new Error("此分区不再需要重绑，请刷新复核列表。");
+      const room = self.getRoomPolygon(roomId);
+      const zone = self.getAreaPolygon(region);
+      if (!isSimplePolygon(zone) || !isSimplePolygon(room) || !polygonInsidePolygon(zone, room))
+        throw new Error("分区不完整位于所选房间内，不能保留原轮廓重新绑定。");
+      const overlap = self.functionZoneRegions.find((other) =>
+        other !== region && other.partitionContext?.parent_room_id === roomId &&
+        polygonsHavePositiveOverlap(zone, self.getAreaPolygon(other)),
+      );
+      if (overlap) throw new Error(`分区与目标房间内的分区 ${overlap.cleanId} 重叠，不能重新绑定。`);
+      const context = self.buildPartitionContext(region, roomId);
+      if (!context) throw new Error("无法重算分区与开口的关联。");
+      const history = self.annotation.history;
+      history.freeze("l2-parent-rebind");
+      try {
+        result.setMetaValue("partition_context", { ...previous, ...context, requires_geometry_review: false,
+          ...(previous?.portal_v3_source ? {
+            portal_v3_source: { ...previous.portal_v3_source, source_result_ids: context.opening_ids },
+          } : {}),
+        });
+        const inheritance = result.meta?.zone_inheritance;
+        if (inheritance) result.setMetaValue("zone_inheritance", { ...inheritance, review_status: "pending" });
+        for (const vector of self.connectionVectorRegions) {
+          const segment = vectorToInternalSegment(vector, self);
+          if (segment && polygonBoundaryOverlaps(zone, segment).length) vector.invalidateGeometryReview?.();
+        }
+      } finally {
+        history.unfreeze("l2-parent-rebind");
+      }
+    },
+
     refreshRoomV3Metadata(issues = []) {
       if (!self.roomv3validate) return [];
       const tolerance = Number.parseFloat(self.roomv3tolerance) || 0.02;

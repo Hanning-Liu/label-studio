@@ -129,6 +129,35 @@ const choices = (image) =>
       sourceFingerprint: candidate.sourceFingerprint,
     }));
 
+test("rebinds an orphan in the editable draft without redrawing, but rejects invalid parents", () => {
+  const { annotation, image } = setup();
+  const zone = (id, parent, x, reason) => [{
+    id, from_name: "zone_rectangle", to_name: "image", type: "rectangle",
+    original_width: 100, original_height: 100,
+    value: { x, y: 12, width: 3, height: 3, rotation: 0 },
+    meta: { partition_context: { parent_room_id: parent },
+      ...(reason ? { reference_review: { status: "pending", reason } } : {}) },
+  }, {
+    id, from_name: "function_zone", to_name: "image", type: "labels",
+    value: { labels: ["Sleeping"] },
+  }];
+  annotation.deserializeResults([...zone("orphan", "missing", 13, "source_missing"), ...zone("peer", "a", 17)]);
+  expect(() => image.rebindFunctionZoneParent("orphan", "a")).toThrow("复核草稿");
+  annotation.setDraftId(7);
+  annotation.setDraftSelected(true);
+  const before = annotation.serializeAnnotation({ fast: true });
+  expect(() => image.rebindFunctionZoneParent("orphan", "b")).toThrow("不完整位于");
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  image.rebindFunctionZoneParent("orphan", "a");
+  const after = annotation.serializeAnnotation({ fast: true });
+  expect(after.map(({ id, from_name, value }) => ({ id, from_name, value })))
+    .toEqual(before.map(({ id, from_name, value }) => ({ id, from_name, value })));
+  expect(after.find((r) => r.id === "orphan" && r.from_name === "zone_rectangle").meta)
+    .toMatchObject({ partition_context: { parent_room_id: "a" }, reference_review: { status: "pending" } });
+  annotation.deserializeResults(zone("overlap", "missing", 18, "source_missing"));
+  expect(() => image.rebindFunctionZoneParent("overlap", "a")).toThrow("重叠");
+});
+
 test("reference refresh preserves manual results, zoom and Focus room in the real editor store", () => {
   const { annotation, image } = setup();
   image.generateWholeRoomZones(choices(image));

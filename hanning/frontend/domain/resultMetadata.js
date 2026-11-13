@@ -26,9 +26,11 @@ export function applyResultMetadataOwnership(data, { meta, type, fromName, image
   // later confirmation is overwritten by the imported pending state.
   if (meta?.zone_inheritance && (type === "rectangle" || type === "polygon")) {
     data.meta.zone_inheritance = meta.zone_inheritance;
-    if (meta.partition_context) data.meta.partition_context = meta.partition_context;
   } else if (data.meta.zone_inheritance) {
     delete data.meta.zone_inheritance;
+  }
+  if (meta?.partition_context && image.functionZoneControlNames?.has(fromName)) {
+    data.meta.partition_context = meta.partition_context;
   }
   // L3 ownership/review metadata belongs only to the physical geometry.
   // Area-level imported metadata is an initial snapshot and must not

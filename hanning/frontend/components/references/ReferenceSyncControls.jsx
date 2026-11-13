@@ -9,6 +9,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
   const controller = item.annotation.store.referenceSyncController;
   const [state, setState] = useState(controller?.state || {});
   const [expanded, setExpanded] = useState(false);
+  const [rebind, setRebind] = useState(null);
   useEffect(() => {
     setState(controller?.state || {});
     return controller?.subscribe(setState);
@@ -30,6 +31,8 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
   const draftStatus = current?.drafts?.find((draft) => Number(draft.id) === Number(annotation.draftId));
   const pending = buildReferenceReviewRows(annotation.results, draftStatus?.pending || []);
   const eligible = pending.filter((row) => row.eligible);
+  const canRebind = item.l2ToolbarEnabled && annotation.draftSelected && !!annotation.draftId &&
+    !annotation.isReadOnly() && !!annotation.referenceVersion;
   const disabled =
     item.vectorReviewBusy ||
     state.busy ||
@@ -124,6 +127,12 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
                 <button type="button" onClick={() => locate(row)}>
                   定位
                 </button>
+                {canRebind && row.targetType === "功能分区" && row.review.reason === "source_missing" && (
+                  <button type="button" disabled={disabled || changed || current?.status !== "synced"}
+                    onClick={() => setRebind({ id: row.id, roomId: "", error: "" })}>
+                    重新绑定
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={disabled || changed || !row.eligible}
@@ -132,6 +141,34 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
                   已检查，确认复核
                 </button>
               </div>
+              {rebind?.id === row.id && (
+                <form className={styles.rebind} onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (disabled || changed || !rebind.roomId) return;
+                  try {
+                    await controller.rebindZoneParent(item, row.id, rebind.roomId);
+                    setRebind(null);
+                  } catch (error) {
+                    setRebind((current) => current?.id === row.id ? { ...current, error: error.message } : current);
+                  }
+                }}>
+                  <label>
+                    新父房间
+                    <select value={rebind.roomId} disabled={disabled}
+                      onChange={(event) => setRebind({ id: row.id, roomId: event.target.value, error: "" })}>
+                      <option value="">请选择房间</option>
+                      {item.roomReferenceRegions.map((room) => (
+                        <option key={room.cleanId} value={room.cleanId}>
+                          {room.roomGraphNode?.room_type || room.labelName || "房间"} · {room.cleanId}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit" disabled={disabled || changed || !rebind.roomId}>重新绑定并保存草稿</button>
+                  <button type="button" disabled={disabled} onClick={() => setRebind(null)}>取消</button>
+                  {rebind.error && <p role="alert">{rebind.error}</p>}
+                </form>
+              )}
             </div>
           ))}
         </div>
@@ -205,7 +242,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
           <Modal
             visible={expanded}
             title="参考同步详情与复核"
-            onCancel={() => setExpanded(false)}
+            onCancel={() => { setExpanded(false); setRebind(null); }}
             footer={null}
             width={800}
             destroyOnClose
