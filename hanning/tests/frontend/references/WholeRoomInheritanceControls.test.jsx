@@ -9,7 +9,7 @@ jest.mock("antd", () => ({
     ) : null,
 }));
 
-function setup(compact = false) {
+function setup(compact = false, zones = [], controller, focusedRoom) {
   URL.createObjectURL = jest.fn(() => "blob:recovery");
   URL.revokeObjectURL = jest.fn();
   jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
@@ -21,14 +21,16 @@ function setup(compact = false) {
     savedResultFingerprint: "[]",
     draftSaved: new Date().toISOString(),
     saveDraftImmediatelyWithResults: jest.fn().mockResolvedValue({ id: 1 }),
-    store: { task: { id: 20, data: '{"image":"plan.png"}' }, config: "<View/>" },
+    store: { task: { id: 20, data: '{"image":"plan.png"}' }, config: "<View/>", referenceSyncController: controller },
   };
   const item = {
     annotation,
     wholeRoomInheritanceEnabled: true,
-    wholeRoomZones: [],
+    wholeRoomZones: zones,
     wholeRoomLabels: ["Sleeping"],
-    wholeRoomSubdivisionReason: () => "请选择房间",
+    focusedRoom,
+    wholeRoomSubdivisionReason: (id) => id ? null : "请选择房间",
+    startWholeRoomSubdivision: jest.fn(),
     assertWholeRoomEditable: jest.fn(),
     wholeRoomCandidates: [
       { id: "room-a", roomType: "Bedroom", suggestedLabel: "Sleeping", eligible: true, sourceFingerprint: "v1" },
@@ -40,6 +42,52 @@ function setup(compact = false) {
   return { item, annotation };
 }
 afterEach(() => jest.restoreAllMocks());
+
+test("subdivision cancellation does not save, take a snapshot, or download", () => {
+  const controller = { subscribe: jest.fn(), subdivideWholeRoom: jest.fn() };
+  const { item, annotation } = setup(false, [
+    { id: "whole", parentRoomId: "room-a", source: { roomType: "Bedroom" }, review: { wholeRoom: true } },
+  ], controller, { cleanId: "room-a" });
+  fireEvent.click(screen.getByRole("button", { name: "开始细分" }));
+  expect(screen.getByRole("dialog", { name: "确认开始手工细分" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "取消" }));
+  expect(annotation.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
+  expect(controller.subdivideWholeRoom).not.toHaveBeenCalled();
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+  expect(item.startWholeRoomSubdivision).not.toHaveBeenCalled();
+});
+
+test("failed server snapshot preserves the zone without downloading", async () => {
+  const controller = { subscribe: jest.fn(), subdivideWholeRoom: jest.fn().mockRejectedValue(new Error("快照写入失败")) };
+  const { item } = setup(false, [
+    { id: "whole", parentRoomId: "room-a", source: { roomType: "Bedroom" }, review: { wholeRoom: true } },
+  ], controller, { cleanId: "room-a" });
+  fireEvent.click(screen.getByRole("button", { name: "开始细分" }));
+  const confirm = screen.getByRole("button", { name: "确认移除该自动分区并开始细分" });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
+  await waitFor(() => expect(screen.getAllByText(/快照写入失败/).length).toBeGreaterThan(0));
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+  expect(item.startWholeRoomSubdivision).not.toHaveBeenCalled();
+});
+
+test("history previews conflicts without offering to overwrite existing zones", async () => {
+  const snapshot = { id: 1, room_type: "Bedroom", label: "Sleeping", created_at: "2026-11-14T00:00:00Z" };
+  const controller = {
+    subscribe: jest.fn(),
+    loadSubdivisionHistory: jest.fn().mockResolvedValue({ snapshots: [snapshot] }),
+    previewSubdivision: jest.fn().mockResolvedValue({
+      ...snapshot, blocked_reason: "房间已有分区", conflicts: [{ zone_id: "new", label: "Study/work" }],
+    }),
+  };
+  setup(true, [], controller);
+  fireEvent.click(screen.getByRole("button", { name: "待确认分区（0）" }));
+  fireEvent.click(screen.getByRole("button", { name: "细分历史" }));
+  fireEvent.click(await screen.findByRole("button", { name: "预览恢复 Sleeping 1" }));
+  expect(await screen.findByText("Study/work（new）")).toBeVisible();
+  expect(screen.getByRole("button", { name: "恢复整室分区" })).toBeDisabled();
+});
+
 
 test("compact toolbar keeps secondary operations in More and does not mutate when opening it", () => {
   const { item, annotation } = setup(true);

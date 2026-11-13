@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal } from "antd";
 import { zoneFingerprint } from "@hanning/frontend/domain/rooms/wholeRoomInheritance";
@@ -51,17 +51,25 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
   const [dialog, setDialog] = useState(null);
   const [preview, setPreview] = useState([]);
   const [subdivision, setSubdivision] = useState(null);
+  const [snapshots, setSnapshots] = useState(null);
+  const [restorePreview, setRestorePreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const annotation = item.annotation;
+  const controller = annotation.store.referenceSyncController;
+  const [syncState, setSyncState] = useState(controller?.state);
+  useEffect(() => {
+    setSyncState(controller?.state);
+    return controller?.subscribe(setSyncState);
+  }, [controller]);
   if (!item.wholeRoomInheritanceEnabled || !annotation.editable || annotation.isReadOnly()) return null;
 
   const zones = item.wholeRoomZones.filter((zone) => zone.review);
   const pending = zones.filter((zone) => !zone.review.reviewed);
   const labels = item.wholeRoomLabels;
-  const disabled = busy || !!annotation.submissionStarted || !!item.vectorReviewBusy;
+  const disabled = busy || !!annotation.submissionStarted || !!item.vectorReviewBusy || !!syncState?.busy || !!annotation.isDraftSaving;
   const focusedZone = zones.find((zone) => zone.parentRoomId === item.focusedRoom?.cleanId);
   const subdivisionReason = item.wholeRoomSubdivisionReason(focusedZone?.id);
   const dirty = annotation.savedResultFingerprint !== annotation.draftResultFingerprint;
@@ -132,24 +140,40 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
       const id = focusedZone?.id;
       const reason = item.wholeRoomSubdivisionReason(id);
       if (reason) throw new Error(reason);
-      await saveAndBackup("before-whole-room-subdivision");
-      const zone = item.wholeRoomZones.find((candidate) => candidate.id === id);
-      if (item.wholeRoomSubdivisionReason(id)) throw new Error("分区已变化，请重新检查");
-      setSubdivision({ id, room: zone.source.roomType, fingerprint: zoneFingerprint(zone.result, zone.label) });
+      setSubdivision({ id, room: focusedZone.source.roomType, fingerprint: zoneFingerprint(focusedZone.result, focusedZone.label) });
       setDialog("subdivide");
     });
   const subdivide = () =>
     run(async () => {
-      // Re-check the server revision after the confirmation dialog, before deletion.
-      await save();
-      const zone = item.wholeRoomZones.find((candidate) => candidate.id === subdivision.id);
-      if (!zone || zoneFingerprint(zone.result, zone.label) !== subdivision.fingerprint)
-        throw new Error("分区已变化，请取消后重新检查");
-      item.startWholeRoomSubdivision(subdivision.id);
-      setDialog(null);
-      await save();
-      setNotice("已移除自动整室分区并保存草稿。Focus room 已保留，请手工绘制；可以撤销本次移除。");
+      const checkZone = () => {
+        const zone = item.wholeRoomZones.find((candidate) => candidate.id === subdivision.id);
+        if (!zone || zoneFingerprint(zone.result, zone.label) !== subdivision.fingerprint)
+          throw new Error("分区已变化，请取消后重新检查");
+        const reason = item.wholeRoomSubdivisionReason(subdivision.id);
+        if (reason) throw new Error(reason);
+      };
+      checkZone();
+      if (!controller) throw new Error("此任务未启用服务端快照，未移除分区");
+      await controller.subdivideWholeRoom(annotation, subdivision.id, () => {
+        checkZone();
+        item.startWholeRoomSubdivision(subdivision.id);
+        setDialog(null);
+      });
     });
+  const openHistory = () => run(async () => {
+    setSnapshots(null);
+    setRestorePreview(null);
+    setDialog("history");
+    setSnapshots((await controller.loadSubdivisionHistory(annotation)).snapshots);
+  });
+  const previewRestore = (id) => run(async () => {
+    setRestorePreview(null);
+    setRestorePreview(await controller.previewSubdivision(annotation, id));
+  });
+  const restore = () => run(async () => {
+    await controller.restoreSubdivision(annotation, restorePreview);
+    setDialog(null);
+  });
   const locate = (zone) => {
     item.setFocusedRoom(zone.parentRoomId);
     annotation.unselectAreas();
@@ -219,16 +243,18 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
         {status}
         {notice ? ` · ${notice}` : ""}
       </div>
+      {syncState?.subdivisionNotice && <p role="status">{syncState.subdivisionNotice}</p>}
+      {syncState?.subdivisionError && !dialog && <p className={styles.error} role="alert">{syncState.subdivisionError}</p>}
       <Modal
         visible={!!dialog}
         title={
-          dialog === "more"
-            ? "更多操作与备份"
-            : dialog === "generate"
-              ? "为空房间生成整室分区"
-              : dialog === "review"
-                ? "自动继承分区确认"
-                : "确认开始手工细分"
+          ({
+            history: "细分历史",
+            more: "更多操作与备份",
+            generate: "为空房间生成整室分区",
+            review: "自动继承分区确认",
+            subdivide: "确认开始手工细分",
+          })[dialog]
         }
         onCancel={() => !busy && setDialog(null)}
         maskClosable={false}
@@ -402,13 +428,35 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
           {dialog === "subdivide" && (
             <>
               <p>
-                已保存草稿并导出恢复 JSON。将移除 {subdivision?.room} 中的自动整室分区 {subdivision?.id}{" "}
-                及配对类别结果。
+                确认后先保存「细分前快照」，再移除 {subdivision?.room} 中的整室分区及其类别。
               </p>
               <p>房间参考、Portal 和人工 Vector 保留。移除可撤销；之后请自行绘制分区，不会自动补余或填回。</p>
-              <button type="button" disabled={busy} onClick={subdivide}>
+              <button type="button" disabled={disabled} onClick={subdivide}>
                 确认移除该自动分区并开始细分
               </button>
+            </>
+          )}
+          {dialog === "history" && (
+            <>
+              {snapshots?.length === 0 && <p>此草稿没有细分前快照。</p>}
+              {!!snapshots?.length && <ul>
+                {snapshots.map((snapshot) => (
+                  <li key={snapshot.id}>
+                    {snapshot.room_type || snapshot.room_id} · {snapshot.label} · {new Date(snapshot.created_at).toLocaleString()}{" "}
+                    <button type="button" disabled={disabled} onClick={() => previewRestore(snapshot.id)}
+                      aria-label={`预览恢复 ${snapshot.label} ${snapshot.id}`}>预览恢复</button>
+                  </li>
+                ))}
+              </ul>}
+              {restorePreview && <section aria-label="恢复预览">
+                <h3>恢复 {restorePreview.room_type || restorePreview.room_id} · {restorePreview.label}</h3>
+                <p>仅恢复此整室分区，不替换当前草稿。</p>
+                {restorePreview.blocked_reason && <p role="alert">{restorePreview.blocked_reason}</p>}
+                {!!restorePreview.conflicts.length && <ul>
+                  {restorePreview.conflicts.map(({ zone_id, label }) => <li key={zone_id}>{label || "未标注类别"}（{zone_id}）</li>)}
+                </ul>}
+                <button type="button" disabled={disabled || !!restorePreview.blocked_reason} onClick={restore}>恢复整室分区</button>
+              </section>}
             </>
           )}
           {saveError && (
@@ -418,8 +466,10 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
           )}
           {notice && <p role="status">{notice}</p>}
           <div className={styles.actions}>
-            <button type="button" disabled={busy} onClick={() => setDialog(null)}>
-              {dialog === "review" ? "关闭" : "取消"}
+            {dialog === "review" && controller && <button type="button" disabled={disabled} onClick={openHistory}>细分历史</button>}
+            {dialog === "history" && <button type="button" disabled={disabled} onClick={() => { setError(""); setDialog("review"); }}>返回复核</button>}
+            <button type="button" disabled={disabled} onClick={() => setDialog(null)}>
+              {["review", "history"].includes(dialog) ? "关闭" : "取消"}
             </button>
             {busy && <span>正在保存 / 处理，请勿关闭窗口…</span>}
           </div>

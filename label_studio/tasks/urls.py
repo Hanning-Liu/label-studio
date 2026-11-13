@@ -10,6 +10,7 @@ from .reference_sync.api import (
     ReferenceSyncReviewAPI,
     ReferenceSyncStatusAPI,
 )
+from .reference_sync.subdivision import L2SubdivisionAPI
 
 app_name = 'tasks'
 
@@ -25,6 +26,7 @@ _api_urlpatterns = [
     path('<int:pk>/reference-sync/repair-source/', ReferenceSyncRepairSourceAPI.as_view(), name='task-reference-sync-repair-source'),
     path('<int:pk>/reference-sync/review/', ReferenceSyncReviewAPI.as_view(), name='task-reference-sync-review'),
     path('<int:pk>/reference-sync/apply/', OccupancyReferenceApplyAPI.as_view(), name='task-reference-sync-apply'),
+    path('<int:pk>/reference-sync/subdivisions/', L2SubdivisionAPI.as_view(), name='task-l2-subdivisions'),
     path('<int:pk>/drafts', api.AnnotationDraftListAPI.as_view(), name='task-drafts'),
     path(
         '<int:pk>/annotations/<int:annotation_id>/drafts',

@@ -360,6 +360,86 @@ export class ReferenceSyncController {
     return this.applyManualReference("occupancy_to_furniture_instances");
   }
 
+  subdivisionPath() {
+    return `/api/tasks/${this.taskId}/reference-sync/subdivisions/`;
+  }
+
+  async loadSubdivisionHistory(annotation) {
+    if (annotation !== this.annotation) throw new Error("当前标注已切换");
+    if (!annotation.draftId) return { snapshots: [] };
+    return this.request(`${this.subdivisionPath()}?draft_id=${encodeURIComponent(annotation.draftId)}`);
+  }
+
+  async withSubdivisionDraft(annotation, action, fields, { saveDirty = false, preview, apply } = {}) {
+    if (annotation !== this.annotation || this.historical || this.busy(annotation, true))
+      throw new Error("请在可编辑草稿中完成绘制后再操作");
+    const fingerprint = annotation.draftResultFingerprint;
+    const checkWindow = () => {
+      if (this.stopped || annotation !== this.annotation || fingerprint !== annotation.draftResultFingerprint ||
+          isReferenceBusy(annotation, this.pointerDown))
+        throw new Error("当前窗口在操作期间已变化，请重新检查");
+    };
+    this.applying = true;
+    this.emit({ busy: true, subdivisionNotice: "", subdivisionError: "" });
+    try {
+      if (saveDirty && (hasReferenceEdits(annotation) || !annotation.draftId || !annotation.draftRevision))
+        await annotation.saveDraftImmediatelyWithResults();
+      checkWindow();
+      if (!annotation.draftId || !annotation.draftRevision || !annotation.referenceVersion || hasReferenceEdits(annotation))
+        throw new Error("请先保存草稿，再重新预览或细分");
+      const tokens = {
+        draft_id: Number(annotation.draftId),
+        expected_updated_at: annotation.draftRevision,
+        reference_version: annotation.referenceVersion,
+      };
+      if (preview && (preview.fingerprint !== fingerprint ||
+          Object.keys(tokens).some((key) => tokens[key] !== preview.tokens[key])))
+        throw new Error("预览后草稿已变化，请重新预览");
+      const result = await this.request(this.subdivisionPath(), { action, ...fields, ...tokens });
+      try {
+        checkWindow();
+      } catch (error) {
+        if (action === "restore")
+          throw new Error("服务端已恢复，当前窗口有新操作未覆盖；请先保留窗口修改，再重新加载");
+        throw error;
+      }
+      if (apply) await apply(result);
+      return { ...result, tokens, fingerprint };
+    } catch (error) {
+      this.emit({ subdivisionError: error.message });
+      throw error;
+    } finally {
+      this.applying = false;
+      this.emit({ busy: false });
+    }
+  }
+
+  async subdivideWholeRoom(annotation, zoneId, remove) {
+    return this.withSubdivisionDraft(annotation, "snapshot", { zone_id: zoneId }, {
+      saveDirty: true,
+      apply: async (snapshot) => {
+        if (!snapshot.id || snapshot.zone_id !== zoneId) throw new Error("服务端未确认快照，未移除分区");
+        remove();
+        await annotation.saveDraftImmediatelyWithResults();
+        this.emit({ subdivisionNotice: "整室分区已移除并保存草稿。可撤销，或从「细分历史」恢复。" });
+      },
+    });
+  }
+
+  previewSubdivision(annotation, snapshotId) {
+    return this.withSubdivisionDraft(annotation, "preview", { snapshot_id: snapshotId }, { saveDirty: true });
+  }
+
+  restoreSubdivision(annotation, preview) {
+    return this.withSubdivisionDraft(annotation, "restore", { snapshot_id: preview.id }, {
+      preview,
+      apply: (raw) => {
+        this.replace(annotation, raw, true);
+        this.emit({ subdivisionNotice: "已恢复原整室分区并保存草稿。未提交任务。" });
+      },
+    });
+  }
+
   async applyManualReference(expectedSyncType = this.state.status?.sync_type) {
     const annotation = this.annotation;
     if (this.busy(annotation, true)) throw new Error("请先完成绘制或等待保存");

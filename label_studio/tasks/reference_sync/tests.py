@@ -111,6 +111,50 @@ class ReferenceSyncTests(TransactionTestCase):
         return {**response_tokens(obj),'expected_updated_at':obj.updated_at.isoformat().replace('+00:00','Z'),
                 'result':copy.deepcopy(obj.result),'draft_id':obj.id if isinstance(obj,AnnotationDraft) else None}
 
+    def test_subdivision_snapshot_is_independent_and_restores_one_region(self):
+        path = f'/api/tasks/{self.target.id}/reference-sync/subdivisions/'
+        draft = self.draft()
+        draft.result = [r for r in draft.result if r.get('type') != 'relation']
+        whole = next(r for r in draft.result if r.get('from_name') == 'zone_rectangle' and r['id'] == 'hall-zone')
+        whole['meta']['zone_inheritance'] = {'generation_method': 'whole_room', 'source_room_id': 'hall'}
+        draft.save()
+        original = copy.deepcopy(draft.result)
+        snapshot = self.client.post(path, {**self.payload(draft), 'action': 'snapshot', 'zone_id': 'hall-zone'}, format='json')
+        self.assertEqual(snapshot.status_code, 200, snapshot.data)
+        snapshot_id = snapshot.data['id']
+        duplicate = self.client.post(path, {**self.payload(draft), 'action': 'snapshot', 'zone_id': 'hall-zone'}, format='json')
+        self.assertEqual(duplicate.data['id'], snapshot_id)
+        draft.refresh_from_db()
+        self.assertEqual(draft.result, original)
+        self.assertEqual(self.client.get(path, {'draft_id': draft.id}).data['snapshots'][0]['id'], snapshot_id)
+        audit = ReferenceSyncAudit.objects.get(pk=snapshot_id)
+        self.assertEqual(audit.before['result'], original)
+
+        # A newly drawn zone must block restore, and the stale preview cannot authorize a write.
+        baseline = [r for r in draft.result if r.get('id') != 'hall-zone']
+        draft.result = [*baseline, *[{**r, 'id': 'new-zone'} for r in original if r.get('id') == 'hall-zone']]
+        draft.save()
+        restore = {'snapshot_id': snapshot_id, 'action': 'restore'}
+        created = {**self.payload(draft), 'snapshot_id': snapshot_id}
+        preview = self.client.post(path, {**created, 'action': 'preview'}, format='json')
+        self.assertEqual(preview.data['conflicts'], [{'zone_id': 'new-zone', 'label': 'Circulation'}])
+        self.assertEqual(self.client.post(path, {**created, **restore}, format='json').status_code, 409)
+        draft.refresh_from_db()
+        self.assertIn('new-zone', [r.get('id') for r in draft.result])
+
+        draft.result = baseline
+        draft.save()
+        self.assertEqual(self.client.post(path, {**created, **restore}, format='json').status_code, 409)
+        current = self.payload(draft)
+        preview = self.client.post(path, {**current, 'snapshot_id': snapshot_id, 'action': 'preview'}, format='json')
+        self.assertIsNone(preview.data['blocked_reason'])
+        response = self.client.post(path, {**current, **restore}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        draft.refresh_from_db()
+        self.assertEqual([r for r in draft.result if r.get('id') != 'hall-zone'], baseline)
+        self.assertEqual(sum(r.get('id') == 'hall-zone' for r in draft.result), 2)
+        self.assertFalse(self.target.annotations.exists())
+
     def test_first_submit_idempotent_order_and_draft_not_triggered(self):
         self.assertEqual(Task.objects.filter(project=self.target_project).count(),1)
         self.target.refresh_from_db()
