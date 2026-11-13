@@ -1,4 +1,6 @@
 import { L1RegionCategory } from "@hanning/frontend/components/rooms/L1RegionCategory";
+import { doorFrame, doorOpeningSymbol, doorOperationError, snapDoorPixel } from "@hanning/frontend/domain/rooms/doorOperation";
+import { rotatedRectanglePoints } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
 import React from "react";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { showRoomValidationWarning } from "@hanning/frontend/components/rooms/submitValidation";
@@ -182,6 +184,126 @@ describe("L1 tool dock", () => {
     cleanup();
     render(<L1RegionCategory region={image.regs.find((r) => r.cleanId === "other-room")} />);
     expect(screen.queryByRole("button", { name: "正交化选中的 Polygon 房间" })).toBeNull();
+  });
+
+  test("door operation controls round-trip independently of the rectangle", () => {
+    const { image, annotation } = setup();
+    image.currentImageEntity.setNaturalWidth(1000);
+    image.currentImageEntity.setNaturalHeight(800);
+    image.currentImageEntity.setDownloading(false);
+    image.currentImageEntity.setDownloaded(true);
+    image.currentImageEntity.setImageLoaded(true);
+    annotation.deserializeAnnotation([{
+      id: "door",
+      from_name: "portal_rectangle",
+      to_name: "image",
+      type: "rectanglelabels",
+      original_width: 1000,
+      original_height: 800,
+      value: { x: 20, y: 35, width: 14, height: 2, rotation: 0, rectanglelabels: ["Door"] },
+      meta: { custom: "keep" },
+    }]);
+    const region = image.regs.find((r) => r.cleanId === "door");
+    annotation.selectAreas([region]);
+    const [before] = annotation.serializeAnnotation({ fast: true });
+    render(<L1RegionCategory region={region} />);
+    fireEvent.change(screen.getByLabelText("铰链段"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("门扇开启侧"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "应用开启信息" }));
+    const [swing] = annotation.serializeAnnotation({ fast: true });
+    expect(swing.value).toEqual(before.value);
+    expect(swing.id).toBe(before.id);
+    expect(swing.meta).toMatchObject({
+      custom: "keep", door_operation: { version: 1, kind: "swing", hinge_edge: 1, swing_edge: 0 },
+    });
+    act(() => image.setL1RegionCategory(region, "Sliding door"));
+    expect(annotation.serializeAnnotation({ fast: true })[0].meta.door_operation).toBeUndefined();
+    const draw = () => fireEvent.click(screen.getByRole("button", { name: "在平面图上标注通行段" }));
+    draw();
+    act(() => image.placeL1DoorSpanPoint({ x: 270, y: 288 }));
+    expect(screen.getByRole("button", { name: "应用开启信息" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "取消绘制" }));
+    expect(annotation.serializeAnnotation({ fast: true })[0].meta.door_operation).toBeUndefined();
+    draw();
+    act(() => {
+      image.placeL1DoorSpanPoint({ x: 270.3, y: 300 });
+      image.placeL1DoorSpanPoint({ x: 400, y: 270 });
+      image.placeL1DoorSpanPoint({ x: 305.3, y: 300 }, 1);
+    });
+    fireEvent.change(screen.getByLabelText("每组扇数（逗号分隔）"), { target: { value: "2, 2" } });
+    expect(screen.getByText(/35.0 原图像素/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "应用开启信息" }));
+    const [sliding] = annotation.serializeAnnotation({ fast: true });
+    expect(sliding.meta.door_operation).toMatchObject({
+      version: 1, kind: "sliding", clear_span: [0, 0.25], group_leaf_counts: [2, 2],
+      clear_span_points_px: [[340, 288], [305, 288]],
+    });
+    const other = setup();
+    other.annotation.deserializeAnnotation([sliding]);
+    expect(other.annotation.serializeAnnotation({ fast: true })[0].meta.door_operation)
+      .toEqual(sliding.meta.door_operation);
+    fireEvent.click(screen.getByRole("button", { name: "清除开启信息" }));
+    expect(annotation.serializeAnnotation({ fast: true })[0].meta.door_operation).toBeUndefined();
+  });
+
+  test("shows saved opening symbols without selection and toggles them without changing results", () => {
+    const { image, annotation } = setup();
+    image.currentImageEntity.setNaturalWidth(1000);
+    image.currentImageEntity.setNaturalHeight(800);
+    const door = (id, label, operation) => ({
+      id, from_name: "portal_rectangle", to_name: "image", type: "rectanglelabels",
+      original_width: 1000, original_height: 800,
+      value: { x: 20, y: 35, width: 14, height: 2, rotation: 0, rectanglelabels: [label] },
+      ...(operation ? { meta: { door_operation: { version: 1, ...operation } } } : {}),
+    });
+    annotation.deserializeAnnotation([
+      door("swing", "Door", { kind: "swing", hinge_edge: 1, swing_edge: 0 }),
+      door("sliding", "Sliding door", { kind: "sliding", clear_span: [0, 0.25], clear_span_points_px: [[340, 288], [305, 288]] }),
+      door("legacy", "Sliding door", { kind: "sliding", clear_span: [0.25, 0.5] }),
+      door("groups-only", "Sliding door", { kind: "sliding", group_leaf_counts: [2] }),
+      door("unmarked", "Door"),
+    ]);
+    expect(annotation.selectedRegions).toHaveLength(0);
+    const before = annotation.serializeAnnotation();
+    render(<L1Controls item={image} />);
+    expect(image.l1DoorSymbols.map(({ kind }) => kind)).toEqual(["swing", "sliding", "sliding"]);
+    expect(image.l1DoorSymbols[1].points).toEqual([{ x: 340, y: 288 }, { x: 305, y: 288 }]);
+    expect(image.l1DoorSymbols[2].points).toEqual([{ x: 305, y: 288 }, { x: 270, y: 288 }]);
+    const toggle = screen.getByRole("button", { name: "门开启信息" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(image.l1DoorSymbols).toHaveLength(0);
+    fireEvent.click(toggle);
+    act(() => image.regs.find((region) => region.cleanId === "swing").toggleHidden());
+    expect(image.l1DoorSymbols.map(({ kind }) => kind)).toEqual(["sliding", "sliding"]);
+    act(() => image.regs.find((region) => region.cleanId === "swing").toggleHidden());
+    expect(annotation.serializeAnnotation()).toEqual(before);
+  });
+
+  test.each([[1, 0, 70, -1], [3, 0, 20, -1], [1, 2, 70, 1], [3, 2, 20, 1]])(
+    "swing symbol uses hinge %d and side %d",
+    (hinge_edge, swing_edge, hingeX, side) => {
+      const frame = doorFrame(rotatedRectanglePoints({ x: 20, y: 30, width: 50, height: 2 }));
+      const symbol = doorOpeningSymbol(frame, "swing", { version: 1, kind: "swing", hinge_edge, swing_edge });
+      expect(symbol.hinge).toEqual({ x: hingeX, y: 31 });
+      expect(symbol.leaf[1].x).toBeCloseTo(hingeX);
+      expect(symbol.leaf[1].y).toBeCloseTo(31 + side * 50);
+    },
+  );
+
+  test.each([0, 32, 90])("door pixel snap stays inside a fractional rectangle rotated %d degrees", (rotation) => {
+    const frame = doorFrame(rotatedRectanglePoints({ x: 20.2, y: 30.7, width: 50.3, height: 2.6, rotation }),
+      { width: 100, height: 100 });
+    const start = snapDoorPixel(frame, { x: 95, y: 95 });
+    const end = snapDoorPixel(frame, { x: 0, y: 0 }, start.ratio + 1 / frame.spanPx);
+    expect(start).not.toBeNull();
+    expect(end).not.toBeNull();
+    const points = [start, end].map(({ pixel }) => [pixel.x, pixel.y]);
+    expect(points.flat().every(Number.isInteger)).toBe(true);
+    const operation = { version: 1, kind: "sliding", clear_span: [start.ratio, end.ratio], clear_span_points_px: points };
+    expect(doorOperationError(operation, "sliding", frame)).toBe("");
+    points[0][0] += 0.25;
+    expect(doorOperationError(operation, "sliding", frame)).toContain("像素");
   });
 
   test("recognizes current template without changing the stored configuration", () => {

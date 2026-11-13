@@ -9,6 +9,9 @@ const names = (value) =>
     .map((name) => name.trim())
     .filter(Boolean);
 export const l1LabelKey = (label) => label.alias || label.value;
+export const l1LabelTitle = (label, family) =>
+  family === "opening" && label.value === "Door" ? "Swing door（平开门）" :
+    label.showalias && label.alias ? label.alias : label.value;
 export const l1ToolShape = (tool) => !tool.dynamic && TOOL_SHAPES[tool.toolName];
 
 // Only take over configurations whose drawing controls we can represent without
@@ -81,7 +84,7 @@ export function l1Categories(config, family) {
     if (entry.family !== family) continue;
     for (const label of entry.labels) {
       const key = l1LabelKey(label);
-      if (!unique.has(key)) unique.set(key, { key, title: label.showalias && label.alias ? label.alias : label.value });
+      if (!unique.has(key)) unique.set(key, { key, title: l1LabelTitle(label, family) });
     }
   }
   return [...unique.values()];

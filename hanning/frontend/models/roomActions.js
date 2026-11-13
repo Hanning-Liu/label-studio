@@ -18,6 +18,7 @@ import { csvNames, rectangleToInternalPolygon, regionToInternalPolygon, vectorTo
 
 import { isAlive } from "mobx-state-tree";
 import { formatFunctionZoneRoomLabel } from "@hanning/frontend/domain/rooms/functionZoneValidationLabels";
+import { doorKind, doorOperationError } from "@hanning/frontend/domain/rooms/doorOperation";
 
 export const roomMetadataActions = (self) => ({
     refreshRoomV3Metadata(issues = []) {
@@ -162,8 +163,20 @@ export const roomMetadataActions = (self) => ({
           }
         }
 
+        const previousEdge = { ...result.meta?.room_graph_edge };
+        delete previousEdge.effective_clear_width_px;
+        const operation = result.meta?.door_operation;
+        if (operation != null) {
+          const frame = geometryType === "rectangle" && self.l1DoorFrame(portal);
+          const error = frame ? doorOperationError(operation, doorKind(portal.labelName), frame) : "门洞几何无效。";
+          if (error) report(`Portal ${portal.cleanId}：${error}`, [portal], "请检查门洞的开启信息。");
+          else if (operation.kind === "sliding" && operation.clear_span) {
+            const [start, end] = operation.clear_span;
+            previousEdge.effective_clear_width_px = (end - start) * frame.spanPx;
+          }
+        }
         result.setMetaValue("room_graph_edge", {
-          ...(result.meta?.room_graph_edge || {}),
+          ...previousEdge,
           schema_version: 3,
           edge_id: portal.cleanId,
           opening_type: openingType,

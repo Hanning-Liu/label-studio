@@ -25,7 +25,71 @@
   button:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
 }
 .families { display: flex; gap: 4px; }
+.doorVisibility { display: inline-flex; align-items: center; gap: 6px; }
 .category { display: flex; align-items: center; gap: 6px; select { width: 180px; max-width: 100%; } }
 .notice { flex-basis: 100%; font-size: 12px; }
 
 .embedded { position: relative; z-index: auto; border: 0; box-shadow: none; padding: 6px 0 0; }
+
+.doorFields {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px solid var(--color-neutral-border, #d5dfda);
+  border-radius: 4px;
+
+  label { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
+  select, input { width: 100px; max-width: 100%; }
+  output { font-size: 12px; }
+}
+
+.doorDiagram { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto; }
+.doorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 32px;
+    padding: 4px 9px;
+    color: inherit;
+    background: var(--color-neutral-background, #fff);
+    border: 1px solid var(--color-neutral-border, #a2aab5);
+    border-radius: 5px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) { border-color: var(--color-primary-border, #4e4bc3); }
+    &:focus-visible { outline: 2px solid var(--color-primary-border-bold, #4e4bc3); outline-offset: 2px; }
+    &:disabled { opacity: .55; cursor: not-allowed; }
+  }
+
+  button.doorDraw {
+    flex: 1 0 100%;
+    border-color: var(--color-primary-border, #4e4bc3);
+    color: var(--color-primary-content, #403da0);
+    background: var(--color-primary-emphasis-subtle, #eeedff);
+    font-weight: 600;
+    &:hover:not(:disabled), &[aria-pressed="true"] {
+      background: var(--color-primary-surface, #4e4bc3);
+      color: var(--color-primary-surface-content, #fff);
+    }
+    &[aria-pressed="true"] { opacity: 1; cursor: default; }
+  }
+
+  button.doorApply:not(:disabled) {
+    background: var(--color-primary-surface, #4e4bc3);
+    border-color: var(--color-primary-border, #4e4bc3);
+    color: var(--color-primary-surface-content, #fff);
+    &:hover { background: var(--color-primary-surface-hover, #403da0); }
+  }
+}
+
+.doorStatus { font-size: 12px; line-height: 1.5; padding: 3px 0; }

@@ -2,6 +2,10 @@
 // Preserve the owner of each context and server provenance without changing
 // upstream serialization, geometry, result fields or the final empty-meta check.
 export function applyResultMetadataOwnership(data, { meta, type, fromName, image, areaMeta }) {
+  if (image.roomV3PortalRectangleControlNames?.has(fromName) && type === "rectanglelabels") {
+    if (meta?.door_operation) data.meta.door_operation = meta.door_operation;
+    else delete data.meta.door_operation;
+  }
   if (type === "labels" && fromName === "function_zone" && image.wholeRoomInheritanceEnabled) {
     // Do not add geometry-owned metadata to existing paired category
     // results merely by opening/saving a whole-room enabled project.

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { isAlive } from "mobx-state-tree";
 import { observer } from "mobx-react";
+import { EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { l1Categories, L1_SHAPES } from "@hanning/frontend/domain/rooms/l1Tools";
 import styles from "./L1Controls.module.scss";
 
@@ -28,7 +29,8 @@ export const L1Controls = observer(({ item }) => {
       }
       if (
         isAlive(item) &&
-        ((event.key === "Escape" && item.cancelL1Drawing()) || (event.key === "Enter" && item.finishL1Vector()))
+        ((event.key === "Escape" && (item.cancelL1DoorSpan() || item.cancelL1Drawing())) ||
+          (event.key === "Enter" && item.finishL1Vector()))
       ) {
         event.preventDefault();
         event.stopPropagation();
@@ -90,6 +92,12 @@ export const L1Controls = observer(({ item }) => {
         {item.getToolsManager().findSelectedTool()?.toolName === "MoveTool" ? "当前工具：移动／选择 · " : ""}
         画法：{L1_SHAPES[item.l1Selection.shape]} · 右侧切换（V 选择）
       </span>
+      <button type="button" className={styles.doorVisibility} aria-pressed={item.l1DoorOpeningsVisible}
+        title="橙色弧线：平开门方向示意；绿色线段：推拉门通行段"
+        onClick={() => item.toggleL1DoorOpenings()}>
+        {item.l1DoorOpeningsVisible ? <EyeOutlined aria-hidden="true" /> : <EyeInvisibleOutlined aria-hidden="true" />}
+        门开启信息
+      </button>
       <span className={styles.notice} role="status">
         {blocked ||
           (passage

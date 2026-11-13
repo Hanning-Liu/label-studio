@@ -206,6 +206,10 @@ def convert(
                     "connects_to_exterior": bool(edge.get("connects_to_exterior")),
                     "result_id": result["id"],
                     "label_studio_color": _color(palette, "portal", opening_label),
+                    **({"door_operation": result["meta"]["door_operation"]}
+                       if result.get("meta", {}).get("door_operation") is not None else {}),
+                    **({"effective_clear_width_px": edge["effective_clear_width_px"]}
+                       if edge.get("effective_clear_width_px") is not None else {}),
                     "_centroid_percent": _geometry_centroid(result),
                 }
             )
@@ -324,6 +328,9 @@ def to_graphml(graph: dict[str, Any]) -> ET.ElementTree:
         "result_id": "string",
         "label_studio_color": "string",
     }
+    for name, kind in {"door_operation": "string", "effective_clear_width_px": "double"}.items():
+        if any(name in edge for edge in graph["edges"]):
+            edge_fields[name] = kind
     for name, kind in graph_fields.items():
         ET.SubElement(
             root,

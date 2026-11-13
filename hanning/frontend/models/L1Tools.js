@@ -1,6 +1,8 @@
 import { orthogonalizePolygon } from "@hanning/frontend/domain/rooms/orthogonalize";
 import { applySnapshot, getSnapshot, types } from "mobx-state-tree";
 import { l1Configuration, l1Entries, l1LabelKey, l1ToolShape } from "@hanning/frontend/domain/rooms/l1Tools";
+import { doorAxis, doorFrame, doorKind, doorOpeningSymbol, doorOperationError, pointAlong, snapDoorPixel } from "@hanning/frontend/domain/rooms/doorOperation";
+import { rotatedRectanglePoints } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
 
 const initial = () => ({
   room: { category: "", shape: "rectangle" },
@@ -14,7 +16,7 @@ const taskChoices = new WeakMap();
 
 export const L1Tools = types
   .model("L1Tools")
-  .volatile(() => ({ l1Family: "room", l1Selections: initial() }))
+  .volatile(() => ({ l1Family: "room", l1Selections: initial(), l1DoorSpanEdit: null, l1DoorOpeningsVisible: true }))
   .views((self) => ({
     get l1Config() {
       return l1Configuration(self);
@@ -24,6 +26,35 @@ export const L1Tools = types
     },
     get l1Selection() {
       return self.l1Selections[self.l1Family];
+    },
+    l1DoorFrame(region) {
+      if (region?.type !== "rectangleregion") return null;
+      return doorFrame(rotatedRectanglePoints({
+        x: self.internalToImageX(region.x), y: self.internalToImageY(region.y),
+        width: self.internalToImageX(region.width), height: self.internalToImageY(region.height), rotation: region.rotation,
+      }), { width: self.currentImageEntity.naturalWidth, height: self.currentImageEntity.naturalHeight });
+    },
+    get l1SlidingDoor() {
+      if (!self.l1ToolbarEnabled || self.annotation.selectedRegions.length !== 1) return null;
+      const region = self.annotation.selectedRegions[0];
+      if (region.parent !== self || !region.results.some((result) =>
+        self.roomV3PortalRectangleControlNames.has(result.from_name?.name) && doorKind(result.mainValue?.[0]) === "sliding"))
+        return null;
+      return region;
+    },
+    get l1DoorSymbols() {
+      if (!self.l1ToolbarEnabled || !self.l1DoorOpeningsVisible) return [];
+      return self.regs.flatMap((region) => {
+        if (region.hidden || region.type !== "rectangleregion" ||
+          (self.multiImage && self.currentImage !== region.item_index)) return [];
+        const result = region.results.find(({ from_name }) => self.roomV3PortalRectangleControlNames.has(from_name?.name));
+        const kind = doorKind(result?.mainValue?.[0]);
+        const operation = result?.meta?.door_operation;
+        if (!kind || !operation) return [];
+        const frame = self.l1DoorFrame(region);
+        const symbol = frame && doorOpeningSymbol(frame, kind, operation);
+        return symbol ? [{ id: region.id, ...symbol }] : [];
+      });
     },
     get l1SwitchBlockReason() {
       if (self.annotation?.isReadOnly() || self.annotation?.store?.annotationStore?.viewingAll) return "当前标注为只读";
@@ -77,9 +108,12 @@ export const L1Tools = types
       }
       return state.images;
     };
-    const remember = () => session().set(self.name, { family: self.l1Family, selections: self.l1Selections });
+    const remember = () => session().set(self.name, {
+      family: self.l1Family, selections: self.l1Selections, showDoorOpenings: self.l1DoorOpeningsVisible,
+    });
     const clearLabels = () => self.l1Config?.controls.forEach(({ control }) => control.unselectAll());
     const activate = (initializing = false) => {
+      self.l1DoorSpanEdit = null;
       self.annotation.unselectAreas();
       clearLabels();
       const tools = self.getToolsManager().allTools();
@@ -111,6 +145,7 @@ export const L1Tools = types
       initializeL1Tools() {
         if (!self.l1ToolbarEnabled) return;
         const remembered = session().get(self.name);
+        self.l1DoorOpeningsVisible = remembered?.showDoorOpenings ?? true;
         if (!remembered) return self.resetL1Tools();
         self.l1Family = remembered.family;
         self.l1Selections = remembered.selections;
@@ -119,8 +154,13 @@ export const L1Tools = types
         if (!choose(self.l1Family, selection.category, selection.shape, true) && !self.l1SwitchBlockReason)
           self.resetL1Tools();
       },
+      toggleL1DoorOpenings() {
+        self.l1DoorOpeningsVisible = !self.l1DoorOpeningsVisible;
+        remember();
+      },
       resetL1Tools() {
         if (!self.l1ToolbarEnabled) return;
+        self.l1DoorSpanEdit = null;
         self.l1Family = "room";
         self.l1Selections = initial();
         clearLabels();
@@ -138,6 +178,7 @@ export const L1Tools = types
       },
       selectL1MoveTool() {
         if (!self.l1ToolbarEnabled || self.l1SwitchBlockReason) return false;
+        self.l1DoorSpanEdit = null;
         const manager = self.getToolsManager();
         const move = manager.allTools().find((tool) => tool.toolName === "MoveTool");
         if (!move) return false;
@@ -228,12 +269,107 @@ export const L1Tools = types
         );
         const label = result?.from_name.children.find((label) => l1LabelKey(label) === category);
         if (!label || (result.mainValue?.[0] !== category && !label.canBeUsed())) return false;
-        result.setValue([category]);
-        region.notifyDrawingFinished();
+        const history = self.annotation.history;
+        history.freeze("l1-region-category");
+        try {
+          if (result.mainValue?.[0] !== category) {
+            self.cancelL1DoorSpan(region.id);
+            if (result.meta?.door_operation != null) result.setMetaValue("door_operation", null);
+          }
+          result.setValue([category]);
+          region.notifyDrawingFinished();
+        } finally {
+          history.unfreeze("l1-region-category");
+        }
         return true;
+      },
+      startL1DoorSpan(region, mode = "draw", span = null, savedPixels = null) {
+        if (self.l1SlidingDoor !== region || self.l1SwitchBlockReason || region.isReadOnly()) return false;
+        const frame = self.l1DoorFrame(region);
+        if (!frame) return false;
+        let points = null;
+        if (mode === "adjust") {
+          const axis = doorAxis(frame);
+          const step = 1 / frame.spanPx;
+          const oldPoints = savedPixels?.map(([x, y]) => ({ x, y }));
+          const start = snapDoorPixel(frame, oldPoints?.[0] ?? pointAlong(...axis, span[0]), 0, 1 - step);
+          const end = start && snapDoorPixel(frame, oldPoints?.[1] ?? pointAlong(...axis, span[1]), start.ratio + step);
+          if (savedPixels && !doorOperationError({
+            version: 1, kind: "sliding", clear_span: span, clear_span_points_px: savedPixels,
+          }, "sliding", frame)) {
+            points = oldPoints;
+          } else if (end) {
+            span = [start.ratio, end.ratio];
+            points = [start.pixel, end.pixel];
+          } else {
+            mode = "draw";
+            span = null;
+          }
+        }
+        self.l1DoorSpanEdit = { id: region.id, mode, start: null, span, points, notice: "" };
+        return true;
+      },
+      cancelL1DoorSpan(id) {
+        if (!self.l1DoorSpanEdit || (id != null && id !== self.l1DoorSpanEdit.id)) return false;
+        self.l1DoorSpanEdit = null;
+        return true;
+      },
+      placeL1DoorSpanPoint(point, endpoint = null) {
+        const edit = self.l1DoorSpanEdit;
+        const region = self.l1SlidingDoor;
+        if (!edit || region?.id !== edit.id || self.l1SwitchBlockReason || region.isReadOnly()) return;
+        if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+        const frame = self.l1DoorFrame(region);
+        if (!frame) return;
+        if (edit.mode === "draw") {
+          const snapped = snapDoorPixel(frame, point);
+          if (!snapped || (edit.start && Math.abs(snapped.ratio - edit.start.ratio) * frame.spanPx < 1 - 1e-6)) {
+            self.l1DoorSpanEdit = { ...edit, notice: "请选择门洞内另一个可用像素点。" };
+          } else if (!edit.start) {
+            self.l1DoorSpanEdit = { ...edit, start: snapped, notice: "" };
+          } else {
+            const ends = [edit.start, snapped].sort((a, b) => a.ratio - b.ratio);
+            self.l1DoorSpanEdit = { ...edit, mode: "adjust", span: ends.map((end) => end.ratio),
+              points: ends.map((end) => end.pixel), notice: "" };
+          }
+        } else if (edit.span && (endpoint === 0 || endpoint === 1)) {
+          const step = 1 / frame.spanPx;
+          const snapped = snapDoorPixel(frame, point,
+            endpoint === 0 ? 0 : edit.span[0] + step, endpoint === 0 ? edit.span[1] - step : 1);
+          if (!snapped) return edit.points[endpoint];
+          const span = [...edit.span];
+          const points = [...edit.points];
+          span[endpoint] = snapped.ratio;
+          points[endpoint] = snapped.pixel;
+          self.l1DoorSpanEdit = { ...edit, span, points };
+          return snapped.pixel;
+        }
+      },
+      setL1DoorOperation(region, operation) {
+        if (!self.l1ToolbarEnabled || region?.parent !== self || self.l1SwitchBlockReason || region.isReadOnly() ||
+            self.annotation.selectedRegions.length !== 1 || self.annotation.selectedRegions[0] !== region)
+          throw new Error("请选择一个可编辑的 L1 门洞。");
+        const result = region.results.find((candidate) =>
+          self.roomV3PortalRectangleControlNames.has(candidate.from_name?.name),
+        );
+        const kind = doorKind(result?.mainValue?.[0]);
+        const frame = self.l1DoorFrame(region);
+        if (!kind || !frame) throw new Error("请先确认门型与门洞几何。");
+        const error = doorOperationError(operation, kind, frame);
+        if (error) throw new Error(error);
+        const history = self.annotation.history;
+        history.freeze("l1-door-operation");
+        try {
+          result.setMetaValue("door_operation", operation);
+          region.notifyDrawingFinished();
+          self.cancelL1DoorSpan(region.id);
+        } finally {
+          history.unfreeze("l1-door-operation");
+        }
       },
       prepareL1Tool(tool) {
         if (self.l1ToolBlockReason(tool)) return false;
+        self.l1DoorSpanEdit = null;
         const shape = l1ToolShape(tool);
         self.l1Selections = { ...self.l1Selections, [self.l1Family]: { ...self.l1Selection, shape } };
         self.annotation.unselectAreas();

@@ -1,5 +1,6 @@
 import { RoomFocusSelector } from "@hanning/frontend/components/references/RoomFocusSelector";
 import { L1Controls } from "@hanning/frontend/components/rooms/L1Controls";
+import { L1DoorSpanLayer } from "@hanning/frontend/components/rooms/L1DoorSpanLayer";
 import { L2Controls } from "@hanning/frontend/components/rooms/L2Controls";
 import { l2ToolbarTools } from "@hanning/frontend/domain/rooms/l2Tools";
 import { l1ToolbarTools } from "@hanning/frontend/domain/rooms/l1Tools";
@@ -1574,6 +1575,7 @@ const StageContent = observer(({ item, store, state, crosshairRef }) => {
       )}
 
       {tool && tool.toolName?.match(/bitmask/i) && <CursorLayer item={item} tool={tool} />}
+      {item.l1ToolbarEnabled && <L1DoorSpanLayer item={item} />}
     </>
   );
 });

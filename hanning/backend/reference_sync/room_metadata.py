@@ -16,6 +16,7 @@ from .geometry import (
     json_points,
     point_in_polygon,
     polygon_boundary_overlaps,
+    rectangle_points,
     result_label,
     result_polygon,
     result_segment,
@@ -123,6 +124,88 @@ def _to_pixels(point, result):
 
 def _normalized_opening_type(value):
     return "_".join(str(value or "").strip().lower().split())
+
+
+def _door_operation_fields(result, opening_type):
+    operation = result.get("meta", {}).get("door_operation")
+    if operation is None:
+        return {}
+    kind = {"door": "swing", "sliding_door": "sliding"}.get(opening_type)
+    if (
+        result.get("from_name") != "portal_rectangle"
+        or kind is None
+        or not isinstance(operation, dict)
+        or type(operation.get("version")) is not int
+        or operation["version"] != 1
+        or operation.get("kind") != kind
+    ):
+        raise ValueError("门型与开启信息不一致，请重新确认。")
+
+    width, height = _dimensions(result)
+    value = result["value"]
+    # Rotate in source-image space, not in normalized square coordinates.
+    w, h = float(value["width"]) * width / 100, float(value["height"]) * height / 100
+    if not (math.isfinite(w) and math.isfinite(h) and min(w, h) > 0):
+        raise ValueError("请先确认门洞尺寸。")
+    swing_edges = (0, 2) if w >= h else (1, 3)
+    fields = {}
+    if kind == "swing":
+        hinge, swing = operation.get("hinge_edge"), operation.get("swing_edge")
+        if type(hinge) is not int or hinge not in range(4) or hinge in swing_edges:
+            raise ValueError("铰链段须为门洞短边。")
+        if type(swing) is not int or swing not in swing_edges:
+            raise ValueError("门扇开启侧须为门洞长边。")
+    else:
+        span, groups = operation.get("clear_span"), operation.get("group_leaf_counts")
+        if span is None and groups is None:
+            raise ValueError("请填写通行段或门组扇数。")
+        if span is not None:
+            if (
+                not isinstance(span, list)
+                or len(span) != 2
+                or not all(type(t) in (int, float) and 0 <= t <= 1 for t in span)
+                or span[0] >= span[1]
+            ):
+                raise ValueError("通行段必须位于门洞内，且起点小于终点。")
+            fields["effective_clear_width_px"] = (span[1] - span[0]) * max(w, h)
+        pixels = operation.get("clear_span_points_px")
+        if pixels is not None:
+            corners = rectangle_points({
+                "x": float(value["x"]) * width / 100,
+                "y": float(value["y"]) * height / 100,
+                "width": w, "height": h, "rotation": value.get("rotation", 0),
+            })
+            first, second = (1, 3) if w >= h else (0, 2)
+            a = _midpoint(corners[first], corners[(first + 1) % 4])
+            b = _midpoint(corners[second], corners[(second + 1) % 4])
+            length = max(w, h)
+            ux, uy = (b[0] - a[0]) / length, (b[1] - a[1]) / length
+            eps = 1e-6
+
+            def valid_pixel(point, ratio):
+                if (not isinstance(point, list) or len(point) != 2 or
+                        not all(type(coord) is int for coord in point) or
+                        not (0 <= point[0] < width and 0 <= point[1] < height)):
+                    return False
+                dx, dy = point[0] - a[0], point[1] - a[1]
+                along = dx * ux + dy * uy
+                return (
+                    -eps <= along <= length + eps
+                    and abs(along - ratio * length) <= eps
+                    and abs(dx * uy - dy * ux) <= min(1, min(w, h) / 2) + eps
+                )
+
+            if (span is None or not isinstance(pixels, list) or len(pixels) != 2 or
+                    (span[1] - span[0]) * length < 1 - eps or
+                    not all(valid_pixel(point, ratio) for point, ratio in zip(pixels, span))):
+                raise ValueError("通行段端点必须吸附到门洞内的原图像素；门洞改动后请重新标注。")
+        if groups is not None and (
+            not isinstance(groups, list)
+            or not groups
+            or not all(type(n) is int and 1 <= n <= 100 for n in groups)
+        ):
+            raise ValueError("请为每组填写 1 至 100 的整数扇数。")
+    return fields
 
 
 def _merge_meta(result, key, value):
@@ -315,6 +398,11 @@ def refresh_room_v3_metadata(results, tolerance=0.02):
                 for room_id, segments in boundary_segments.items()
             },
         }
+        edge.pop("effective_clear_width_px", None)
+        try:
+            edge.update(_door_operation_fields(result, opening_type))
+        except (ValueError, TypeError, KeyError) as exc:
+            errors.append(f"Portal {portal_id}：{exc}")
         if not _metadata_equivalent(old_edge, edge):
             _merge_meta(result, "room_graph_edge", edge)
             changed_portals.append(portal_id)

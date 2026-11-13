@@ -1,6 +1,8 @@
 import { L1Orthogonalize } from "./L1Orthogonalize";
 import { observer } from "mobx-react";
-import { l1LabelKey } from "@hanning/frontend/domain/rooms/l1Tools";
+import { l1LabelKey, l1LabelTitle } from "@hanning/frontend/domain/rooms/l1Tools";
+import { doorKind } from "@hanning/frontend/domain/rooms/doorOperation";
+import { L1DoorOperation } from "./L1DoorOperation";
 import styles from "./L1Controls.module.scss";
 
 // Editing an existing region is deliberately separate from the next-drawing dock.
@@ -11,6 +13,8 @@ export const L1RegionCategory = observer(({ region }) => {
     image.l1Config.controls.some((entry) => entry.name === result.from_name.name),
   );
   if (!result) return null;
+  const entry = image.l1Config.controls.find(({ name }) => name === result.from_name.name);
+  const kind = entry.family === "opening" && entry.shape === "rectangle" && doorKind(result.mainValue?.[0]);
   return (
     <>
       <label className={styles.category}>
@@ -23,11 +27,12 @@ export const L1RegionCategory = observer(({ region }) => {
         >
           {result.from_name.children.map((label) => (
             <option key={l1LabelKey(label)} value={l1LabelKey(label)}>
-              {label.showalias && label.alias ? label.alias : label.value}
+              {l1LabelTitle(label, entry.family)}
             </option>
           ))}
         </select>
       </label>
+      {kind && <L1DoorOperation key={`${region.id}:${kind}`} region={region} result={result} kind={kind} />}
       <L1Orthogonalize key={region.id} region={region} />
     </>
   );
