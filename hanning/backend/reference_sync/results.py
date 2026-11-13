@@ -5,7 +5,7 @@ import json
 import math
 import xml.etree.ElementTree as ET
 
-from .geometry import collinear_overlap, point_in_polygon, point_on_segment, result_polygon, result_segment
+from .geometry import boundary_covers_segment, collinear_overlap, point_in_polygon, point_on_segment, result_polygon, result_segment
 
 ROOMS = {'room_rectangle', 'room_polygon'}
 PORTALS = {'portal_rectangle', 'portal_vector'}
@@ -455,6 +455,32 @@ def pending_reviews(results, difference=None, room_results=None):
     return output
 
 
+def validate_connection_boundaries(results):
+    vectors = [r for r in results if r.get('from_name') in VECTORS]
+    if not vectors:
+        return
+    from hanning.backend.validation.occupancy.geometry import result_geometry
+
+    zones = [result_geometry(r) for r in results if r.get('from_name') in ZONES]
+    polygons = [(zone, list(zone.exterior.coords)[:-1]) for zone in zones]
+    for vector in vectors:
+        value = vector.get('value', {})
+        error = f"连通 Vector {vector.get('id')}：整条连通线必须落在两个功能分区的共享边界上。"
+        try:
+            segment = result_segment(vector)
+            curved = any(isinstance(p, dict) and p.get('isBezier') for p in value.get('vertices', []))
+        except (TypeError, ValueError, KeyError, IndexError) as exc:
+            raise ValueError(error) from exc
+        if not segment or value.get('closed') or curved:
+            raise ValueError(error)
+        matching = [zone for zone, polygon in polygons if boundary_covers_segment(polygon, segment)]
+        # A thin numerical sliver on a shared edge is not an interior overlap.
+        if len(matching) != 2 or matching[0].intersection(matching[1]).area > 1e-5 * min(
+            zone.length for zone in matching
+        ):
+            raise ValueError(error)
+
+
 def validate_submission(results):
     pending = pending_reviews(results)
     if pending:
@@ -468,3 +494,4 @@ def validate_submission(results):
                 raise ValueError(f"分区 {r.get('id')} 来源房间缺失或超出房间")
         if r.get('type') == 'relation' and (r.get('from_id') not in ids or r.get('to_id') not in ids):
             raise ValueError('手工 Relation 引用了已删除区域，请先处理')
+    validate_connection_boundaries(results)

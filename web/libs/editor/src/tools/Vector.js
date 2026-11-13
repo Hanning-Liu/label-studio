@@ -372,6 +372,9 @@ const _Tool = types
         self.stopListening();
         // For incomplete vector regions, don't trigger selectAfterCreate behavior
         if (!currentArea.incomplete) {
+          if (self.obj.functionzonev3validate && self.obj.connectionVectorControlNames.has(control.name)) {
+            self.obj.setRoomConstraintNotice(self.obj.connectionVectorBoundaryError(currentArea));
+          }
           self.obj.finalizeOccupancyRegion?.(currentArea);
           self.obj.finalizeWindowRegion?.(currentArea);
           self.obj.finalizeFurnitureInstanceRegion?.(currentArea);

@@ -1,4 +1,5 @@
 import {
+  boundaryCoversSegment,
   clampPointToPolygon,
   clampRectangleTransform,
   isSimplePolygon,
@@ -101,6 +102,17 @@ export const roomViews = (self) => ({
       return self.regs.filter((region) =>
         region.results.some((result) => self.connectionVectorControlNames.has(result.from_name?.name)),
       );
+    },
+
+    connectionVectorBoundaryError(region, zones = self.functionZoneRegions.map((zone) => self.getAreaPolygon(zone))) {
+      const segment = vectorToInternalSegment(region, self);
+      const matching = zones.filter((polygon) => boundaryCoversSegment(polygon, segment));
+      if (region.closed || region.vertices?.length !== 2 || region.vertices.some((point) => point.isBezier) ||
+          matching.length !== 2 ||
+          polygonsHavePositiveOverlap(matching[0], matching[1])) {
+        return "整条连通线必须落在两个功能分区的共享边界上。";
+      }
+      return "";
     },
 
     get roomReferenceRegions() {

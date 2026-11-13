@@ -237,6 +237,7 @@ export const roomMetadataActions = (self) => ({
 
     refreshGeometryReviewMetadata() {
       self.connectionVectorRegions.forEach((region) => {
+        if (region.isReadOnly()) return;
         const labeling = region.results.find((result) => self.connectionVectorControlNames.has(result.from_name?.name));
         if (!labeling) return;
         const reviewControl = self.geometryReviewControlFor(labeling.from_name?.name);
@@ -246,7 +247,7 @@ export const roomMetadataActions = (self) => ({
         labeling.setMetaValue("geometry_review", {
           ...(labeling.meta?.geometry_review || {}),
           schema_version: 3,
-          status: reviewed ? "reviewed" : "pending",
+          status: reviewed && !self.connectionVectorBoundaryError(region) ? "reviewed" : "pending",
         });
       });
     },
@@ -302,7 +303,14 @@ export const roomMetadataActions = (self) => ({
         }
       });
 
+      const zonePolygons = zones.map((zone) => zone.polygon);
       self.connectionVectorRegions.forEach((region) => {
+        if (region.isReadOnly()) return;
+        const boundaryError = self.connectionVectorBoundaryError(region, zonePolygons);
+        if (boundaryError) {
+          errors.push(`连通 Vector ${region.cleanId}：${boundaryError}`);
+          return;
+        }
         const labeling = region.results.find((result) => self.connectionVectorControlNames.has(result.from_name?.name));
         const reviewControl = self.geometryReviewControlFor(labeling?.from_name?.name);
         const reviewed = region.results.some(

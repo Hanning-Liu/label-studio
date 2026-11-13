@@ -23,6 +23,7 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
   if (!vectorReviewDockEnabled(item)) return null;
   const rows = vectorReviewRows(item);
   const pending = rows.filter((row) => !row.reviewed).length;
+  const confirmable = rows.filter((row) => !row.reviewed && !row.boundaryError).length;
   const busy = item.vectorReviewBusy;
   const blocked = disabled || busy || item.annotation.isDraftSaving || !!reason;
   const prepare = () => {
@@ -62,11 +63,11 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
       </button>
       <button
         type="button"
-        title={reason || "确认本任务全部待复核人工 Vector"}
-        disabled={blocked || !pending}
+        title={reason || "确认本任务中位置合规的待复核人工 Vector"}
+        disabled={blocked || !confirmable}
         onClick={prepare}
       >
-        复核全部（{pending}）
+        复核全部（{confirmable}）
       </button>
       {error && (
         <span role="alert" className={styles.error}>
@@ -111,8 +112,8 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
           ) : (
             <>
               <p>定位会将目标线带到工具条下方。检查后在常驻工具条勾选 Reviewed，或明确确认全部。</p>
-              <button type="button" disabled={blocked || !pending} title={reason} onClick={prepare}>
-                复核全部（{pending}）
+              <button type="button" disabled={blocked || !confirmable} title={reason} onClick={prepare}>
+                复核全部（{confirmable}）
               </button>
               {reason && <p role="alert">{reason}</p>}
               <div className={styles.tableScroll}>
@@ -136,7 +137,8 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
                           <small>{row.label}</small>
                         </td>
                         <td>
-                          {row.reviewed ? "已复核" : "待复核"}
+                          {row.boundaryError ? "位置不合规" : row.reviewed ? "已复核" : "待复核"}
+                          {row.boundaryError && <small>{row.boundaryError}</small>}
                           {!row.control && <small>缺少复核控件配置</small>}
                         </td>
                         <td>
@@ -196,13 +198,16 @@ export const VectorReviewPanel = observer(({ item }) => {
           <strong>当前 Vector · {row.type}</strong>
           <span>{row.label}</span>
           <code>{row.id}</code>
-          <span className={row.reviewed ? styles.reviewed : styles.pending}>{row.reviewed ? "已复核" : "待复核"}</span>
+          <span className={row.reviewed ? styles.reviewed : styles.pending}>
+            {row.boundaryError ? "位置不合规" : row.reviewed ? "已复核" : "待复核"}
+          </span>
+          {row.boundaryError && <span role="alert">{row.boundaryError}</span>}
           <label className={styles.choice} title="已检查此线的位置、类别和两侧分区；可取消勾选">
             <input
               name="Reviewed"
               type="checkbox"
               checked={!!row.reviewed}
-              disabled={blocked || !row.control}
+              disabled={blocked || !row.control || !!row.boundaryError}
               onChange={(event) => change(event.target.checked)}
             />
             Reviewed

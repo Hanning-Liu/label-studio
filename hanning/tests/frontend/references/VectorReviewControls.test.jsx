@@ -47,6 +47,12 @@ const vector = (id, from_name = "connection_vector", readonly = false) => ({
   },
   meta: { geometry_review: { status: "pending" } },
 });
+const zone = (id, y, height) => ({
+  id, from_name: "zone_polygon", to_name: "image", type: "polygon",
+  original_width: 100, original_height: 100,
+  value: { points: [[10, y], [90, y], [90, y + height], [10, y + height]] },
+  meta: { partition_context: { parent_room_id: "room-a" } },
+});
 const RESULTS = [
   {
     id: "room-a",
@@ -60,6 +66,8 @@ const RESULTS = [
     meta: { room_graph_node: { schema_version: 3, room_type: "Bedroom" } },
     value: { x: 10, y: 10, width: 80, height: 80, rotation: 0, rectanglelabels: ["Bedroom"] },
   },
+  zone("above", 10, 10),
+  zone("below", 20, 70),
   vector("traffic"),
   vector("visual", "visual_connection_vector"),
   vector("portal", "portal_vector", true),
@@ -80,6 +88,8 @@ function setup(enabled = true, results = RESULTS, configOverride) {
   store.initializeStore({ annotations: [{ result: results }] });
   const annotation = store.annotationStore.selected;
   const image = annotation.names.get("image");
+  image.currentImageEntity.setNaturalWidth(100);
+  image.currentImageEntity.setNaturalHeight(100);
   const resultsBefore = annotation.serializeAnnotation({ fast: true });
   render(
     <Provider store={store}>
@@ -98,6 +108,21 @@ function setup(enabled = true, results = RESULTS, configOverride) {
     });
   return { store, annotation, image, select, resultsBefore };
 }
+
+test.each(["connection_vector", "visual_connection_vector"])("blocks off-boundary %s for single review, bulk and submission", (control) => {
+  const offBoundary = vector("misplaced", control);
+  offBoundary.value.vertices = [{ x: 20, y: 30 }, { x: 40, y: 30 }];
+  const { image, select } = setup(true, [...RESULTS, offBoundary, {
+    id: "misplaced", from_name: control === "connection_vector" ? "connection_review" : "visual_connection_review",
+    to_name: "image", type: "choices", value: { choices: ["Reviewed"] },
+  }]);
+  select("misplaced");
+  expect(screen.getByRole("checkbox", { name: "Reviewed" })).toBeDisabled();
+  expect(screen.getByText("位置不合规")).toBeTruthy();
+  expect(() => image.setVectorReview(["misplaced"], true)).toThrow("共享边界");
+  expect(image.captureVectorReview().rows.map((row) => row.id)).toEqual(["traffic", "visual"]);
+  expect(image.validateFunctionZoneV3()).toContainEqual(expect.stringMatching(/misplaced.*共享边界/));
+});
 
 test("mounting and locating do not confirm or mutate results; readonly Portal is excluded", () => {
   const { annotation, image, resultsBefore } = setup();

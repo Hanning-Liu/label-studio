@@ -27,15 +27,18 @@ export function vectorReviewRows(image) {
       const labeling = region.results.find((result) => image.connectionVectorControlNames.has(result.from_name?.name));
       const controlName = image.geometryReviewControlFor(labeling?.from_name?.name);
       const control = image.annotation.names.get(controlName);
+      const boundaryError = image.connectionVectorBoundaryError?.(region) || "";
+      const markedReviewed = region.results.some(
+        (result) => result.from_name?.name === controlName && result.mainValue?.includes("Reviewed"),
+      );
       return {
         id: region.cleanId,
         region,
         control,
         type: labeling?.from_name?.name === "visual_connection_vector" ? "仅视觉连通" : "交通连通",
         label: labeling?.mainValue?.join(", ") || "",
-        reviewed: region.results.some(
-          (result) => result.from_name?.name === controlName && result.mainValue?.includes("Reviewed"),
-        ),
+        boundaryError,
+        reviewed: markedReviewed && !boundaryError,
       };
     });
 }

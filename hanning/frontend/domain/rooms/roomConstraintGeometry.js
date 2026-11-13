@@ -349,6 +349,24 @@ export const polygonBoundaryOverlaps = (polygon, segment, tolerance = 1e-5) => {
   return overlaps;
 };
 
+export const boundaryCoversSegment = (polygon, segment, tolerance = 1e-5) => {
+  if (!polygon || segment?.length !== 2 || !segment.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y)))
+    return false;
+  const [start, end] = segment;
+  const length = distance(start, end);
+  if (length <= tolerance) return false;
+  const axis = scale(subtract(end, start), 1 / length);
+  const intervals = polygonBoundaryOverlaps(polygon, segment, tolerance)
+    .map((overlap) => overlap.map((p) => dot(subtract(p, start), axis)).sort((a, b) => a - b))
+    .sort((a, b) => a[0] - b[0]);
+  let covered = 0;
+  for (const [from, to] of intervals) {
+    if (from > covered + tolerance) return false;
+    covered = Math.max(covered, to);
+  }
+  return covered >= length - tolerance;
+};
+
 const segmentLength = ([start, end]) => distance(start, end);
 const midpoint = ([start, end]) => scale(add(start, end), 0.5);
 

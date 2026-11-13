@@ -213,5 +213,21 @@ def polygon_boundary_overlaps(
     return overlaps
 
 
+def boundary_covers_segment(polygon: list[Point], segment: Segment, tolerance: float = 1e-5) -> bool:
+    start, end = segment
+    length = distance(start, end)
+    if not math.isfinite(length) or length <= tolerance:
+        return False
+    axis = tuple(component / length for component in _subtract(end, start))
+    intervals = sorted(sorted(_dot(_subtract(p, start), axis) for p in overlap)
+                       for overlap in polygon_boundary_overlaps(polygon, segment, tolerance))
+    covered = 0.0
+    for lower, upper in intervals:
+        if lower > covered + tolerance:
+            return False
+        covered = max(covered, upper)
+    return covered >= length - tolerance
+
+
 def json_points(segment: Segment) -> list[dict[str, float]]:
     return [{"x": point[0], "y": point[1]} for point in segment]

@@ -25,7 +25,7 @@ export const VectorReview = types
       return "";
     },
     captureVectorReview() {
-      const rows = vectorReviewRows(self).filter((row) => !row.reviewed);
+      const rows = vectorReviewRows(self).filter((row) => !row.reviewed && !row.boundaryError);
       return {
         rows: rows.map(({ id, type, label }) => ({ id, type, label })),
         fingerprint: JSON.stringify({
@@ -69,6 +69,8 @@ export const VectorReview = types
         )
       )
         throw new Error("复核对象或控件已变化，请重新检查");
+      const invalid = reviewed && rows.find((row) => row.boundaryError);
+      if (invalid) throw new Error(`${invalid.id}：${invalid.boundaryError}`);
       const snapshots = rows.map((row) => getSnapshot(row.region.results));
       const history = self.annotation.history;
       history.freeze("vector-review");
