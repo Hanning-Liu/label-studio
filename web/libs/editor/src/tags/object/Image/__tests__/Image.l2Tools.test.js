@@ -228,6 +228,44 @@ test("drawn zone serializes separate geometry and category results, and reloads 
   expect(reloaded.serializeAnnotation()).toEqual(serialized);
 });
 
+test("selected L2 polygon enters vertex editing without changing its identity or its parent", () => {
+  const { image, annotation } = setup(config(), false);
+  image.onResize(1000, 1000);
+  const results = (id, from_name, type, value) => [
+    { id, from_name, to_name: "image", type, value, meta: { partition_context: { parent_room_id: "room-a" } } },
+    { id, from_name: "function_zone", to_name: "image", type: "labels", value: { labels: ["Sleeping"] } },
+  ];
+  annotation.deserializeResults([
+    ...results("zone-a", "zone_polygon", "polygon", { points: [[10, 10], [20, 10], [20, 20], [10, 20]] }),
+    ...results("zone-b", "zone_rectangle", "rectangle", { x: 25, y: 10, width: 15, height: 20, rotation: 0 }),
+  ]);
+  const [zone, neighbor] = image.functionZoneRegions;
+  annotation.selectAreas([zone]);
+  const before = annotation.serializeAnnotation({ fast: true });
+  render(<L2RegionCategory region={zone} />);
+  fireEvent.click(screen.getByRole("button", { name: "调整轮廓" }));
+  expect(zone.contourVertexEditing).toBe(true);
+  expect(image.focusedRoomId).toBe("room-a");
+  expect(annotation.serializeAnnotation({ fast: true })).toEqual(before);
+  act(() => zone.moveVertex(zone.points[1], { x: 32, y: 13 }));
+  expect(zone.points[1].x).toBe(20);
+  expect(image.roomConstraintNotice).toContain("重叠");
+  act(() => zone.moveVertex(zone.points[1], { x: 23, y: 13 }));
+  expect(zone.points[1].x).toBe(23);
+  expect(zone.cleanId).toBe("zone-a");
+  expect(zone.partitionContext.parent_room_id).toBe("room-a");
+  fireEvent.click(screen.getByRole("button", { name: "结束调整" }));
+  expect(zone.contourVertexEditing).toBe(false);
+  act(() => annotation.selectAreas([neighbor]));
+  act(() => image.toggleL2ContourEditing(neighbor));
+  expect(image.isL2ContourEditing(neighbor)).toBe(true);
+  expect(image.l2ContourCandidateError(neighbor, image.getAreaPolygon(zone))).toContain("重叠");
+  expect(image.l2ContourCandidateError(neighbor, [{ x: -1, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }])).toContain("父房间");
+  act(() => annotation.selectAreas([zone, neighbor]));
+  expect(image.isL2ContourEditing(neighbor)).toBe(false);
+  expect(image.l2ContourBlockReason(zone)).toContain("只选中一个");
+});
+
 test("V selects Move without changing type and preserves choices across submit but resets on task change", () => {
   const { image, store } = setup();
   render(<L2Controls item={image} />);

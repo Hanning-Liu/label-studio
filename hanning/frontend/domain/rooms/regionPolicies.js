@@ -2,6 +2,7 @@ import { withAlpha, clampPolygonTransform } from "./roomConstraintGeometry";
 import { occupancyZoneReferenceStyles } from "../occupancy/referenceDisplay";
 import { furnitureReferenceStyles } from "../furnitureInstances/referenceDisplay";
 import { lockRectangleToActiveAnchor } from "../occupancy/transform";
+import { rectangleToInternalPolygon } from "./imageGeometry";
 
 export const shouldRenderRoomReference = (region) =>
   Boolean(region?.isRoomReference && region?.parent?.hasRoomConstraints);
@@ -22,11 +23,14 @@ export function referenceShapeStyles(item, regionStyles) {
 export function rectangleCandidate(self, previous, rawTarget, activeAnchor) {
   const constrained = self.parent?.occupancyConstrains?.(self);
   const target = constrained ? lockRectangleToActiveAnchor(previous, rawTarget, activeAnchor, self.parent) : rawTarget;
-  return constrained
+  const accepted = constrained
     ? self.parent.constrainOccupancyRectangle(self, previous, target)
     : self.control?.constrainto
       ? self.parent?.constrainRectangle?.(self, previous, target) || previous
       : target;
+  if (self.parent?.isL2ContourEditing?.(self) &&
+      !self.parent.acceptL2ContourCandidate(self, rectangleToInternalPolygon(self, self.parent, accepted))) return previous;
+  return accepted;
 }
 
 export function polygonCandidate(self, previous, target, { snap = true } = {}) {
@@ -36,7 +40,7 @@ export function polygonCandidate(self, previous, target, { snap = true } = {}) {
     const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
     if (room) target = clampPolygonTransform(previous, target, room);
   }
-  return target;
+  return self.parent?.acceptL2ContourCandidate?.(self, target) === false ? previous : target;
 }
 
 export function vectorReferenceStyles(item, regionStyles) {

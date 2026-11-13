@@ -368,7 +368,7 @@ const SelectionLayer = observer(({ item, selectionArea }) => {
     item.selectedRegions.some((shape) => ["occupancy_rectangle", "occupancy_polygon"].includes(shape.control?.name));
   const protectedMultiRegionSelection = occupancyMultiPartSelection || furnitureInstanceMultiRegionSelection(item);
   const selectedShapeUsesTransformer =
-    item.selectedShape?.useTransformer && !item.selectedShape?.occupancyVertexEditing;
+    item.selectedShape?.useTransformer && !item.selectedShape?.contourVertexEditing;
 
   supportsTransform =
     supportsTransform &&

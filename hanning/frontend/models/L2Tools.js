@@ -2,6 +2,7 @@ import { types } from "mobx-state-tree";
 import { l1Entries, l1LabelKey, l1ToolShape } from "@hanning/frontend/domain/rooms/l1Tools";
 
 import { l2Configuration } from "@hanning/frontend/domain/rooms/l2Tools";
+import { isSimplePolygon, polygonInsidePolygon, polygonsHavePositiveOverlap } from "@hanning/frontend/domain/rooms/roomConstraintGeometry";
 
 const initial = () => ({
   zone: { category: "", shape: "rectangle" },
@@ -15,7 +16,7 @@ const taskChoices = new WeakMap();
 
 export const L2Tools = types
   .model("L2Tools")
-  .volatile(() => ({ l2Family: "zone", l2Selections: initial() }))
+  .volatile(() => ({ l2Family: "zone", l2Selections: initial(), l2ContourRegion: null }))
   .views((self) => ({
     get l2Config() {
       return l2Configuration(self);
@@ -25,6 +26,32 @@ export const L2Tools = types
     },
     get l2Selection() {
       return self.l2Selections[self.l2Family];
+    },
+    l2ContourBlockReason(region) {
+      if (!self.l2ToolbarEnabled || !self.functionZoneRegions.includes(region) ||
+          !["rectangleregion", "polygonregion"].includes(region.type)) return "请选择功能分区";
+      if (self.l2SwitchBlockReason) return self.l2SwitchBlockReason;
+      if (region.isReadOnly() || region.hidden) return "当前分区不可编辑";
+      if (region.incomplete || region.isDrawing || (region.type === "polygonregion" && !region.closed))
+        return "请先完成绘制";
+      if (self.selectedRegions.length !== 1 || self.selectedRegions[0] !== region) return "请只选中一个分区";
+      if (!self.getRoomPolygon(region.partitionContext?.parent_room_id) || !region.partitionContext?.parent_room_id)
+        return "请先重新绑定父级房间";
+      return "";
+    },
+    isL2ContourEditing(region) {
+      return self.l2ContourRegion === region && self.useTransformer && !self.l2ContourBlockReason(region);
+    },
+    l2ContourCandidateError(region, polygon) {
+      if (!self.isL2ContourEditing(region)) return "";
+      const parentId = region.partitionContext.parent_room_id;
+      if (!isSimplePolygon(polygon) || !polygonInsidePolygon(polygon, self.getRoomPolygon(parentId)))
+        return "轮廓必须闭合、无自交且位于父房间内。";
+      if (self.functionZoneRegions.some((other) => other !== region &&
+          other.partitionContext?.parent_room_id === parentId &&
+          polygonsHavePositiveOverlap(polygon, self.getAreaPolygon(other))))
+        return "不能与同一房间的其他分区重叠。";
+      return "";
     },
     get l2SwitchBlockReason() {
       if (self.annotation?.isReadOnly() || self.annotation?.store?.annotationStore?.viewingAll) return "当前标注为只读";
@@ -71,6 +98,7 @@ export const L2Tools = types
     const remember = () => session().set(self.name, { family: self.l2Family, selections: self.l2Selections });
     const clearLabels = () => self.l2Config?.controls.forEach(({ labelControl }) => labelControl.unselectAll());
     const activate = (initializing = false) => {
+      self.l2ContourRegion = null;
       self.annotation.unselectAreas();
       clearLabels();
       const tools = self.getToolsManager().allTools();
@@ -114,6 +142,7 @@ export const L2Tools = types
       },
       resetL2Tools() {
         if (!self.l2ToolbarEnabled) return;
+        self.l2ContourRegion = null;
         self.l2Family = "zone";
         self.l2Selections = initial();
         clearLabels();
@@ -137,6 +166,23 @@ export const L2Tools = types
         // Select explicitly: repeated V must not toggle back to drawing.
         if (!move.selected) manager.selectTool(move, true);
         return true;
+      },
+      toggleL2ContourEditing(region) {
+        if (self.isL2ContourEditing(region)) {
+          self.l2ContourRegion = null;
+          self.setRoomConstraintNotice(null);
+          return true;
+        }
+        if (self.l2ContourBlockReason(region) || !self.selectL2MoveTool()) return false;
+        self.setFocusedRoom(region.partitionContext.parent_room_id);
+        self.l2ContourRegion = region;
+        return true;
+      },
+      acceptL2ContourCandidate(region, polygon) {
+        if (!self.isL2ContourEditing(region)) return true;
+        const error = self.l2ContourCandidateError(region, polygon);
+        self.setRoomConstraintNotice(error);
+        return !error;
       },
       selectL2Category(category) {
         return choose(self.l2Family, category, self.l2Selection.shape);

@@ -1,5 +1,6 @@
 import { PolygonOrthogonalize } from "./PolygonOrthogonalize";
 import { observer } from "mobx-react";
+import { Button } from "@humansignal/ui";
 import { l1LabelKey } from "@hanning/frontend/domain/rooms/l1Tools";
 import styles from "./L1Controls.module.scss";
 
@@ -11,6 +12,9 @@ export const L2RegionCategory = observer(({ region }) => {
     image.l2Config.controls.some((entry) => entry.labelControl.name === result.from_name.name),
   );
   if (!result) return null;
+  const isZone = image.functionZoneRegions.includes(region);
+  const editing = isZone && image.isL2ContourEditing(region);
+  const contourBlocked = isZone && image.l2ContourBlockReason(region);
   return (
     <>
       <label className={styles.category}>
@@ -28,6 +32,17 @@ export const L2RegionCategory = observer(({ region }) => {
           ))}
         </select>
       </label>
+      {isZone && (
+        <Button
+          type="button"
+          size="small"
+          disabled={!!contourBlocked}
+          tooltip={contourBlocked || (region.type === "polygonregion" ? "拖动顶点，点击边添加顶点" : "拖动矩形的缩放手柄")}
+          onClick={() => image.toggleL2ContourEditing(region)}
+        >
+          {editing ? "结束调整" : "调整轮廓"}
+        </Button>
+      )}
       <PolygonOrthogonalize key={region.id} region={region} />
     </>
   );

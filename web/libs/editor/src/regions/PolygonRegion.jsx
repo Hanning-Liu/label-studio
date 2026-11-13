@@ -51,6 +51,9 @@ const Model = types
     supportsScale: true,
   }))
   .views((self) => ({
+    get contourVertexEditing() {
+      return self.occupancyVertexEditing || self.parent?.isL2ContourEditing?.(self);
+    },
     get occupancyVertexEditing() {
       const activePartId = self.parent?.occupancyEnabled
         ? self.parent.occupancyActivePartId
@@ -172,6 +175,8 @@ const Model = types
           self.parent?.setOccupancyEditNotice?.("多边形至少需要 3 个顶点，不能继续删除");
           return false;
         }
+        const remaining = self.points.filter((p) => p !== point);
+        if (self.parent?.acceptL2ContourCandidate?.(self, remaining) === false) return false;
         if (
           self.closed &&
           (self.parent?.occupancyEnabled || self.parent?.furnitureInstancesEnabled) &&
@@ -188,7 +193,7 @@ const Model = types
       },
 
       deleteRegion() {
-        if (self.occupancyVertexEditing && self.selectedPoint) {
+        if (self.contourVertexEditing && self.selectedPoint) {
           self.deletePoint(self.selectedPoint);
           return;
         }
@@ -276,7 +281,8 @@ const Model = types
         }
         const candidate = self.points.map((current) => (current === point ? accepted : { x: current.x, y: current.y }));
         const room = self.parent.getRoomPolygon(self.partitionContext?.parent_room_id);
-        if (room && (!isSimplePolygon(candidate) || !polygonInsidePolygon(candidate, room))) {
+        if (self.parent.acceptL2ContourCandidate?.(self, candidate) === false ||
+            (room && (!isSimplePolygon(candidate) || !polygonInsidePolygon(candidate, room)))) {
           if (previousPosition) {
             previous.x = previousPosition.x;
             previous.y = previousPosition.y;
@@ -322,6 +328,9 @@ const Model = types
           index: self.points.length,
         };
 
+        const candidate = self.points.slice();
+        candidate.splice(insertIdx, 0, p);
+        if (self.parent?.acceptL2ContourCandidate?.(self, candidate) === false) return;
         if (self.closed && (self.parent?.occupancyEnabled || self.parent?.furnitureInstancesEnabled)) {
           const points = self.points.map((point) => [point.x, point.y]);
           points.splice(insertIdx, 0, [p.x, p.y]);
@@ -650,7 +659,7 @@ const Edges = memo(
     const { points, closed } = item;
     const name = "borders";
 
-    if (item.closed && ((item.parent.useTransformer && !item.occupancyVertexEditing) || !item.selected)) {
+    if (item.closed && ((item.parent.useTransformer && !item.contourVertexEditing) || !item.selected)) {
       return null;
     }
     return (
@@ -703,7 +712,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   function renderCircles(points) {
     const name = "anchors";
 
-    if (item.closed && ((item.parent.useTransformer && !item.occupancyVertexEditing) || !item.selected)) {
+    if (item.closed && ((item.parent.useTransformer && !item.contourVertexEditing) || !item.selected)) {
       return null;
     }
     return (
