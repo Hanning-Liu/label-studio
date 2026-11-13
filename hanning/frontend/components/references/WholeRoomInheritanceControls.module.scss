@@ -1,5 +1,18 @@
 .controls { width: 100%; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.reviewGroups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.reviewGroups button[aria-pressed="true"] {
+  border-color: var(--color-primary-border, #4e4bc3);
+  color: var(--color-primary-content, #403da0);
+  background: var(--color-primary-emphasis-subtle, #eeedff);
+  font-weight: 600;
+}
+.controls .subdivideButton { margin: 4px 0; }
 .controls button, .dialog button {
   padding: 4px 8px;
   border: 1px solid #b7c4d0;

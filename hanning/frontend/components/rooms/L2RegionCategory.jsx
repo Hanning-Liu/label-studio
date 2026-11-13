@@ -1,6 +1,7 @@
 import { PolygonOrthogonalize } from "./PolygonOrthogonalize";
 import { observer } from "mobx-react";
 import { Button } from "@humansignal/ui";
+import { WholeRoomInheritanceControls } from "../references/WholeRoomInheritanceControls";
 import { l1LabelKey } from "@hanning/frontend/domain/rooms/l1Tools";
 import styles from "./L1Controls.module.scss";
 
@@ -44,6 +45,8 @@ export const L2RegionCategory = observer(({ region }) => {
         </Button>
       )}
       <PolygonOrthogonalize key={region.id} region={region} />
+      {isZone &&
+        <WholeRoomInheritanceControls key={`subdivide-${region.id}`} item={image} subdivisionRegion={region} />}
     </>
   );
 });

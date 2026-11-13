@@ -81,22 +81,50 @@ test("history previews conflicts without offering to overwrite existing zones", 
     }),
   };
   setup(true, [], controller);
-  fireEvent.click(screen.getByRole("button", { name: "待确认分区（0）" }));
+  fireEvent.click(screen.getByRole("button", { name: "L2 复核（0）" }));
   fireEvent.click(screen.getByRole("button", { name: "细分历史" }));
   fireEvent.click(await screen.findByRole("button", { name: "预览恢复 Sleeping 1" }));
   expect(await screen.findByText("Study/work（new）")).toBeVisible();
   expect(screen.getByRole("button", { name: "恢复整室分区" })).toBeDisabled();
 });
 
-
-test("compact toolbar keeps secondary operations in More and does not mutate when opening it", () => {
+test("compact toolbar groups L2 reviews and keeps backup next to save", () => {
   const { item, annotation } = setup(true);
   expect(screen.queryByRole("button", { name: "为空房间生成整室分区" })).toBeNull();
   expect(screen.getByRole("button", { name: "保存草稿" })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+  expect(screen.queryByRole("button", { name: "更多操作" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "L2 复核（0）" }));
+  expect(screen.getByRole("dialog", { name: "L2 复核" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "分区类别（0）" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "上游变更（0）" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "连通线（0）" })).toBeVisible();
   expect(screen.getByRole("button", { name: "为空房间生成整室分区" })).toBeVisible();
   expect(screen.getByRole("button", { name: "导出当前窗口备份" })).toBeVisible();
   expect(item.generateWholeRoomZones).not.toHaveBeenCalled();
+  expect(annotation.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
+});
+
+test("defaults to pending and lists all open-plan children separately without changing review state", () => {
+  const openPlan = { parentRoomId: "open-plan", source: { roomType: "Open-plan space" } };
+  const { item, annotation } = setup(true, [
+    { ...openPlan, id: "living", label: "Living/social", review: null },
+    { ...openPlan, id: "dining", label: "Dining", review: null },
+    { ...openPlan, id: "hall", label: "Circulation", review: { reviewed: true, wholeRoom: false } },
+    { ...openPlan, id: "entry", label: "Entry/transition", review: { reviewed: true, wholeRoom: false } },
+  ]);
+  fireEvent.click(screen.getByRole("button", { name: "L2 复核（0）" }));
+  expect(screen.getByText("没有待复核的分区。")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "全部分区（4）" }));
+  expect(screen.getAllByText("Open-plan space")).toHaveLength(4);
+  expect(screen.getByText("分区 ID：living")).toBeVisible();
+  expect(screen.getByText("分区 ID：dining")).toBeVisible();
+  expect(screen.getAllByText("手工绘制 · 不适用继承复核")).toHaveLength(2);
+  expect(screen.getAllByRole("button", { name: "确认", exact: true })).toHaveLength(2);
+  expect(screen.getByRole("button", { name: "确认本组分区类别（0）" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  fireEvent.click(screen.getByRole("button", { name: "L2 复核（0）" }));
+  expect(screen.getByText("没有待复核的分区。")).toBeVisible();
+  expect(item.confirmWholeRoomZones).not.toHaveBeenCalled();
   expect(annotation.saveDraftImmediatelyWithResults).not.toHaveBeenCalled();
 });
 

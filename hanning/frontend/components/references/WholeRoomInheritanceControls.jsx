@@ -1,41 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import { zoneFingerprint } from "@hanning/frontend/domain/rooms/wholeRoomInheritance";
 import styles from "@hanning/frontend/components/references/WholeRoomInheritanceControls.module.scss";
 import { VectorReviewButton, VectorReviewPanel } from "@hanning/frontend/components/references/VectorReviewControls";
+import { ReferenceSyncControls } from "./ReferenceSyncControls";
+import { buildReferenceReviewRows } from "./referenceReview";
+import { vectorReviewRows } from "@hanning/frontend/domain/rooms/vectorReviewDock";
+import { exportWholeRoomRecovery } from "./exportWholeRoomRecovery";
 
-// A normal Label Studio task JSON with additional recovery context, including the
-// entire current result array (references, manual results, and relations).
-export function exportWholeRoomRecovery(annotation, reason) {
-  const task = annotation.store.task;
-  const data = typeof task.data === "string" ? JSON.parse(task.data) : task.data;
-  const recovery = [
-    {
-      data,
-      annotations: [{ result: annotation.serializeAnnotation({ fast: true }) }],
-      meta: {
-        whole_room_recovery: {
-          schema_version: 1,
-          reason,
-          task_id: task.id,
-          draft_id: annotation.draftId,
-          draft_updated_at: annotation.draftRevision,
-          exported_at: new Date().toISOString(),
-          label_config: annotation.store.config,
-        },
-      },
-    },
-  ];
-  const url = URL.createObjectURL(new Blob([JSON.stringify(recovery, null, 2)], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `task-${task.id}-${reason}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 const FunctionSelect = ({ labels, value, onChange, disabled, name }) => (
   <select aria-label={name} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
@@ -47,8 +21,10 @@ const FunctionSelect = ({ labels, value, onChange, disabled, name }) => (
   </select>
 );
 
-export const WholeRoomInheritanceControls = observer(({ item, compact = false, focusControl = null }) => {
+export const WholeRoomInheritanceControls = observer(({ item, compact = false, focusControl = null, subdivisionRegion = null }) => {
   const [dialog, setDialog] = useState(null);
+  const [section, setSection] = useState("reference");
+  const [showAllZones, setShowAllZones] = useState(false);
   const [preview, setPreview] = useState([]);
   const [subdivision, setSubdivision] = useState(null);
   const [snapshots, setSnapshots] = useState(null);
@@ -66,12 +42,32 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
   }, [controller]);
   if (!item.wholeRoomInheritanceEnabled || !annotation.editable || annotation.isReadOnly()) return null;
 
-  const zones = item.wholeRoomZones.filter((zone) => zone.review);
+  const allZones = item.wholeRoomZones;
+  const zones = allZones.filter((zone) => zone.review);
   const pending = zones.filter((zone) => !zone.review.reviewed);
+  const visibleZones = [...(showAllZones ? allZones : pending)].sort(
+    (first, second) =>
+      (first.source?.roomType || "").localeCompare(second.source?.roomType || "") ||
+      (first.parentRoomId || "").localeCompare(second.parentRoomId || ""),
+  );
   const labels = item.wholeRoomLabels;
   const disabled = busy || !!annotation.submissionStarted || !!item.vectorReviewBusy || !!syncState?.busy || !!annotation.isDraftSaving;
-  const focusedZone = zones.find((zone) => zone.parentRoomId === item.focusedRoom?.cleanId);
+  const focusedZone = subdivisionRegion
+    ? zones.find((zone) => zone.region === subdivisionRegion)
+    : zones.find((zone) => zone.parentRoomId === item.focusedRoom?.cleanId);
   const subdivisionReason = item.wholeRoomSubdivisionReason(focusedZone?.id);
+  const draft = syncState?.status?.drafts?.find((entry) => Number(entry.id) === Number(annotation.draftId));
+  const reviewGroups = [
+    { id: "reference", label: "上游变更", count: buildReferenceReviewRows(annotation.results, draft?.pending).length },
+    { id: "zones", label: "分区类别", count: pending.length },
+    { id: "vectors", label: "连通线", count: vectorReviewRows(item).filter((row) => !row.reviewed).length },
+  ];
+  const reviewCount = reviewGroups.reduce((total, group) => total + group.count, 0);
+  const close = () => {
+    setShowAllZones(false);
+    setRestorePreview(null);
+    setDialog(null);
+  };
   const dirty = annotation.savedResultFingerprint !== annotation.draftResultFingerprint;
   const saveError = error || annotation.draftSaveError;
   const savedTime = annotation.draftSaved ? new Date(annotation.draftSaved).toLocaleTimeString() : "";
@@ -125,7 +121,7 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
       const ids = item.generateWholeRoomZones(preview.filter((room) => room.selected && room.eligible));
       // A failed second save leaves the new results locally editable and undoable.
       // Close the stale preview so retrying cannot repeat the mutation.
-      setDialog(null);
+      setDialog(compact ? "review" : null);
       await save();
       setNotice(`已生成 ${ids.length} 个整室分区并保存草稿；全部待确认。未提交任务。`);
     });
@@ -172,18 +168,22 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
   });
   const restore = () => run(async () => {
     await controller.restoreSubdivision(annotation, restorePreview);
-    setDialog(null);
+    close();
   });
   const locate = (zone) => {
     item.setFocusedRoom(zone.parentRoomId);
     annotation.unselectAreas();
     annotation.selectAreas([zone.region]);
-    setDialog(null);
+    close();
   };
+  if (subdivisionRegion && subdivisionReason && !dialog && !notice && !saveError) return null;
 
   return (
     <div className={styles.controls} data-testid="whole-room-controls">
-      <div className={styles.actions}>
+      {subdivisionRegion ? (
+        <button type="button" className={styles.subdivideButton} disabled={disabled || !!subdivisionReason}
+          onClick={prepareSubdivision}>开始细分</button>
+      ) : <div className={styles.actions}>
         {focusControl}
         {!compact && (
           <button type="button" disabled={disabled} onClick={openPreview}>
@@ -195,12 +195,13 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
           disabled={disabled}
           onClick={() => {
             setError("");
+            setSection(reviewGroups.find((group) => group.count > 0)?.id || "zones");
             setDialog("review");
           }}
         >
-          待确认分区（{pending.length}）
+          {compact ? `L2 复核（${reviewCount}）` : `待确认分区（${pending.length}）`}
         </button>
-        <VectorReviewButton item={item} disabled={disabled} />
+        {!compact && <VectorReviewButton item={item} disabled={disabled} />}
         {!compact && (
           <button
             type="button"
@@ -233,66 +234,54 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
           </button>
         )}
         {compact && (
-          <button type="button" disabled={disabled} onClick={() => setDialog("more")}>
-            更多操作
+          <button type="button" disabled={disabled} title="导出当前窗口备份" aria-label="导出当前窗口备份"
+            onClick={() => exportWholeRoomRecovery(annotation, "manual-recovery")}>
+            <DownloadOutlined aria-hidden="true" />
           </button>
         )}
-      </div>
-      <VectorReviewPanel item={item} />
-      <div className={saveError ? styles.error : styles.status} role={saveError ? "alert" : "status"}>
+      </div>}
+      {!subdivisionRegion && <VectorReviewPanel item={item} hideEmpty={compact} />}
+      {(!subdivisionRegion || saveError || notice) && <div className={saveError ? styles.error : styles.status} role={saveError ? "alert" : "status"}>
         {status}
         {notice ? ` · ${notice}` : ""}
-      </div>
-      {syncState?.subdivisionNotice && <p role="status">{syncState.subdivisionNotice}</p>}
-      {syncState?.subdivisionError && !dialog && <p className={styles.error} role="alert">{syncState.subdivisionError}</p>}
+      </div>}
+      {!subdivisionRegion && syncState?.subdivisionNotice && <p role="status">{syncState.subdivisionNotice}</p>}
+      {!subdivisionRegion && syncState?.subdivisionError && <p className={styles.error} role="alert">{syncState.subdivisionError}</p>}
       <Modal
         visible={!!dialog}
         title={
-          ({
-            history: "细分历史",
-            more: "更多操作与备份",
-            generate: "为空房间生成整室分区",
-            review: "自动继承分区确认",
-            subdivide: "确认开始手工细分",
-          })[dialog]
+          dialog === "history"
+            ? "细分历史"
+            : compact && ["review", "generate"].includes(dialog)
+            ? "L2 复核"
+            : dialog === "generate"
+              ? "为空房间生成整室分区"
+              : dialog === "review"
+                ? "自动继承分区确认"
+                : "确认开始手工细分"
         }
-        onCancel={() => !busy && setDialog(null)}
+        onCancel={() => !disabled && close()}
         maskClosable={false}
-        keyboard={!busy}
-        closable={!busy}
+        keyboard={!disabled}
+        closable={!disabled}
         footer={null}
         width={960}
         destroyOnClose
       >
         <div className={styles.dialog}>
-          {dialog === "more" && (
-            <>
-              <div className={styles.actions}>
-                <button type="button" disabled={disabled} onClick={openPreview}>
-                  为空房间生成整室分区
-                </button>
-                <button
-                  type="button"
-                  disabled={disabled || !!subdivisionReason}
-                  title={subdivisionReason || "备份并移除当前房间的自动整室分区"}
-                  onClick={prepareSubdivision}
-                >
-                  开始细分
-                </button>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => exportWholeRoomRecovery(annotation, "manual-recovery")}
-                >
-                  导出当前窗口备份
-                </button>
-              </div>
-              <p>
-                先选择 Focus room，再选择功能分区类别绘制。房间与 Portal 是只读参考。Reviewed
-                表示已检查连通线的位置、类别与两侧分区；复核后请保存草稿。
-              </p>
-            </>
+          {compact && dialog === "review" && (
+            <div className={styles.reviewGroups} role="group" aria-label="复核分组">
+              {reviewGroups.map((group) => (
+                <button type="button" key={group.id} aria-pressed={section === group.id} disabled={disabled}
+                  onClick={() => setSection(group.id)}>{group.label}（{group.count}）</button>
+              ))}
+            </div>
           )}
+          {compact && dialog === "review" && section === "reference" &&
+            (syncState?.status?.enabled ? <ReferenceSyncControls item={item} embedded onLocate={close} /> :
+              <p>当前没有可复核的上游参考变更。</p>)}
+          {compact && dialog === "review" && section === "vectors" &&
+            <VectorReviewButton item={item} embedded disabled={busy} onLocate={close} />}
           {dialog === "generate" && (
             <>
               <p>仅处理本任务完全没有功能分区的房间。生成前先保存草稿并下载完整恢复 JSON；生成后仍需单独确认类别。</p>
@@ -348,7 +337,7 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
               <div className={styles.actions}>
                 <button
                   type="button"
-                  disabled={busy || !preview.some((room) => room.selected && room.eligible)}
+                  disabled={disabled || !preview.some((room) => room.selected && room.eligible)}
                   onClick={generate}
                 >
                   保存备份并生成（{preview.filter((room) => room.selected && room.eligible).length}）
@@ -356,42 +345,52 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
               </div>
             </>
           )}
-          {dialog === "review" && (
+          {dialog === "review" && (!compact || section === "zones") && (
             <>
               <p>
-                确认的是功能分区类别，不会确认连通 Vector，也不会提交任务。修改类别或轮廓、来源房间变化后需重新确认。
+                此处只确认整室继承分区的类别，不会确认连通线或提交任务。
               </p>
-              <div className={styles.actions}>
-                <button
-                  type="button"
-                  disabled={busy || !pending.length}
-                  onClick={() => confirm(pending.map((zone) => zone.id))}
-                >
-                  确认全部待确认分区（{pending.length}）
+              <div className={styles.reviewGroups} role="group" aria-label="分区列表范围">
+                <button type="button" aria-pressed={!showAllZones} onClick={() => setShowAllZones(false)}>
+                  待复核（{pending.length}）
+                </button>
+                <button type="button" aria-pressed={showAllZones} onClick={() => setShowAllZones(true)}>
+                  全部分区（{allZones.length}）
                 </button>
               </div>
-              <div className={styles.tableScroll}>
+              <div className={styles.actions}>
+                {compact && item.wholeRoomCandidates.some((room) => room.eligible) &&
+                  <button type="button" disabled={disabled} onClick={openPreview}>为空房间生成整室分区</button>}
+                <button
+                  type="button"
+                  disabled={disabled || !pending.some((zone) => zone.source)}
+                  onClick={() => confirm(pending.filter((zone) => zone.source).map((zone) => zone.id))}
+                >
+                  确认本组分区类别（{pending.filter((zone) => zone.source).length}）
+                </button>
+              </div>
+              {visibleZones.length > 0 && <div className={styles.tableScroll}>
                 <table>
                   <thead>
                     <tr>
-                      <th>房间</th>
-                      <th>功能类别</th>
+                      <th>所属房间（L1）</th>
+                      <th>功能分区（L2）</th>
                       <th>轮廓 / 确认状态</th>
                       <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {zones.map((zone) => (
+                    {visibleZones.map((zone) => (
                       <tr key={zone.id}>
                         <td>
                           {zone.source?.roomType || "来源房间缺失"}
-                          <small>{zone.parentRoomId}</small>
+                          {zone.parentRoomId && <small>房间 ID：{zone.parentRoomId}</small>}
                         </td>
                         <td>
-                          <FunctionSelect
+                          {zone.review ? <FunctionSelect
                             labels={labels}
                             value={zone.label}
-                            disabled={busy}
+                            disabled={disabled || !zone.source}
                             name={`功能类别 ${zone.id}`}
                             onChange={(label) =>
                               run(async () => {
@@ -399,30 +398,33 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
                                 await save();
                               })
                             }
-                          />
+                          /> : zone.label || "未标注类别"}
+                          <small>分区 ID：{zone.id}</small>
                         </td>
                         <td>
-                          {zone.review.wholeRoom ? "整室" : "已调整"} · {zone.review.reviewed ? "已确认" : "待确认"}
-                          {zone.review.sourceChanged && <small className={styles.error}>来源已变更，请复核</small>}
+                          {zone.review
+                            ? `${zone.review.wholeRoom ? "整室" : "已调整"} · ${zone.review.reviewed ? "已确认" : "待确认"}`
+                            : "手工绘制 · 不适用继承复核"}
+                          {zone.review?.sourceChanged && <small className={styles.error}>来源已变更，请复核</small>}
                         </td>
                         <td>
-                          <button type="button" disabled={busy} onClick={() => locate(zone)}>
+                          <button type="button" disabled={disabled} onClick={() => locate(zone)}>
                             定位
                           </button>{" "}
-                          <button
+                          {zone.review && <button
                             type="button"
-                            disabled={busy || zone.review.reviewed || !zone.source}
+                            disabled={disabled || zone.review.reviewed || !zone.source}
                             onClick={() => confirm([zone.id])}
                           >
                             确认
-                          </button>
+                          </button>}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-              {!zones.length && <p>当前没有自动继承分区；既有人工分区无需本次确认。</p>}
+              </div>}
+              {!visibleZones.length && <p>{showAllZones ? "当前没有功能分区。" : "没有待复核的分区。"}</p>}
             </>
           )}
           {dialog === "subdivide" && (
@@ -468,8 +470,8 @@ export const WholeRoomInheritanceControls = observer(({ item, compact = false, f
           <div className={styles.actions}>
             {dialog === "review" && controller && <button type="button" disabled={disabled} onClick={openHistory}>细分历史</button>}
             {dialog === "history" && <button type="button" disabled={disabled} onClick={() => { setError(""); setDialog("review"); }}>返回复核</button>}
-            <button type="button" disabled={disabled} onClick={() => setDialog(null)}>
-              {["review", "history"].includes(dialog) ? "关闭" : "取消"}
+            <button type="button" disabled={disabled} onClick={() => compact && dialog === "generate" ? setDialog("review") : close()}>
+              {["review", "history"].includes(dialog) ? "关闭" : compact && dialog === "generate" ? "返回分区类别" : "取消"}
             </button>
             {busy && <span>正在保存 / 处理，请勿关闭窗口…</span>}
           </div>

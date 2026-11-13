@@ -1134,7 +1134,7 @@ export default observer(
                 data-testid="function-zone-review-dock"
                 aria-label="功能分区复核工具条"
               >
-                <ReferenceSyncControls item={item} compact />
+                <ReferenceSyncControls item={item} compact statusOnly />
                 <RoomFocusSelector item={item} compact />
                 <L2Controls item={item} onDockResize={this.onL2DockResize} />
               </section>

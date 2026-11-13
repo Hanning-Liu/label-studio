@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReferenceSyncControls } from "@hanning/frontend/components/references/ReferenceSyncControls";
 
 jest.mock("antd", () => ({ Modal: ({ visible, children }) => visible ? <div role="dialog">{children}</div> : null }));
-jest.mock("@hanning/frontend/components/references/WholeRoomInheritanceControls", () => ({ exportWholeRoomRecovery: jest.fn() }));
 
 function setup(patch = {}, editable = true) {
   const controller = {

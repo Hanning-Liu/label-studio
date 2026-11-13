@@ -13,7 +13,7 @@ function useReviewStatus(item) {
   return item.vectorReviewBlockReason?.() || "";
 }
 
-export const VectorReviewButton = observer(({ item, disabled = false }) => {
+export const VectorReviewButton = observer(({ item, disabled = false, embedded = false, onLocate }) => {
   const [dialog, setDialog] = useState(null);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
@@ -36,6 +36,7 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
     setDialog(null);
     setError("");
     setNotice("");
+    onLocate?.();
     focusReviewVector(item, row.id).catch((failure) => setError(failure.message));
   };
   const confirm = async () => {
@@ -56,41 +57,8 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
       running.current = false;
     }
   };
-  return (
-    <>
-      <button type="button" disabled={disabled || busy} onClick={() => setDialog("list")}>
-        连通 Vector 待复核（{pending}）
-      </button>
-      <button
-        type="button"
-        title={reason || "确认本任务中位置合规的待复核人工 Vector"}
-        disabled={blocked || !confirmable}
-        onClick={prepare}
-      >
-        复核全部（{confirmable}）
-      </button>
-      {error && (
-        <span role="alert" className={styles.error}>
-          {error}
-        </span>
-      )}
-      {notice && (
-        <span role="status" className={styles.notice}>
-          {notice}
-        </span>
-      )}
-      <Modal
-        visible={!!dialog}
-        title={dialog === "confirm" ? "确认全部待复核 Vector" : "连通 Vector 复核"}
-        onCancel={() => !busy && setDialog(null)}
-        footer={null}
-        width={800}
-        destroyOnClose
-        maskClosable={false}
-        closable={!busy}
-        keyboard={!busy}
-      >
-        <div className={styles.dialog}>
+  const body = (
+    <div className={styles.dialog}>
           {dialog === "confirm" ? (
             <>
               <p>
@@ -103,7 +71,7 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
               </p>
               {reason && <p role="alert">{reason}</p>}
               <button type="button" disabled={blocked || !preview?.rows.length} onClick={confirm}>
-                已检查，确认全部
+                {embedded ? "已检查，确认本组连通线" : "已检查，确认全部"}
               </button>{" "}
               <button type="button" disabled={busy} onClick={() => setDialog(null)}>
                 取消
@@ -111,9 +79,9 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
             </>
           ) : (
             <>
-              <p>定位会将目标线带到工具条下方。检查后在常驻工具条勾选 Reviewed，或明确确认全部。</p>
+              <p>定位后可在画布上检查目标线，再勾选 Reviewed；也可在此确认本组待复核连通线。</p>
               <button type="button" disabled={blocked || !confirmable} title={reason} onClick={prepare}>
-                复核全部（{confirmable}）
+                {embedded ? "确认本组连通线" : "复核全部"}（{confirmable}）
               </button>
               {reason && <p role="alert">{reason}</p>}
               <div className={styles.tableScroll}>
@@ -157,9 +125,9 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
                 </table>
               </div>
               {!rows.length && <p>当前没有可编辑人工连通 Vector；只读 Portal 不在此列表。</p>}
-              <button type="button" disabled={busy} onClick={() => setDialog(null)}>
+              {!embedded && <button type="button" disabled={busy} onClick={() => setDialog(null)}>
                 关闭
-              </button>
+              </button>}
             </>
           )}
           {busy && <p role="status">正在保存和复核，请勿关闭窗口…</p>}
@@ -168,13 +136,30 @@ export const VectorReviewButton = observer(({ item, disabled = false }) => {
               {error}
             </p>
           )}
-        </div>
+          {embedded && notice && <p role="status">{notice}</p>}
+    </div>
+  );
+  if (embedded) return body;
+  return (
+    <>
+      <button type="button" disabled={disabled || busy} onClick={() => setDialog("list")}>
+        连通 Vector 待复核（{pending}）
+      </button>
+      <button type="button" title={reason || "确认本任务中位置合规的待复核人工 Vector"} disabled={blocked || !confirmable} onClick={prepare}>
+        复核全部（{confirmable}）
+      </button>
+      {error && <span role="alert" className={styles.error}>{error}</span>}
+      {notice && <span role="status" className={styles.notice}>{notice}</span>}
+      <Modal visible={!!dialog} title={dialog === "confirm" ? "确认全部待复核 Vector" : "连通 Vector 复核"}
+        onCancel={() => !busy && setDialog(null)} footer={null} width={800} destroyOnClose maskClosable={false}
+        closable={!busy} keyboard={!busy}>
+        {body}
       </Modal>
     </>
   );
 });
 
-export const VectorReviewPanel = observer(({ item }) => {
+export const VectorReviewPanel = observer(({ item, hideEmpty = false }) => {
   const [error, setError] = useState("");
   const reason = useReviewStatus(item);
   if (!vectorReviewDockEnabled(item)) return null;
@@ -182,6 +167,7 @@ export const VectorReviewPanel = observer(({ item }) => {
   const selected = annotation.selectedRegions;
   const row =
     selected.length === 1 ? vectorReviewRows(item).find((candidate) => candidate.region === selected[0]) : null;
+  if (!row && hideEmpty) return null;
   const blocked = !!reason || item.vectorReviewBusy || annotation.isDraftSaving;
   const change = (reviewed) => {
     try {

@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { Modal } from "antd";
-import { exportWholeRoomRecovery } from "@hanning/frontend/components/references/WholeRoomInheritanceControls";
+import { exportWholeRoomRecovery } from "./exportWholeRoomRecovery";
 import { buildReferenceReviewRows, referenceReviewSummary } from "@hanning/frontend/components/references/referenceReview";
 import styles from "@hanning/frontend/components/references/ReferenceSyncControls.module.scss";
 
-export const ReferenceSyncControls = observer(({ item, compact = false }) => {
+export const ReferenceSyncControls = observer(({ item, compact = false, statusOnly = false, embedded = false, onLocate }) => {
   const controller = item.annotation.store.referenceSyncController;
   const [state, setState] = useState(controller?.state || {});
   const [expanded, setExpanded] = useState(false);
   const [rebind, setRebind] = useState(null);
+  const [bulkIds, setBulkIds] = useState(null);
   useEffect(() => {
     setState(controller?.state || {});
     return controller?.subscribe(setState);
@@ -61,8 +62,13 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
     if (parent && item.roomReferenceRegions.some((room) => room.cleanId === parent)) item.setFocusedRoom(parent);
     annotation.unselectAreas();
     if (result.area) annotation.selectAreas([result.area]);
+    onLocate?.();
   };
   const reviewAll = () => {
+    if (embedded) {
+      setBulkIds(eligible.map((row) => row.id));
+      return;
+    }
     const summary = referenceReviewSummary(eligible);
     const excluded = pending.length - eligible.length;
     Modal.confirm({
@@ -99,15 +105,25 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
           {state.notice} {state.focusNotice}
         </p>
       )}
-      {expanded && !source && !historical && (
+      {(expanded || embedded) && !source && !historical && (
         <div className={styles.review}>
           <p>逐项检查后确认。此操作仅记录参考变更复核，不替代整室分区类别确认或标注提交。</p>
           <div className={styles.reviewHeader}>
             <strong>待复核对象 {pending.length} 个</strong>
             <button type="button" disabled={disabled || changed || !eligible.length} onClick={reviewAll}>
-              全部确认参考复核（{eligible.length}）
+              {embedded ? "确认本组上游变更" : "全部确认参考复核"}（{eligible.length}）
             </button>
           </div>
+          {embedded && bulkIds && (
+            <div className={styles.actions}>
+              <p>确认已检查本组 {bulkIds.length} 项上游变更。不含父房间缺失或越界的对象。</p>
+              <button type="button" disabled={disabled || changed || !bulkIds.every((id) => eligible.some((row) => row.id === id))}
+                onClick={() => run(async () => { await controller.review(bulkIds); setBulkIds(null); })}>
+                已检查，确认本组上游变更
+              </button>
+              <button type="button" disabled={disabled} onClick={() => setBulkIds(null)}>取消批量确认</button>
+            </div>
+          )}
           {!pending.length && <p>当前草稿没有待处理的参考变更。</p>}
           {pending.map((row) => (
             <div key={row.id} className={styles.reviewRow}>
@@ -175,6 +191,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
       )}
     </>
   );
+  if (embedded) return <div className={styles.controls}>{details}</div>;
   return (
     <section
       className={`${styles.controls} ${compact ? styles.compact : ""}`}
@@ -213,7 +230,7 @@ export const ReferenceSyncControls = observer(({ item, compact = false }) => {
             进入复核草稿
           </button>
         )}
-        {!source && !historical && (
+        {!source && !historical && !statusOnly && (
           <button type="button" onClick={() => setExpanded(!expanded)}>
             参考变更待复核（{pending.length}）
           </button>
