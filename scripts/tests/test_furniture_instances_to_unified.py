@@ -268,6 +268,31 @@ def aggregate(base, results):
 
 
 class FurnitureInstancesToUnifiedTests(unittest.TestCase):
+    def test_document_fingerprint_matches_viewer_cross_language_fixture(self):
+        # Same vector in Viewer src/documentFingerprint.test.ts. Covers UTF-8
+        # ordering vs JS UTF-16 ordering, numeric formatting and nested fields.
+        document = {
+            "schema": "floorplan-unified/4", "created_at": "ignored", "fingerprint": "ignored",
+            "数字": [1, 1.0, -0.0, 1e-7, 1e21, True, False, None],
+            "文字": {"\ue000": "换鞋凳", "😀": "é"},
+            "nested": {"created_at": "retained", "fingerprint": "retained"},
+        }
+        before = copy.deepcopy(document)
+        expected = "a3b495606dc956d0fbbc4d76cd810aacceb3d0d18032b20ae98454a20759bff3"
+        self.assertEqual(document_fingerprint(document), expected)
+        self.assertEqual(document, before)
+        document["created_at"] = "another export time"
+        document["fingerprint"] = "another digest"
+        document["数字"][:3] = [1.0, 1, 0]
+        self.assertEqual(document_fingerprint(dict(reversed(list(document.items())))), expected)
+        document["nested"]["created_at"] = "changed source timestamp"
+        self.assertNotEqual(document_fingerprint(document), expected)
+
+    def test_document_fingerprint_rejects_non_json_and_non_finite_values(self):
+        for value in [float("nan"), float("inf"), float("-inf"), 10**400, {1: "key"}, {1, 2}]:
+            with self.subTest(value=repr(value)), self.assertRaises(FurnitureAggregationError):
+                document_fingerprint({"invalid": value})
+
     def test_custom_type_roundtrip_keeps_portable_catalog_metadata(self):
         from hanning.backend.catalog.custom import custom_entry
         entry=custom_entry('换鞋凳','storage_display')

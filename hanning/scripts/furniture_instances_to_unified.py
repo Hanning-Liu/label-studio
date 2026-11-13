@@ -22,6 +22,7 @@ import json
 import math
 import os
 import re
+import struct
 import sys
 import tempfile
 from pathlib import Path
@@ -101,10 +102,39 @@ def _sha256(value: Any) -> str:
 
 
 def document_fingerprint(document: dict[str, Any]) -> str:
-    """Fingerprint the complete aggregate except for its fingerprint field."""
-    payload = copy.deepcopy(document)
-    payload.pop("fingerprint", None)
-    return _sha256(payload)
+    """Match the Viewer floorplan-unified document digest (Python and TS).
+
+    Numbers use big-endian IEEE754 bytes, strings use UTF-8 byte lengths,
+    and object keys use UTF-8 order. Only the top-level creation timestamp
+    and digest are excluded. Source, parent and review digests keep their
+    existing algorithms; this encoding applies only to the aggregate.
+    """
+    def canonical(value: Any) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, float)):
+            try:
+                number = float(value)
+            except (ValueError, OverflowError) as exc:
+                raise FurnitureAggregationError("document contains a non-finite number") from exc
+            if not math.isfinite(number):
+                raise FurnitureAggregationError("document contains a non-finite number")
+            return "d" + struct.pack(">d", 0.0 if number == 0 else number).hex()
+        if isinstance(value, str):
+            return "s" + str(len(value.encode("utf-8"))) + ":" + value
+        if isinstance(value, (list, tuple)):
+            return "[" + "".join(canonical(item) for item in value) + "]"
+        if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+            return "{" + "".join(
+                canonical(key) + canonical(value[key])
+                for key in sorted(value, key=lambda key: key.encode("utf-8"))
+            ) + "}"
+        raise FurnitureAggregationError("document contains a non-JSON value or non-string key")
+
+    payload = {key: value for key, value in document.items() if key not in {"fingerprint", "created_at"}}
+    return hashlib.sha256(canonical(payload).encode("utf-8")).hexdigest()
 
 
 def _require_positive_id(value: Any, name: str) -> int:
